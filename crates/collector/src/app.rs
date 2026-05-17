@@ -24,6 +24,7 @@ pub fn build(config: Config, pool: PgPool) -> Router {
         .merge(routes::health::router())
         .merge(routes::events::router())
         .merge(routes::reports::router())
+        .merge(routes::tasks::router())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)

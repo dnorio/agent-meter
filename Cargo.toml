@@ -28,7 +28,7 @@ opentelemetry-otlp = { version = "0.25", features = ["http-proto", "trace"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 thiserror = "2"
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 sha2 = "0.10"
 hex = "0.4"
 tokio-util = "0.7"
