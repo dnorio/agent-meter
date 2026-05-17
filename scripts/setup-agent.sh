@@ -22,9 +22,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$APP_DIR/../.." && pwd)"
 
+# ---- WSL detection ----
+IS_WSL=false
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  IS_WSL=true
+fi
+
 # ---- defaults ----
 AGENT=""
-COLLECTOR_URL="http://agent-meter:3000"
+if [[ "$IS_WSL" == true ]]; then
+  COLLECTOR_URL="http://localhost:8081"
+else
+  COLLECTOR_URL="http://agent-meter:3000"
+fi
 INSTALL_PREFIX="${HOME}/.local/bin"
 MCP_WRAPPER=false
 
@@ -61,6 +71,9 @@ fi
 echo "==> agent-meter setup for: $AGENT (ide=$IDE, agent=$AGENT_LABEL)"
 echo "    collector: $COLLECTOR_URL"
 echo "    prefix:    $INSTALL_PREFIX"
+if [[ "$IS_WSL" == true ]]; then
+  echo "    platform:  WSL detected — using localhost collector URL"
+fi
 
 # ---- 1. build CLI binary ----
 echo ""
@@ -106,11 +119,55 @@ ENVEOF
 
 echo "    wrote: $CONFIG_DIR/env.sh"
 
+# WSL: add tunnel helper + task hooks to env.sh
+if [[ "$IS_WSL" == true ]]; then
+  cat >> "$CONFIG_DIR/env.sh" <<WSL_EOF
+
+# WSL tunnel helper
+agent-meter-tunnel() {
+  local KUBECONFIG="\${KUBECONFIG:-\${HOME}/REDACTED-worktree/oci-k8s-cluster/kubeconfig_tunnel.yaml}"
+  if [ ! -f "\$KUBECONFIG" ]; then
+    echo "KUBECONFIG não encontrado — rode: source ~/REDACTED-worktree/oci-k8s-cluster/scripts/setup-dev-deploy.sh"
+    return 1
+  fi
+  KUBECONFIG="\$KUBECONFIG" kubectl port-forward svc/agent-meter 8081:3000
+}
+
+# VSCode task hooks (auto start/end)
+if [ -n "\${TERM_PROGRAM:-}" ] && [ "\$TERM_PROGRAM" = "vscode" ]; then
+  if [ -z "\${AGENT_METER_TASK_ID:-}" ]; then
+    AGENT_METER_TASK_ID="vscode-\$(hostname)-\$(date +%s)"
+    export AGENT_METER_TASK_ID
+    agent-meter task start "\$AGENT_METER_TASK_ID" --repo my-app 2>/dev/null || true
+  fi
+  agent-meter-task-end() {
+    if [ -n "\${AGENT_METER_TASK_ID:-}" ]; then
+      agent-meter task end "\$AGENT_METER_TASK_ID" 2>/dev/null || true
+    fi
+  }
+  trap agent-meter-task-end EXIT
+fi
+WSL_EOF
+  echo "    WSL: added tunnel helper + VSCode hooks to env.sh"
+fi
+
 # ---- 3. source hint in bashrc ----
 echo ""
 echo "==> [3/4] adding to ~/.bashrc..."
 
+# WSL: ensure ~/.local/bin is in PATH
+if [[ "$IS_WSL" == true ]]; then
+  if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_PREFIX" 2>/dev/null; then
+    echo "    WSL: adding $INSTALL_PREFIX to PATH in ~/.bashrc"
+  fi
+fi
+
 BASHRC_SNIPPET="# agent-meter (${AGENT})
+# ensure install prefix is in PATH
+case \":\$PATH:\" in
+  *:\"\${HOME}/.local/bin\":*) ;;
+  *) export PATH=\"\${HOME}/.local/bin:\$PATH\" ;;
+esac
 if [ -f \"\${HOME}/.config/agent-meter/env.sh\" ]; then
   source \"\${HOME}/.config/agent-meter/env.sh\"
 fi"
@@ -182,6 +239,19 @@ echo ""
 echo "  Next steps:"
 echo "    source ${HOME}/.bashrc  (or open new shell)"
 echo "    agent-meter event tool-call --tool-name test --ok"
+if [[ "$IS_WSL" == true ]]; then
+  echo ""
+  echo "  ── WSL ───────────────────────────────────────────"
+  echo "  1. Abra um terminal e rode: agent-meter-tunnel"
+  echo "     (deixe rodando — faz port-forward para o collector)"
+  echo ""
+  echo "  2. No VSCode, abra o terminal integrado (Ctrl+\`)"
+  echo "     — as env vars são carregadas automaticamente"
+  echo "     — task lifecycle é gerenciado automaticamente"
+  echo ""
+  echo "  3. Verifique: curl -s http://localhost:8081/health"
+  echo "  ──────────────────────────────────────────────────"
+fi
 echo ""
 echo "  Env:"
 echo "    AGENT_METER_COLLECTOR_URL=${COLLECTOR_URL}"
