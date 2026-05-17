@@ -68,9 +68,38 @@ async fn top_mcp_servers(
     Ok(Json(json!(results)))
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct CallsOverTimeParams {
+    from: Option<String>,
+    to: Option<String>,
+    repo: Option<String>,
+    ide: Option<String>,
+    skill: Option<String>,
+    bucket: Option<String>,
+}
+
+async fn calls_over_time(
+    State(state): State<AppState>,
+    Query(params): Query<CallsOverTimeParams>,
+) -> Result<Json<Value>, AppError> {
+    let q = ReportParams {
+        from: params.from,
+        to: params.to,
+        repo: params.repo,
+        ide: params.ide,
+        skill: params.skill,
+        limit: None,
+    }
+    .into_query();
+    let bucket = params.bucket.unwrap_or_else(|| "hour".into());
+    let results = report_service::calls_over_time(&state.pool, &q, &bucket).await?;
+    Ok(Json(json!(results)))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/reports/top-tools", get(top_tools))
         .route("/reports/top-tasks", get(top_tasks))
         .route("/reports/top-mcp-servers", get(top_mcp_servers))
+        .route("/reports/calls-over-time", get(calls_over_time))
 }

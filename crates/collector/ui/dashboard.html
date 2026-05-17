@@ -37,7 +37,7 @@ body {
 }
 
 .app {
-  max-width: 1280px;
+  max-width: 1360px;
   margin: 0 auto;
   padding: 24px;
 }
@@ -46,8 +46,8 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 32px;
-  padding-bottom: 20px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -74,7 +74,6 @@ header .subtitle {
   border-radius: 20px;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.2s ease;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
 }
@@ -98,15 +97,15 @@ header .subtitle {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 32px;
+  gap: 12px;
+  margin-bottom: 24px;
 }
 
 .kpi-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 16px 20px;
   transition: all 0.2s ease;
 }
 
@@ -117,36 +116,101 @@ header .subtitle {
 }
 
 .kpi-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .kpi-value {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
 
+.time-filter {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.time-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.time-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.time-btn.active { background: var(--accent); color: #fff; }
+
+.sparkline-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.sparkline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.sparkline-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sparkline-header .stats {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 16px;
+}
+
+.sparkline-svg {
+  width: 100%;
+  height: 80px;
+}
+
 .section {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .section-header h2 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .tabs {
@@ -174,17 +238,33 @@ header .subtitle {
 .tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
 .tab-btn.active { background: var(--accent); color: #fff; }
 
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.btn-sm:hover { background: var(--bg-hover); color: var(--text-primary); }
+
 .table-wrap {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
+  min-width: 600px;
 }
 
 thead {
@@ -192,7 +272,7 @@ thead {
 }
 
 th {
-  padding: 10px 16px;
+  padding: 10px 14px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -203,19 +283,14 @@ th {
 }
 
 td {
-  padding: 10px 16px;
+  padding: 9px 14px;
   font-size: 13px;
   color: var(--text-secondary);
   border-top: 1px solid var(--border);
 }
 
-tbody tr {
-  transition: background 0.15s ease;
-}
-
-tbody tr:hover {
-  background: var(--bg-hover);
-}
+tbody tr { transition: background 0.15s ease; }
+tbody tr:hover { background: var(--bg-hover); }
 
 .text-green { color: var(--green); }
 .text-red { color: var(--red); }
@@ -223,46 +298,46 @@ tbody tr:hover {
 .font-mono { font-variant-numeric: tabular-nums; }
 
 .empty-state {
-  padding: 48px 24px;
+  padding: 40px 24px;
   text-align: center;
   color: var(--text-muted);
 }
 
 .empty-state p { font-size: 14px; }
-.empty-state .hint { font-size: 12px; margin-top: 8px; color: var(--text-muted); opacity: 0.6; }
+.empty-state .hint { font-size: 12px; margin-top: 6px; color: var(--text-muted); opacity: 0.6; }
 
 .event-form {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 20px;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .form-group label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .form-group input, .form-group select {
   width: 100%;
-  padding: 8px 12px;
+  padding: 7px 10px;
   font-size: 13px;
   font-family: inherit;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 5px;
   color: var(--text-primary);
   transition: border-color 0.15s ease;
 }
@@ -274,12 +349,13 @@ tbody tr:hover {
 
 .form-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .btn {
-  padding: 8px 20px;
+  padding: 7px 18px;
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
@@ -289,15 +365,8 @@ tbody tr:hover {
   transition: all 0.15s ease;
 }
 
-.btn-primary {
-  background: var(--accent);
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
 
 .btn-secondary {
   background: var(--bg-elevated);
@@ -305,17 +374,14 @@ tbody tr:hover {
   border: 1px solid var(--border);
 }
 
-.btn-secondary:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
+.btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .form-result {
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 6px;
   font-size: 13px;
   font-family: monospace;
-  margin-top: 16px;
+  margin-top: 12px;
   display: none;
 }
 
@@ -336,11 +402,13 @@ tbody tr:hover {
 .error-rate { font-variant-numeric: tabular-nums; }
 
 @media (max-width: 768px) {
-  .app { padding: 16px; }
-  header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .app { padding: 12px; }
+  header { flex-direction: column; align-items: flex-start; gap: 8px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .form-grid { grid-template-columns: 1fr; }
-  th, td { padding: 8px 10px; font-size: 12px; }
+  .section-header { flex-direction: column; align-items: flex-start; }
+  .time-filter { flex-wrap: wrap; }
+  th, td { padding: 6px 8px; font-size: 12px; }
 }
 </style>
 </head>
@@ -349,11 +417,13 @@ tbody tr:hover {
   <header>
     <div>
       <h1>agent-meter</h1>
-      <div class="subtitle">Observability & FinOps collector for agentic workflows</div>
+      <div class="subtitle">Agentic AI observability &amp; FinOps collector</div>
     </div>
-    <div class="health-badge" id="healthBadge">
-      <span class="health-dot loading" id="healthDot"></span>
-      <span id="healthText">checking...</span>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="health-badge" id="healthBadge">
+        <span class="health-dot loading" id="healthDot"></span>
+        <span id="healthText">checking...</span>
+      </div>
     </div>
   </header>
 
@@ -367,22 +437,53 @@ tbody tr:hover {
       <div class="kpi-value" id="totalTokens">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">MCP Servers</div>
-      <div class="kpi-value" id="totalMcpServers">—</div>
+      <div class="kpi-label">Avg Tokens / Call</div>
+      <div class="kpi-value" id="avgTokens">—</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Error Rate</div>
       <div class="kpi-value" id="errorRate">—</div>
     </div>
+    <div class="kpi-card">
+      <div class="kpi-label">MCP Servers</div>
+      <div class="kpi-value" id="totalMcpServers">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Period</div>
+      <div class="kpi-value" id="periodRange" style="font-size:13px;font-weight:400;color:var(--text-secondary)">—</div>
+    </div>
+  </div>
+
+  <div class="sparkline-section" id="sparklineSection">
+    <div class="sparkline-header">
+      <h3>Calls Over Time</h3>
+      <div class="stats">
+        <span id="sparkTotal">—</span>
+        <span id="sparkErrors">—</span>
+      </div>
+    </div>
+    <div class="time-filter" id="timeFilter">
+      <button class="time-btn" data-range="1h">1h</button>
+      <button class="time-btn active" data-range="6h">6h</button>
+      <button class="time-btn" data-range="24h">24h</button>
+      <button class="time-btn" data-range="7d">7d</button>
+      <button class="time-btn" data-range="30d">30d</button>
+    </div>
+    <svg class="sparkline-svg" id="sparklineSvg" preserveAspectRatio="none">
+      <rect width="100%" height="100%" fill="var(--bg-elevated)" rx="6"/>
+    </svg>
   </div>
 
   <div class="section">
     <div class="section-header">
       <h2>Reports</h2>
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="tools">Top Tools</button>
-        <button class="tab-btn" data-tab="tasks">Top Tasks</button>
-        <button class="tab-btn" data-tab="servers">Top MCP Servers</button>
+      <div class="section-actions">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tools">Top Tools</button>
+          <button class="tab-btn" data-tab="tasks">Top Tasks</button>
+          <button class="tab-btn" data-tab="servers">Top MCP Servers</button>
+        </div>
+        <button class="btn-sm" id="btnExportCsv" title="Export as CSV">⬇ CSV</button>
       </div>
     </div>
     <div class="table-wrap" id="reportContent">
@@ -398,19 +499,19 @@ tbody tr:hover {
       <div class="form-grid">
         <div class="form-group">
           <label>Tool Name</label>
-          <input type="text" id="fToolName" value="read_file" placeholder="e.g. read_file">
+          <input type="text" id="fToolName" value="read_file">
         </div>
         <div class="form-group">
           <label>MCP Server</label>
-          <input type="text" id="fMcpServer" value="filesystem" placeholder="e.g. filesystem">
+          <input type="text" id="fMcpServer" value="filesystem">
         </div>
         <div class="form-group">
           <label>Agent</label>
-          <input type="text" id="fAgent" value="opencode" placeholder="e.g. cursor">
+          <input type="text" id="fAgent" value="opencode">
         </div>
         <div class="form-group">
           <label>Skill</label>
-          <input type="text" id="fSkill" value="dev" placeholder="e.g. rust-dev">
+          <input type="text" id="fSkill" value="dev">
         </div>
         <div class="form-group">
           <label>IDE</label>
@@ -448,13 +549,30 @@ tbody tr:hover {
 
 <script>
 const BASE = '';
-const state = { currentTab: 'tools', data: null };
+const state = { currentTab: 'tools', data: null, timeRange: '6h', timeData: null };
+
+function isoBefore(ago) {
+  return new Date(Date.now() - ago).toISOString();
+}
+
+const RANGE_MS = {
+  '1h': 3600_000, '6h': 21600_000, '24h': 86400_000,
+  '7d': 604800_000, '30d': 2592000_000,
+};
+
+function bucketFor(range) {
+  if (range === '1h' || range === '6h') return 'minute';
+  if (range === '24h') return 'hour';
+  return 'day';
+}
+
+function nowISO() { return new Date().toISOString(); }
 
 async function checkHealth() {
   const dot = document.getElementById('healthDot');
   const text = document.getElementById('healthText');
   try {
-    const r = await fetch(`${BASE}/health`);
+    const r = await fetch(BASE + '/health');
     if (r.ok) { dot.className = 'health-dot ok'; text.textContent = 'Healthy'; }
     else { dot.className = 'health-dot err'; text.textContent = 'Unhealthy'; }
   } catch {
@@ -463,16 +581,87 @@ async function checkHealth() {
 }
 
 async function fetchReports() {
+  const range = state.timeRange;
+  const from = isoBefore(RANGE_MS[range]);
+  const to = nowISO();
+  const q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+
   try {
     const [tools, tasks, servers] = await Promise.all([
-      fetch(`${BASE}/reports/top-tools`).then(r => r.json()),
-      fetch(`${BASE}/reports/top-tasks`).then(r => r.json()),
-      fetch(`${BASE}/reports/top-mcp-servers`).then(r => r.json()),
+      fetch(BASE + '/reports/top-tools' + q).then(r => r.json()),
+      fetch(BASE + '/reports/top-tasks' + q).then(r => r.json()),
+      fetch(BASE + '/reports/top-mcp-servers' + q).then(r => r.json()),
     ]);
     state.data = { tools, tasks, servers };
     renderKPIs();
     renderTab(state.currentTab);
   } catch { /* noop */ }
+}
+
+async function fetchSparkline() {
+  const range = state.timeRange;
+  const from = isoBefore(RANGE_MS[range]);
+  const to = nowISO();
+  const b = bucketFor(range);
+  const q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&bucket=${b}`;
+
+  try {
+    const data = await fetch(BASE + '/reports/calls-over-time' + q).then(r => r.json());
+    state.timeData = data;
+    renderSparkline(data);
+  } catch { /* noop */ }
+}
+
+function renderSparkline(data) {
+  const svg = document.getElementById('sparklineSvg');
+  if (!data || data.length === 0) {
+    svg.innerHTML = '<rect width="100%" height="100%" fill="var(--bg-elevated)" rx="6"/>' +
+      '<text x="50%" y="50%" text-anchor="middle" fill="var(--text-muted)" font-size="13" font-family="Inter,sans-serif">No data</text>';
+    document.getElementById('sparkTotal').textContent = '0 calls';
+    document.getElementById('sparkErrors').textContent = '0 errors';
+    return;
+  }
+
+  const w = svg.clientWidth || 800;
+  const h = 80;
+  const pad = { top: 8, bottom: 16, left: 4, right: 4 };
+  const pw = w - pad.left - pad.right;
+  const ph = h - pad.top - pad.bottom;
+
+  const maxCalls = Math.max(...data.map(d => d.calls), 1);
+  const totalCalls = data.reduce((s, d) => s + d.calls, 0);
+  const totalErrors = data.reduce((s, d) => s + d.errors, 0);
+
+  document.getElementById('sparkTotal').textContent = formatNum(totalCalls) + ' calls';
+  document.getElementById('sparkErrors').textContent = formatNum(totalErrors) + ' errors';
+
+  const points = data.map((d, i) => {
+    const x = pad.left + (i / Math.max(data.length - 1, 1)) * pw;
+    const y = pad.top + ph - (d.calls / maxCalls) * ph;
+    return `${x},${y}`;
+  }).join(' ');
+
+  // area fill
+  const areaPoints = `${pad.left},${pad.top + ph} ${points} ${pad.left + pw},${pad.top + ph}`;
+
+  // x-axis labels — show first, middle, last timestamp
+  const labels = [];
+  if (data.length > 0) {
+    const indices = [0, Math.floor(data.length / 2), data.length - 1];
+    for (const idx of indices) {
+      const d = new Date(data[idx].bucket);
+      const label = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const x = pad.left + (idx / Math.max(data.length - 1, 1)) * pw;
+      labels.push(`<text x="${x}" y="${h - 4}" text-anchor="${idx === 0 ? 'start' : idx === data.length - 1 ? 'end' : 'middle'}" fill="var(--text-muted)" font-size="10" font-family="Inter,sans-serif">${label}</text>`);
+    }
+  }
+
+  svg.innerHTML = `
+    <rect width="100%" height="100%" fill="var(--bg-elevated)" rx="6"/>
+    <polygon points="${areaPoints}" fill="rgba(99,102,241,0.12)"/>
+    <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${labels.join('')}
+  `;
 }
 
 function renderKPIs() {
@@ -483,6 +672,7 @@ function renderKPIs() {
 
   const totalCalls = tools.reduce((s, t) => s + Number(t.calls || 0), 0);
   const totalTokens = tools.reduce((s, t) => s + Number(t.total_estimated_tokens || 0), 0);
+  const avgTokens = totalCalls > 0 ? Math.round(totalTokens / totalCalls) : 0;
   const totalMcpServers = servers.length;
 
   let errRate = 0;
@@ -496,10 +686,12 @@ function renderKPIs() {
 
   document.getElementById('totalCalls').textContent = formatNum(totalCalls);
   document.getElementById('totalTokens').textContent = formatNum(totalTokens);
+  document.getElementById('avgTokens').textContent = formatNum(avgTokens);
   document.getElementById('totalMcpServers').textContent = totalMcpServers;
   const erEl = document.getElementById('errorRate');
   erEl.textContent = errRate + '%';
   erEl.className = 'kpi-value ' + (errRate > 10 ? 'text-red' : errRate > 5 ? 'text-yellow' : '');
+  document.getElementById('periodRange').textContent = state.timeRange;
 }
 
 function formatNum(n) {
@@ -546,7 +738,7 @@ function renderTab(tab) {
       ['MCP Server', 'Calls', 'Total Tokens', 'Avg Resp Bytes', 'Error Rate'],
       data,
       t => [
-        t.mcp_server, formatNum(t.calls), formatNum(t.total_estimated_tokens),
+        t.mcp_server || '—', formatNum(t.calls), formatNum(t.total_estimated_tokens),
         t.avg_response_bytes ? formatNum(Math.round(t.avg_response_bytes)) : '—',
         t.error_rate != null ? (Number(t.error_rate) * 100).toFixed(1) + '%' : '—'
       ]
@@ -562,6 +754,35 @@ function buildTable(headers, rows, cellFn) {
   }
   html += '</tbody></table>';
   return html;
+}
+
+function exportCsv() {
+  const tab = state.currentTab;
+  const data = state.data ? state.data[tab] : null;
+  if (!data || data.length === 0) return;
+
+  let headers, rows;
+
+  if (tab === 'tools') {
+    headers = ['Tool', 'MCP Server', 'Calls', 'Total Tokens', 'Avg Duration (ms)', 'Errors', 'Avg Resp Bytes'];
+    rows = data.map(t => [t.tool_name, t.mcp_server || '', t.calls, t.total_estimated_tokens, (t.avg_duration_ms || 0).toFixed(0), t.errors, Math.round(t.avg_response_bytes || 0)]);
+  } else if (tab === 'tasks') {
+    headers = ['Task ID', 'Tool Calls', 'Total Tokens', 'Total Duration (ms)', 'Errors', 'Distinct Tools'];
+    rows = data.map(t => [t.task_id, t.tool_calls, t.total_estimated_tokens, t.total_duration_ms || 0, t.errors, t.distinct_tools]);
+  } else {
+    headers = ['MCP Server', 'Calls', 'Total Tokens', 'Avg Resp Bytes', 'Error Rate (%)'];
+    rows = data.map(t => [t.mcp_server || '', t.calls, t.total_estimated_tokens, Math.round(t.avg_response_bytes || 0), t.error_rate != null ? (Number(t.error_rate) * 100).toFixed(1) : '']);
+  }
+
+  let csv = headers.join(',') + '\n';
+  csv += rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `agent-meter-${tab}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function buildEvent(overrides) {
@@ -583,7 +804,7 @@ function buildEvent(overrides) {
     task_id: 'TASK-' + String(Math.floor(Math.random() * 900) + 100),
     request_sha256: 'abc' + Math.random().toString(36).slice(2, 10),
     response_sha256: 'def' + Math.random().toString(36).slice(2, 10),
-    metadata: { source: 'dashboard', workspace: '/workspace/agent-meter' },
+    metadata: { source: 'dashboard' },
     ...overrides,
   };
 }
@@ -596,7 +817,7 @@ async function sendEvent(evt) {
   result.style.display = 'none';
 
   try {
-    const r = await fetch(`${BASE}/events/tool-call`, {
+    const r = await fetch(BASE + '/events/tool-call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(evt),
@@ -606,7 +827,7 @@ async function sendEvent(evt) {
       result.className = 'form-result success';
       result.textContent = `OK — event_id: ${data.event_id}, tokens: ${data.estimated_total_tokens}`;
       status.textContent = 'done';
-      fetchReports();
+      refreshAll();
     } else {
       result.className = 'form-result error';
       result.textContent = `Error ${r.status}: ${data.error || JSON.stringify(data)}`;
@@ -620,12 +841,19 @@ async function sendEvent(evt) {
   result.style.display = 'block';
 }
 
+function refreshAll() {
+  fetchReports();
+  fetchSparkline();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
-  fetchReports();
+  refreshAll();
   setInterval(checkHealth, 15000);
   setInterval(fetchReports, 5000);
+  setInterval(fetchSparkline, 15000);
 
+  // tab switching
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -634,15 +862,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  document.getElementById('btnSend').addEventListener('click', () => sendEvent(buildEvent()));
+  // time range filter
+  document.querySelectorAll('.time-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.timeRange = btn.dataset.range;
+      refreshAll();
+    });
+  });
 
+  // event send
+  document.getElementById('btnSend').addEventListener('click', () => sendEvent(buildEvent()));
   document.getElementById('btnSendRandom').addEventListener('click', () => {
     const tools = ['read_file', 'write_file', 'list_directory', 'search_code', 'git_diff', 'edit_file', 'tool_call', 'ask_followup'];
     const servers = ['filesystem', 'github', 'git', 'search', 'context', 'terminal'];
     const agents = ['opencode', 'cursor', 'claude-code', 'copilot', 'antigravity'];
     const skills = ['dev', 'rust-dev', 'debug', 'review', 'refactor', 'docs'];
-
-    const evt = buildEvent({
+    sendEvent(buildEvent({
       tool_name: tools[Math.floor(Math.random() * tools.length)],
       mcp_server: servers[Math.floor(Math.random() * servers.length)],
       agent: agents[Math.floor(Math.random() * agents.length)],
@@ -650,9 +887,11 @@ document.addEventListener('DOMContentLoaded', () => {
       request_bytes: Math.floor(Math.random() * 50000) + 100,
       response_bytes: Math.floor(Math.random() * 200000) + 1000,
       ok: Math.random() > 0.15,
-    });
-    sendEvent(evt);
+    }));
   });
+
+  // CSV export
+  document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
 });
 </script>
 </body>

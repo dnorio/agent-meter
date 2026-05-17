@@ -125,3 +125,53 @@ pub async fn top_mcp_servers(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopMc
 
     Ok(rows)
 }
+
+#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+pub struct CallBucket {
+    pub bucket: chrono::DateTime<chrono::Utc>,
+    pub calls: i64,
+    pub errors: i64,
+}
+
+pub async fn calls_over_time(
+    pool: &PgPool,
+    q: &ReportQuery,
+    bucket: &str,
+) -> Result<Vec<CallBucket>, AppError> {
+    let interval = match bucket {
+        "hour" => "hour",
+        "day" => "day",
+        "minute" => "minute",
+        _ => "hour",
+    };
+
+    let rows = sqlx::query_as::<_, CallBucket>(
+        &format!(
+            r#"
+            SELECT
+                date_trunc('{interval}', started_at) as bucket,
+                COUNT(*)::bigint as calls,
+                COUNT(*) FILTER (WHERE not ok)::bigint as errors
+            FROM agent_tool_calls
+            WHERE ($1::timestamptz IS NULL OR started_at >= $1)
+              AND ($2::timestamptz IS NULL OR started_at <= $2)
+              AND ($3::text IS NULL OR repo = $3)
+              AND ($4::text IS NULL OR ide = $4)
+              AND ($5::text IS NULL OR skill = $5)
+            GROUP BY bucket
+            ORDER BY bucket ASC
+            LIMIT 500
+            "#,
+            interval = interval
+        ),
+    )
+    .bind(q.from)
+    .bind(q.to)
+    .bind(&q.repo)
+    .bind(&q.ide)
+    .bind(&q.skill)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
+}
