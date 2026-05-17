@@ -5,15 +5,16 @@ RUN mkdir -p crates/collector/src crates/cli/src crates/mcp-wrapper/src && \
     echo "fn main() {}" > crates/collector/src/main.rs && \
     echo "fn main() {}" > crates/cli/src/main.rs && \
     echo "fn main() {}" > crates/mcp-wrapper/src/main.rs
-RUN cargo build --release -p agent-meter-collector 2>/dev/null; true
+RUN cargo build --release -p agent-meter-collector -p agent-meter-mcp-wrapper 2>/dev/null; true
 RUN rm -rf crates
 COPY apps/agent-meter/crates ./crates
-RUN touch crates/collector/src/main.rs && \
-    cargo build --release -p agent-meter-collector
+RUN touch crates/collector/src/main.rs crates/mcp-wrapper/src/main.rs && \
+    cargo build --release -p agent-meter-collector -p agent-meter-mcp-wrapper
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/agent-meter-collector /usr/local/bin/agent-meter-collector
+COPY --from=builder /app/target/release/agent-meter-mcp-wrapper /usr/local/bin/agent-meter-mcp-wrapper
 ENV PORT=3000
 EXPOSE 3000
 CMD ["/usr/local/bin/agent-meter-collector"]
