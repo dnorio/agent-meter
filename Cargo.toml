@@ -22,9 +22,9 @@ chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 tracing-opentelemetry = "0.27"
-opentelemetry = { version = "0.25", features = ["trace"] }
-opentelemetry_sdk = { version = "0.25", features = ["trace"] }
-opentelemetry-otlp = { version = "0.25", features = ["http-proto", "trace"] }
+opentelemetry = { version = "0.26", features = ["trace"] }
+opentelemetry_sdk = { version = "0.26", features = ["trace"] }
+opentelemetry-otlp = { version = "0.26", features = ["http-proto", "trace"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 thiserror = "2"
 anyhow = "1"

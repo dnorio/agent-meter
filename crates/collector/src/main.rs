@@ -17,8 +17,7 @@ use tokio_util::sync::CancellationToken;
 async fn main() -> anyhow::Result<()> {
     let config = config::Config::from_env();
 
-    telemetry::init_log(&config);
-    let _otel_provider = telemetry::init_otel(&config);
+    let _otel_provider = telemetry::init_telemetry(&config);
 
     let pool = db::connect(&config.database_url).await?;
 

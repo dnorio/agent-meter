@@ -22,6 +22,27 @@ pub async fn insert_tool_call(
     );
     let estimated_total = token_estimator::estimate_total(estimated_input, estimated_output);
 
+    let span = tracing::info_span!(
+        "agent.tool_call",
+        event_id = %event.event_id,
+        task_id = event.task_id.as_deref().unwrap_or(""),
+        repo = event.repo.as_deref().unwrap_or(""),
+        branch = event.branch.as_deref().unwrap_or(""),
+        ide = event.ide.as_deref().unwrap_or(""),
+        agent = event.agent.as_deref().unwrap_or(""),
+        skill = event.skill.as_deref().unwrap_or(""),
+        mcp_server = event.mcp_server.as_deref().unwrap_or(""),
+        tool_name = %event.tool_name,
+        duration_ms = duration_ms,
+        ok = event.ok,
+        request_bytes = event.request_bytes.unwrap_or(0),
+        response_bytes = event.response_bytes.unwrap_or(0),
+        input_tokens = estimated_input.unwrap_or(0),
+        output_tokens = estimated_output.unwrap_or(0),
+        total_tokens = estimated_total.unwrap_or(0),
+    );
+    let _guard = span.enter();
+
     let event_id = event.event_id;
     let metadata = event.metadata.unwrap_or(serde_json::Value::Object(Default::default()));
 
@@ -62,5 +83,6 @@ pub async fn insert_tool_call(
     .fetch_one(pool)
     .await?;
 
+    drop(_guard);
     Ok(row)
 }
