@@ -78,16 +78,16 @@ fi
 # ---- 1. build CLI binary ----
 echo ""
 echo "==> [1/4] building agent-meter CLI..."
-cd "$REPO_ROOT"
+cd "$APP_DIR"
 
 if command -v cargo &>/dev/null; then
   cargo build --release -p agent-meter-cli 2>&1 | tail -5
-  CLI_SRC="$REPO_ROOT/target/release/agent-meter"
+  CLI_SRC="$APP_DIR/target/release/agent-meter"
 elif command -v docker &>/dev/null; then
   mkdir -p /tmp/agent-meter-build
-  docker run --rm -v "$REPO_ROOT:/app" -w /app rust:1.88-slim-bookworm \
+  docker run --rm -v "$APP_DIR:/app" -w /app rust:1.88-slim-bookworm \
     cargo build --release -p agent-meter-cli 2>&1 | tail -5
-  CLI_SRC="$REPO_ROOT/target/release/agent-meter"
+  CLI_SRC="$APP_DIR/target/release/agent-meter"
 else
   echo "WARN: neither cargo nor docker available — skipping build. Install agent-meter binary manually."
   CLI_SRC=""
@@ -110,11 +110,73 @@ CONFIG_DIR="${HOME}/.config/agent-meter"
 mkdir -p "$CONFIG_DIR"
 
 cat > "$CONFIG_DIR/env.sh" <<ENVEOF
-# agent-meter — ${AGENT}
+# agent-meter — Dynamic configuration for all worktrees
 export AGENT_METER_COLLECTOR_URL="${COLLECTOR_URL}"
-export AGENT_METER_IDE="${IDE}"
-export AGENT_METER_AGENT="${AGENT_LABEL}"
 export AGENT_METER_REPO="my-app"
+
+# Detect dynamic agent/ide based on current working directory
+CURRENT_PWD="\$(pwd)"
+if [[ "\$CURRENT_PWD" == *"/REDACTED-worktree"* ]]; then
+  export AGENT_METER_IDE="antigravity"
+  export AGENT_METER_AGENT="antigravity"
+elif [[ "\$CURRENT_PWD" == *"/REDACTED-worktree"* ]]; then
+  export AGENT_METER_IDE="opencode"
+  export AGENT_METER_AGENT="opencode"
+elif [[ "\$CURRENT_PWD" == *"/REDACTED-worktree"* ]]; then
+  export AGENT_METER_IDE="cursor"
+  export AGENT_METER_AGENT="cursor"
+elif [[ "\$CURRENT_PWD" == *"/REDACTED-worktree"* ]]; then
+  export AGENT_METER_IDE="copilot-vscode"
+  export AGENT_METER_AGENT="copilot"
+elif [[ "\$CURRENT_PWD" == *"/REDACTED-worktree-claude"* ]]; then
+  export AGENT_METER_IDE="rust-rover"
+  export AGENT_METER_AGENT="codex"
+else
+  # Default fallback based on setup parameters
+  export AGENT_METER_IDE="${IDE}"
+  export AGENT_METER_AGENT="${AGENT_LABEL}"
+fi
+
+export AGENT_METER_BRANCH="\$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+
+# agent-meter convenience functions
+am() {
+  agent-meter "\$@"
+}
+
+am-task-start() {
+  local task_id="\${1:-T-\$(date +%s)}"
+  shift 2>/dev/null || true
+  agent-meter task start "\$task_id" \\
+    --repo "\${AGENT_METER_REPO}" \\
+    --branch "\$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')" \\
+    --ide "\${AGENT_METER_IDE}" \\
+    --agent "\${AGENT_METER_AGENT}" \\
+    "\$@"
+  export AGENT_METER_TASK_ID="\$task_id"
+}
+
+am-task-end() {
+  local task_id="\${1:-\$AGENT_METER_TASK_ID}"
+  agent-meter task end "\$task_id"
+  unset AGENT_METER_TASK_ID
+}
+
+am-event() {
+  local tool_name="\${1:-unknown}"
+  shift
+  agent-meter event tool-call \\
+    --tool-name "\$tool_name" \\
+    --repo "\${AGENT_METER_REPO}" \\
+    --branch "\$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')" \\
+    --ide "\${AGENT_METER_IDE}" \\
+    --agent "\${AGENT_METER_AGENT}" \\
+    "\$@"
+}
+
+am-report() {
+  agent-meter report "\${1:-top-tools}" --limit "\${2:-20}"
+}
 ENVEOF
 
 echo "    wrote: $CONFIG_DIR/env.sh"
@@ -138,7 +200,11 @@ if [ -n "\${TERM_PROGRAM:-}" ] && [ "\$TERM_PROGRAM" = "vscode" ]; then
   if [ -z "\${AGENT_METER_TASK_ID:-}" ]; then
     AGENT_METER_TASK_ID="vscode-\$(hostname)-\$(date +%s)"
     export AGENT_METER_TASK_ID
-    agent-meter task start "\$AGENT_METER_TASK_ID" --repo my-app 2>/dev/null || true
+    agent-meter task start "\$AGENT_METER_TASK_ID" \\
+      --repo my-app \\
+      --agent "\${AGENT_METER_AGENT}" \\
+      --ide "\${AGENT_METER_IDE}" \\
+      --branch "\$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')" 2>/dev/null || true
   fi
   agent-meter-task-end() {
     if [ -n "\${AGENT_METER_TASK_ID:-}" ]; then
@@ -185,14 +251,14 @@ if [[ "$MCP_WRAPPER" = true ]]; then
   echo ""
   echo "==> [4/4] building MCP wrapper..."
 
-  cd "$REPO_ROOT"
+  cd "$APP_DIR"
   if command -v cargo &>/dev/null; then
     cargo build --release -p agent-meter-mcp-wrapper 2>&1 | tail -5
-    WRP_SRC="$REPO_ROOT/target/release/agent-meter-mcp-wrapper"
+    WRP_SRC="$APP_DIR/target/release/agent-meter-mcp-wrapper"
   else
-    docker run --rm -v "$REPO_ROOT:/app" -w /app rust:1.88-slim-bookworm \
+    docker run --rm -v "$APP_DIR:/app" -w /app rust:1.88-slim-bookworm \
       cargo build --release -p agent-meter-mcp-wrapper 2>&1 | tail -5
-    WRP_SRC="$REPO_ROOT/target/release/agent-meter-mcp-wrapper"
+    WRP_SRC="$APP_DIR/target/release/agent-meter-mcp-wrapper"
   fi
 
   if [[ -f "$WRP_SRC" ]]; then
