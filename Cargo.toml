@@ -1,0 +1,34 @@
+[workspace]
+members = [
+  "crates/collector",
+  "crates/cli",
+  "crates/mcp-wrapper",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "chrono", "uuid"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-opentelemetry = "0.27"
+opentelemetry = { version = "0.25", features = ["trace"] }
+opentelemetry_sdk = { version = "0.25", features = ["trace"] }
+opentelemetry-otlp = { version = "0.25", features = ["http-proto", "trace"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+thiserror = "2"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+sha2 = "0.10"
+hex = "0.4"
+tokio-util = "0.7"

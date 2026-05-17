@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>agent-meter dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-base: #0a0a0f;
+  --bg-surface: #12121a;
+  --bg-elevated: #1a1a26;
+  --bg-hover: #22222e;
+  --border: #2a2a3a;
+  --text-primary: #e4e4ed;
+  --text-secondary: #9494a8;
+  --text-muted: #646478;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #eab308;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+header .subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.health-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background 0.3s ease;
+}
+
+.health-dot.ok { background: var(--green); box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+.health-dot.err { background: var(--red); box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+.health-dot.loading { background: var(--yellow); animation: pulse 1s ease-in-out infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.kpi-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(99,102,241,0.1);
+}
+
+.kpi-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.tab-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active { background: var(--accent); color: #fff; }
+
+.table-wrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+thead {
+  background: var(--bg-elevated);
+}
+
+th {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: left;
+  white-space: nowrap;
+}
+
+td {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+
+tbody tr {
+  transition: background 0.15s ease;
+}
+
+tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.text-green { color: var(--green); }
+.text-red { color: var(--red); }
+.text-yellow { color: var(--yellow); }
+.font-mono { font-variant-numeric: tabular-nums; }
+
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state p { font-size: 14px; }
+.empty-state .hint { font-size: 12px; margin-top: 8px; color: var(--text-muted); opacity: 0.6; }
+
+.event-form {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  transition: border-color 0.15s ease;
+}
+
+.form-group input:focus, .form-group select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.form-result {
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: monospace;
+  margin-top: 16px;
+  display: none;
+}
+
+.form-result.success {
+  display: block;
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.2);
+  color: var(--green);
+}
+
+.form-result.error {
+  display: block;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.2);
+  color: var(--red);
+}
+
+.error-rate { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 768px) {
+  .app { padding: 16px; }
+  header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .form-grid { grid-template-columns: 1fr; }
+  th, td { padding: 8px 10px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>agent-meter</h1>
+      <div class="subtitle">Observability & FinOps collector for agentic workflows</div>
+    </div>
+    <div class="health-badge" id="healthBadge">
+      <span class="health-dot loading" id="healthDot"></span>
+      <span id="healthText">checking...</span>
+    </div>
+  </header>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Tool Calls</div>
+      <div class="kpi-value" id="totalCalls">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Tokens</div>
+      <div class="kpi-value" id="totalTokens">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">MCP Servers</div>
+      <div class="kpi-value" id="totalMcpServers">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Error Rate</div>
+      <div class="kpi-value" id="errorRate">—</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Reports</h2>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="tools">Top Tools</button>
+        <button class="tab-btn" data-tab="tasks">Top Tasks</button>
+        <button class="tab-btn" data-tab="servers">Top MCP Servers</button>
+      </div>
+    </div>
+    <div class="table-wrap" id="reportContent">
+      <div class="empty-state"><p>No data yet</p><p class="hint">Send an event using the form below</p></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Send Test Event</h2>
+    </div>
+    <div class="event-form" id="eventForm">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Tool Name</label>
+          <input type="text" id="fToolName" value="read_file" placeholder="e.g. read_file">
+        </div>
+        <div class="form-group">
+          <label>MCP Server</label>
+          <input type="text" id="fMcpServer" value="filesystem" placeholder="e.g. filesystem">
+        </div>
+        <div class="form-group">
+          <label>Agent</label>
+          <input type="text" id="fAgent" value="opencode" placeholder="e.g. cursor">
+        </div>
+        <div class="form-group">
+          <label>Skill</label>
+          <input type="text" id="fSkill" value="dev" placeholder="e.g. rust-dev">
+        </div>
+        <div class="form-group">
+          <label>IDE</label>
+          <select id="fIde">
+            <option value="opencode">OpenCode</option>
+            <option value="cursor">Cursor</option>
+            <option value="copilot">Copilot</option>
+            <option value="claude-code">Claude Code</option>
+            <option value="antigravity">Antigravity</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Request Bytes</label>
+          <input type="number" id="fReqBytes" value="1200" min="0">
+        </div>
+        <div class="form-group">
+          <label>Response Bytes</label>
+          <input type="number" id="fResBytes" value="30000" min="0">
+        </div>
+        <div class="form-group">
+          <label>OK?</label>
+          <select id="fOk"><option value="true">Yes</option><option value="false">No</option></select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btnSend">Send Event</button>
+        <button class="btn btn-secondary" id="btnSendRandom">Send Random</button>
+        <span style="font-size:12px;color:var(--text-muted)" id="sendStatus"></span>
+      </div>
+      <div class="form-result" id="formResult"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = '';
+const state = { currentTab: 'tools', data: null };
+
+async function checkHealth() {
+  const dot = document.getElementById('healthDot');
+  const text = document.getElementById('healthText');
+  try {
+    const r = await fetch(`${BASE}/health`);
+    if (r.ok) { dot.className = 'health-dot ok'; text.textContent = 'Healthy'; }
+    else { dot.className = 'health-dot err'; text.textContent = 'Unhealthy'; }
+  } catch {
+    dot.className = 'health-dot err'; text.textContent = 'Offline';
+  }
+}
+
+async function fetchReports() {
+  try {
+    const [tools, tasks, servers] = await Promise.all([
+      fetch(`${BASE}/reports/top-tools`).then(r => r.json()),
+      fetch(`${BASE}/reports/top-tasks`).then(r => r.json()),
+      fetch(`${BASE}/reports/top-mcp-servers`).then(r => r.json()),
+    ]);
+    state.data = { tools, tasks, servers };
+    renderKPIs();
+    renderTab(state.currentTab);
+  } catch { /* noop */ }
+}
+
+function renderKPIs() {
+  const d = state.data;
+  if (!d) return;
+  const tools = d.tools || [];
+  const servers = d.servers || [];
+
+  const totalCalls = tools.reduce((s, t) => s + Number(t.calls || 0), 0);
+  const totalTokens = tools.reduce((s, t) => s + Number(t.total_estimated_tokens || 0), 0);
+  const totalMcpServers = servers.length;
+
+  let errRate = 0;
+  if (servers.length > 0) {
+    const totalErr = servers.reduce((s, t) => {
+      return s + (t.error_rate != null ? Number(t.error_rate) * Number(t.calls || 0) : 0);
+    }, 0);
+    const totalC = servers.reduce((s, t) => s + Number(t.calls || 0), 0);
+    errRate = totalC > 0 ? ((totalErr / totalC) * 100).toFixed(1) : 0;
+  }
+
+  document.getElementById('totalCalls').textContent = formatNum(totalCalls);
+  document.getElementById('totalTokens').textContent = formatNum(totalTokens);
+  document.getElementById('totalMcpServers').textContent = totalMcpServers;
+  const erEl = document.getElementById('errorRate');
+  erEl.textContent = errRate + '%';
+  erEl.className = 'kpi-value ' + (errRate > 10 ? 'text-red' : errRate > 5 ? 'text-yellow' : '');
+}
+
+function formatNum(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function renderTab(tab) {
+  state.currentTab = tab;
+  const container = document.getElementById('reportContent');
+  const data = state.data ? state.data[tab] : null;
+
+  if (!data || data.length === 0) {
+    container.innerHTML = `<div class="empty-state"><p>No data yet</p><p class="hint">Send an event using the form below</p></div>`;
+    return;
+  }
+
+  if (tab === 'tools') {
+    container.innerHTML = buildTable(
+      ['Tool', 'MCP Server', 'Calls', 'Total Tokens', 'Avg Duration', 'Errors', 'Avg Resp Bytes'],
+      data,
+      t => [
+        t.tool_name, t.mcp_server || '—',
+        formatNum(t.calls), formatNum(t.total_estimated_tokens),
+        t.avg_duration_ms ? Number(t.avg_duration_ms).toFixed(0) + 'ms' : '—',
+        `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors}</span>`,
+        t.avg_response_bytes ? formatNum(Math.round(t.avg_response_bytes)) : '—'
+      ]
+    );
+  } else if (tab === 'tasks') {
+    container.innerHTML = buildTable(
+      ['Task ID', 'Tool Calls', 'Total Tokens', 'Total Duration', 'Errors', 'Distinct Tools'],
+      data,
+      t => [
+        t.task_id, formatNum(t.tool_calls), formatNum(t.total_estimated_tokens),
+        t.total_duration_ms ? formatNum(t.total_duration_ms) + 'ms' : '—',
+        `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors}</span>`,
+        t.distinct_tools
+      ]
+    );
+  } else if (tab === 'servers') {
+    container.innerHTML = buildTable(
+      ['MCP Server', 'Calls', 'Total Tokens', 'Avg Resp Bytes', 'Error Rate'],
+      data,
+      t => [
+        t.mcp_server, formatNum(t.calls), formatNum(t.total_estimated_tokens),
+        t.avg_response_bytes ? formatNum(Math.round(t.avg_response_bytes)) : '—',
+        t.error_rate != null ? (Number(t.error_rate) * 100).toFixed(1) + '%' : '—'
+      ]
+    );
+  }
+}
+
+function buildTable(headers, rows, cellFn) {
+  let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  for (const row of rows) {
+    const cells = cellFn(row);
+    html += '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function buildEvent(overrides) {
+  const now = new Date();
+  const ended = new Date(now.getTime() + 1000);
+  return {
+    tool_name: document.getElementById('fToolName').value || 'read_file',
+    mcp_server: document.getElementById('fMcpServer').value || 'filesystem',
+    agent: document.getElementById('fAgent').value || 'opencode',
+    skill: document.getElementById('fSkill').value || 'dev',
+    ide: document.getElementById('fIde').value,
+    request_bytes: parseInt(document.getElementById('fReqBytes').value) || 1200,
+    response_bytes: parseInt(document.getElementById('fResBytes').value) || 30000,
+    ok: document.getElementById('fOk').value === 'true',
+    started_at: now.toISOString(),
+    ended_at: ended.toISOString(),
+    repo: 'agent-meter',
+    branch: 'main',
+    task_id: 'TASK-' + String(Math.floor(Math.random() * 900) + 100),
+    request_sha256: 'abc' + Math.random().toString(36).slice(2, 10),
+    response_sha256: 'def' + Math.random().toString(36).slice(2, 10),
+    metadata: { source: 'dashboard', workspace: '/workspace/agent-meter' },
+    ...overrides,
+  };
+}
+
+async function sendEvent(evt) {
+  const status = document.getElementById('sendStatus');
+  const result = document.getElementById('formResult');
+  status.textContent = 'sending...';
+  result.className = 'form-result';
+  result.style.display = 'none';
+
+  try {
+    const r = await fetch(`${BASE}/events/tool-call`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(evt),
+    });
+    const data = await r.json();
+    if (r.ok) {
+      result.className = 'form-result success';
+      result.textContent = `OK — event_id: ${data.event_id}, tokens: ${data.estimated_total_tokens}`;
+      status.textContent = 'done';
+      fetchReports();
+    } else {
+      result.className = 'form-result error';
+      result.textContent = `Error ${r.status}: ${data.error || JSON.stringify(data)}`;
+      status.textContent = 'failed';
+    }
+  } catch (e) {
+    result.className = 'form-result error';
+    result.textContent = `Network error: ${e.message}`;
+    status.textContent = 'failed';
+  }
+  result.style.display = 'block';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  checkHealth();
+  fetchReports();
+  setInterval(checkHealth, 15000);
+  setInterval(fetchReports, 5000);
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTab(btn.dataset.tab);
+    });
+  });
+
+  document.getElementById('btnSend').addEventListener('click', () => sendEvent(buildEvent()));
+
+  document.getElementById('btnSendRandom').addEventListener('click', () => {
+    const tools = ['read_file', 'write_file', 'list_directory', 'search_code', 'git_diff', 'edit_file', 'tool_call', 'ask_followup'];
+    const servers = ['filesystem', 'github', 'git', 'search', 'context', 'terminal'];
+    const agents = ['opencode', 'cursor', 'claude-code', 'copilot', 'antigravity'];
+    const skills = ['dev', 'rust-dev', 'debug', 'review', 'refactor', 'docs'];
+
+    const evt = buildEvent({
+      tool_name: tools[Math.floor(Math.random() * tools.length)],
+      mcp_server: servers[Math.floor(Math.random() * servers.length)],
+      agent: agents[Math.floor(Math.random() * agents.length)],
+      skill: skills[Math.floor(Math.random() * skills.length)],
+      request_bytes: Math.floor(Math.random() * 50000) + 100,
+      response_bytes: Math.floor(Math.random() * 200000) + 1000,
+      ok: Math.random() > 0.15,
+    });
+    sendEvent(evt);
+  });
+});
+</script>
+</body>
+</html>

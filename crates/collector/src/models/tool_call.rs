@@ -1,0 +1,62 @@
+use chrono::{DateTime, Utc};
+use serde::Serialize;
+use sqlx::FromRow;
+use uuid::Uuid;
+
+#[derive(Debug, FromRow, Serialize)]
+pub struct AgentToolCall {
+    pub id: i64,
+    pub event_id: Uuid,
+    pub task_id: Option<String>,
+    pub repo: Option<String>,
+    pub branch: Option<String>,
+    pub ide: Option<String>,
+    pub agent: Option<String>,
+    pub skill: Option<String>,
+    pub mcp_server: Option<String>,
+    pub tool_name: String,
+    pub started_at: DateTime<Utc>,
+    pub ended_at: DateTime<Utc>,
+    pub duration_ms: i32,
+    pub ok: bool,
+    pub error: Option<String>,
+    pub request_bytes: Option<i32>,
+    pub response_bytes: Option<i32>,
+    pub estimated_input_tokens: Option<i32>,
+    pub estimated_output_tokens: Option<i32>,
+    pub estimated_total_tokens: Option<i32>,
+    pub request_sha256: Option<String>,
+    pub response_sha256: Option<String>,
+    pub metadata: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TopTool {
+    pub mcp_server: Option<String>,
+    pub tool_name: String,
+    pub calls: i64,
+    pub total_estimated_tokens: Option<i64>,
+    pub avg_duration_ms: Option<f64>,
+    pub errors: i64,
+    pub avg_response_bytes: Option<f64>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TopTask {
+    pub task_id: String,
+    pub tool_calls: i64,
+    pub total_estimated_tokens: Option<i64>,
+    pub total_duration_ms: Option<i64>,
+    pub errors: i64,
+    pub distinct_tools: i64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TopMcpServer {
+    pub mcp_server: String,
+    pub calls: i64,
+    pub total_estimated_tokens: Option<i64>,
+    pub avg_response_bytes: Option<f64>,
+    pub error_rate: Option<f64>,
+}
