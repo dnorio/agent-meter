@@ -8,6 +8,7 @@ pub struct ReportQuery {
     pub to: Option<chrono::DateTime<chrono::Utc>>,
     pub repo: Option<String>,
     pub ide: Option<String>,
+    pub agent: Option<String>,
     pub skill: Option<String>,
     pub limit: Option<i64>,
 }
@@ -19,6 +20,7 @@ impl Default for ReportQuery {
             to: None,
             repo: None,
             ide: None,
+            agent: None,
             skill: None,
             limit: Some(20),
         }
@@ -41,16 +43,18 @@ pub async fn top_tools(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTool>, A
           AND ($2::timestamptz IS NULL OR started_at <= $2)
           AND ($3::text IS NULL OR repo = $3)
           AND ($4::text IS NULL OR ide = $4)
-          AND ($5::text IS NULL OR skill = $5)
+          AND ($5::text IS NULL OR agent = $5)
+          AND ($6::text IS NULL OR skill = $6)
         GROUP BY mcp_server, tool_name
         ORDER BY calls DESC
-        LIMIT $6
+        LIMIT $7
         "#,
     )
     .bind(q.from)
     .bind(q.to)
     .bind(&q.repo)
     .bind(&q.ide)
+    .bind(&q.agent)
     .bind(&q.skill)
     .bind(q.limit)
     .fetch_all(pool)
@@ -75,16 +79,18 @@ pub async fn top_tasks(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTask>, A
           AND ($2::timestamptz IS NULL OR started_at <= $2)
           AND ($3::text IS NULL OR repo = $3)
           AND ($4::text IS NULL OR ide = $4)
-          AND ($5::text IS NULL OR skill = $5)
+          AND ($5::text IS NULL OR agent = $5)
+          AND ($6::text IS NULL OR skill = $6)
         GROUP BY task_id
         ORDER BY tool_calls DESC
-        LIMIT $6
+        LIMIT $7
         "#,
     )
     .bind(q.from)
     .bind(q.to)
     .bind(&q.repo)
     .bind(&q.ide)
+    .bind(&q.agent)
     .bind(&q.skill)
     .bind(q.limit)
     .fetch_all(pool)
@@ -108,16 +114,18 @@ pub async fn top_mcp_servers(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopMc
           AND ($2::timestamptz IS NULL OR started_at <= $2)
           AND ($3::text IS NULL OR repo = $3)
           AND ($4::text IS NULL OR ide = $4)
-          AND ($5::text IS NULL OR skill = $5)
+          AND ($5::text IS NULL OR agent = $5)
+          AND ($6::text IS NULL OR skill = $6)
         GROUP BY mcp_server
         ORDER BY calls DESC
-        LIMIT $6
+        LIMIT $7
         "#,
     )
     .bind(q.from)
     .bind(q.to)
     .bind(&q.repo)
     .bind(&q.ide)
+    .bind(&q.agent)
     .bind(&q.skill)
     .bind(q.limit)
     .fetch_all(pool)
@@ -157,7 +165,8 @@ pub async fn calls_over_time(
               AND ($2::timestamptz IS NULL OR started_at <= $2)
               AND ($3::text IS NULL OR repo = $3)
               AND ($4::text IS NULL OR ide = $4)
-              AND ($5::text IS NULL OR skill = $5)
+              AND ($5::text IS NULL OR agent = $5)
+              AND ($6::text IS NULL OR skill = $6)
             GROUP BY bucket
             ORDER BY bucket ASC
             LIMIT 500
@@ -169,6 +178,7 @@ pub async fn calls_over_time(
     .bind(q.to)
     .bind(&q.repo)
     .bind(&q.ide)
+    .bind(&q.agent)
     .bind(&q.skill)
     .fetch_all(pool)
     .await?;

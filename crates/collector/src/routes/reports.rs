@@ -16,6 +16,7 @@ pub struct ReportParams {
     to: Option<String>,
     repo: Option<String>,
     ide: Option<String>,
+    agent: Option<String>,
     skill: Option<String>,
     limit: Option<i64>,
 }
@@ -38,6 +39,7 @@ impl ReportParams {
             to,
             repo: self.repo,
             ide: self.ide,
+            agent: self.agent,
             skill: self.skill,
             limit: self.limit,
         }
@@ -74,6 +76,7 @@ pub struct CallsOverTimeParams {
     to: Option<String>,
     repo: Option<String>,
     ide: Option<String>,
+    agent: Option<String>,
     skill: Option<String>,
     bucket: Option<String>,
 }
@@ -87,6 +90,7 @@ async fn calls_over_time(
         to: params.to,
         repo: params.repo,
         ide: params.ide,
+        agent: params.agent,
         skill: params.skill,
         limit: None,
     }

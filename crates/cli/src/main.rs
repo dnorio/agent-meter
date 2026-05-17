@@ -119,6 +119,8 @@ enum ReportAction {
         #[arg(long)]
         ide: Option<String>,
         #[arg(long)]
+        agent: Option<String>,
+        #[arg(long)]
         skill: Option<String>,
         #[arg(long, default_value = "10")]
         limit: i64,
@@ -134,6 +136,8 @@ enum ReportAction {
         #[arg(long)]
         ide: Option<String>,
         #[arg(long)]
+        agent: Option<String>,
+        #[arg(long)]
         skill: Option<String>,
         #[arg(long, default_value = "10")]
         limit: i64,
@@ -148,6 +152,8 @@ enum ReportAction {
         repo: Option<String>,
         #[arg(long)]
         ide: Option<String>,
+        #[arg(long)]
+        agent: Option<String>,
         #[arg(long)]
         skill: Option<String>,
         #[arg(long, default_value = "10")]
@@ -307,16 +313,16 @@ impl Cli {
 
     async fn run_report(&self, client: &Client, action: &ReportAction) -> Result<()> {
         let (path, pretty_title, columns) = match action {
-            ReportAction::TopTools { from, to, repo, ide, skill, limit } => {
-                let params = self.build_report_params(from, to, repo, ide, skill, *limit);
+            ReportAction::TopTools { from, to, repo, ide, agent, skill, limit } => {
+                let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
                 (format!("/reports/top-tools?{}", params), "TOP TOOLS", vec!["MCP Server", "Tool", "Calls", "Tokens", "Avg (ms)", "Errors"])
             }
-            ReportAction::TopTasks { from, to, repo, ide, skill, limit } => {
-                let params = self.build_report_params(from, to, repo, ide, skill, *limit);
+            ReportAction::TopTasks { from, to, repo, ide, agent, skill, limit } => {
+                let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
                 (format!("/reports/top-tasks?{}", params), "TOP TASKS", vec!["Task ID", "Calls", "Tokens", "Duration", "Errors", "Tools"])
             }
-            ReportAction::TopMcpServers { from, to, repo, ide, skill, limit } => {
-                let params = self.build_report_params(from, to, repo, ide, skill, *limit);
+            ReportAction::TopMcpServers { from, to, repo, ide, agent, skill, limit } => {
+                let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
                 (format!("/reports/top-mcp-servers?{}", params), "TOP MCP SERVERS", vec!["Server", "Calls", "Tokens", "Avg Resp", "Err Rate"])
             }
         };
@@ -382,6 +388,7 @@ impl Cli {
         to: &Option<String>,
         repo: &Option<String>,
         ide: &Option<String>,
+        agent: &Option<String>,
         skill: &Option<String>,
         limit: i64,
     ) -> String {
@@ -390,6 +397,7 @@ impl Cli {
         if let Some(v) = to { parts.push(format!("to={}", v)); }
         if let Some(v) = repo { parts.push(format!("repo={}", v)); }
         if let Some(v) = ide { parts.push(format!("ide={}", v)); }
+        if let Some(v) = agent { parts.push(format!("agent={}", v)); }
         if let Some(v) = skill { parts.push(format!("skill={}", v)); }
         parts.join("&")
     }

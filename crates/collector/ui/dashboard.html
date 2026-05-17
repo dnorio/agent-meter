@@ -469,6 +469,25 @@ tbody tr:hover { background: var(--bg-hover); }
       <button class="time-btn" data-range="7d">7d</button>
       <button class="time-btn" data-range="30d">30d</button>
     </div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <select id="filterIde" style="font-size:12px;font-family:inherit;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);border-radius:5px;padding:4px 8px">
+        <option value="">all IDEs</option>
+        <option value="opencode">OpenCode</option>
+        <option value="cursor">Cursor</option>
+        <option value="copilot-vscode">Copilot/VSCode</option>
+        <option value="antigravity">Antigravity</option>
+        <option value="rust-rover">Codex/Rust Rover</option>
+        <option value="other">Other</option>
+      </select>
+      <select id="filterAgent" style="font-size:12px;font-family:inherit;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);border-radius:5px;padding:4px 8px">
+        <option value="">all agents</option>
+        <option value="opencode">OpenCode</option>
+        <option value="cursor">Cursor</option>
+        <option value="copilot">Copilot</option>
+        <option value="antigravity">Antigravity</option>
+        <option value="codex">Codex</option>
+      </select>
+    </div>
     <svg class="sparkline-svg" id="sparklineSvg" preserveAspectRatio="none">
       <rect width="100%" height="100%" fill="var(--bg-elevated)" rx="6"/>
     </svg>
@@ -549,7 +568,7 @@ tbody tr:hover { background: var(--bg-hover); }
 
 <script>
 const BASE = '';
-const state = { currentTab: 'tools', data: null, timeRange: '6h', timeData: null };
+const state = { currentTab: 'tools', data: null, timeRange: '6h', timeData: null, filterIde: '', filterAgent: '' };
 
 function isoBefore(ago) {
   return new Date(Date.now() - ago).toISOString();
@@ -584,7 +603,13 @@ async function fetchReports() {
   const range = state.timeRange;
   const from = isoBefore(RANGE_MS[range]);
   const to = nowISO();
-  const q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const ide = document.getElementById('filterIde').value;
+  const agent = document.getElementById('filterAgent').value;
+  state.filterIde = ide;
+  state.filterAgent = agent;
+  let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  if (ide) q += `&ide=${ide}`;
+  if (agent) q += `&agent=${agent}`;
 
   try {
     const [tools, tasks, servers] = await Promise.all([
@@ -603,7 +628,11 @@ async function fetchSparkline() {
   const from = isoBefore(RANGE_MS[range]);
   const to = nowISO();
   const b = bucketFor(range);
-  const q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&bucket=${b}`;
+  const ide = document.getElementById('filterIde').value;
+  const agent = document.getElementById('filterAgent').value;
+  let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&bucket=${b}`;
+  if (ide) q += `&ide=${ide}`;
+  if (agent) q += `&agent=${agent}`;
 
   try {
     const data = await fetch(BASE + '/reports/calls-over-time' + q).then(r => r.json());
@@ -889,6 +918,10 @@ document.addEventListener('DOMContentLoaded', () => {
       ok: Math.random() > 0.15,
     }));
   });
+
+  // origin filter
+  document.getElementById('filterIde').addEventListener('change', refreshAll);
+  document.getElementById('filterAgent').addEventListener('change', refreshAll);
 
   // CSV export
   document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
