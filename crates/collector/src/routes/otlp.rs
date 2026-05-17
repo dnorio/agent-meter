@@ -10,10 +10,14 @@ async fn post_traces(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Json<Vec<Value>>, AppError> {
-    let content_type = headers
-        .get("content-type")
-        .and_then(|v| v.to_str().ok());
-    let results = otlp::handle_trace_request(&body, content_type, &state.pool)?;
+    let content_type = headers.get("content-type").and_then(|v| v.to_str().ok());
+    let client_ip = headers
+        .get("x-forwarded-for")
+        .or_else(|| headers.get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim());
+    let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
+    let results = otlp::handle_trace_request(&body, content_type, client_ip, user_agent, &state.pool)?;
     Ok(Json(results))
 }
 

@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 
 use crate::app::AppState;
 use crate::errors::AppError;
-use crate::services::report_service::{self, ReportQuery};
+use crate::services::report_service::{self, EventQuery, ReportQuery};
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ReportParams {
@@ -106,4 +106,41 @@ pub fn router() -> Router<AppState> {
         .route("/reports/top-tasks", get(top_tasks))
         .route("/reports/top-mcp-servers", get(top_mcp_servers))
         .route("/reports/calls-over-time", get(calls_over_time))
+        .route("/reports/events", get(events_feed))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct EventFeedParams {
+    from: Option<String>,
+    to: Option<String>,
+    ide: Option<String>,
+    agent: Option<String>,
+    model: Option<String>,
+    conversation_id: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
+
+async fn events_feed(
+    State(state): State<AppState>,
+    Query(params): Query<EventFeedParams>,
+) -> Result<Json<Value>, AppError> {
+    let from = params.from.as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    let to = params.to.as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    let q = EventQuery {
+        from,
+        to,
+        ide: params.ide,
+        agent: params.agent,
+        model: params.model,
+        conversation_id: params.conversation_id,
+        limit: params.limit.unwrap_or(50).min(200),
+        offset: params.offset.unwrap_or(0),
+    };
+    let results = report_service::events_feed(&state.pool, &q).await?;
+    Ok(Json(json!(results)))
 }

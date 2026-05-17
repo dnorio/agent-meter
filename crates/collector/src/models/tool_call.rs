@@ -29,6 +29,12 @@ pub struct AgentToolCall {
     pub response_sha256: Option<String>,
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
+    // Enriched fields (T-239)
+    pub model: Option<String>,
+    pub cached_tokens: Option<i32>,
+    pub conversation_id: Option<String>,
+    pub client_ip: Option<String>,
+    pub user_agent: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -40,6 +46,28 @@ pub struct TopTool {
     pub avg_duration_ms: Option<f64>,
     pub errors: i64,
     pub avg_response_bytes: Option<f64>,
+    pub top_model: Option<String>,
+    pub cached_tokens_total: Option<i64>,
+    pub avg_input_tokens: Option<f64>,
+    pub avg_output_tokens: Option<f64>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct EventFeedRow {
+    pub event_id: Uuid,
+    pub tool_name: String,
+    pub model: Option<String>,
+    pub started_at: DateTime<Utc>,
+    pub duration_ms: i32,
+    pub ok: bool,
+    pub estimated_input_tokens: Option<i32>,
+    pub estimated_output_tokens: Option<i32>,
+    pub cached_tokens: Option<i32>,
+    pub agent: Option<String>,
+    pub ide: Option<String>,
+    pub mcp_server: Option<String>,
+    pub conversation_id: Option<String>,
+    pub client_ip: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

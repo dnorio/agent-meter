@@ -10,16 +10,18 @@ use crate::services::event_service;
 pub fn handle_trace_request(
     body: &[u8],
     content_type: Option<&str>,
+    client_ip: Option<&str>,
+    user_agent: Option<&str>,
     pool: &PgPool,
 ) -> Result<Vec<serde_json::Value>, AppError> {
     if content_type.map(|ct| ct.contains("application/json")).unwrap_or(false) {
-        return handle_trace_request_json(body, pool);
+        return handle_trace_request_json(body, client_ip, user_agent, pool);
     }
-    handle_trace_request_proto(body, pool)
+    handle_trace_request_proto(body, client_ip, user_agent, pool)
 }
 
 /// Parse OTLP JSON (format sent by VS Code / OpenTelemetry JS SDK).
-fn handle_trace_request_json(body: &[u8], pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
+fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: Option<&str>, pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
     let root: serde_json::Value = serde_json::from_slice(body)
         .map_err(|e| AppError::Validation(format!("failed to decode OTLP JSON: {e}")))?;
 
@@ -50,7 +52,7 @@ fn handle_trace_request_json(body: &[u8], pool: &PgPool) -> Result<Vec<serde_jso
                 let span_name = span.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 match span_name {
                     "execute_tool" => {
-                        match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref()) {
+                        match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref(), client_ip, user_agent) {
                             Ok(event) => {
                                 match tokio::task::block_in_place(|| {
                                     tokio::runtime::Handle::current().block_on(async {
@@ -86,6 +88,8 @@ fn map_tool_call_json(
     span: &serde_json::Value,
     service_name: Option<&str>,
     session_id: Option<&str>,
+    client_ip: Option<&str>,
+    user_agent: Option<&str>,
 ) -> Result<ToolCallEvent, &'static str> {
     let attrs = span.get("attributes").and_then(|v| v.as_array());
     let attrs_slice: &[serde_json::Value] = attrs.map(|a| a.as_slice()).unwrap_or(&[]);
@@ -119,13 +123,16 @@ fn map_tool_call_json(
 
     let input_tokens = json_attr_int(attrs_slice, "gen_ai.usage.input_tokens");
     let output_tokens = json_attr_int(attrs_slice, "gen_ai.usage.output_tokens");
-    let model = json_attr_str(attrs_slice, "gen_ai.response.model");
+    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens");
+    let model = json_attr_str(attrs_slice, "gen_ai.response.model")
+        .or_else(|| json_attr_str(attrs_slice, "gen_ai.request.model"));
+    let conversation_id = json_attr_str(attrs_slice, "gen_ai.conversation.id")
+        .or_else(|| session_id.map(|s| s.to_string()));
     let response_bytes = json_attr_int(attrs_slice, "gen_ai.response.bytes");
 
     let mut metadata = serde_json::json!({});
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
     if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
-    if let Some(m) = &model { metadata["model"] = serde_json::json!(m); }
     if let Some(a) = &agent_name { metadata["agent"] = serde_json::json!(a); }
 
     Ok(ToolCallEvent {
@@ -149,6 +156,11 @@ fn map_tool_call_json(
         request_sha256: None,
         response_sha256: None,
         metadata: Some(metadata),
+        model,
+        cached_tokens: cached_tokens.map(|t| t as i32),
+        conversation_id,
+        client_ip: client_ip.map(|s| s.to_string()),
+        user_agent: user_agent.map(|s| s.to_string()),
     })
 }
 
@@ -168,7 +180,7 @@ fn json_attr_int(attrs: &[serde_json::Value], key: &str) -> Option<i64> {
         })
 }
 
-fn handle_trace_request_proto(body: &[u8], pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
+fn handle_trace_request_proto(body: &[u8], _client_ip: Option<&str>, _user_agent: Option<&str>, pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
     let req = ExportTraceServiceRequest::decode(body)
         .map_err(|e| AppError::Validation(format!("failed to decode OTLP protobuf: {e}")))?;
 
@@ -242,21 +254,16 @@ fn map_tool_call(
 
     let input_tokens = get_attr_int(&span.attributes, "gen_ai.usage.input_tokens");
     let output_tokens = get_attr_int(&span.attributes, "gen_ai.usage.output_tokens");
-    let model = get_attr_str(&span.attributes, "gen_ai.response.model");
+    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens");
+    let model = get_attr_str(&span.attributes, "gen_ai.response.model")
+        .or_else(|| get_attr_str(&span.attributes, "gen_ai.request.model"));
+    let conversation_id = get_attr_str(&span.attributes, "gen_ai.conversation.id")
+        .or_else(|| session_id.map(|s| s.to_string()));
 
     let mut metadata = serde_json::json!({});
-    if let Some(svc) = service_name {
-        metadata["service_name"] = serde_json::json!(svc);
-    }
-    if let Some(sid) = session_id {
-        metadata["session_id"] = serde_json::json!(sid);
-    }
-    if let Some(m) = model {
-        metadata["model"] = serde_json::json!(m);
-    }
-    if let Some(agent) = &agent_name {
-        metadata["agent"] = serde_json::json!(agent);
-    }
+    if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
+    if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
+    if let Some(agent) = &agent_name { metadata["agent"] = serde_json::json!(agent); }
 
     let event = ToolCallEvent {
         event_id: uuid::Uuid::new_v4(),
@@ -279,6 +286,11 @@ fn map_tool_call(
         request_sha256: None,
         response_sha256: None,
         metadata: Some(metadata),
+        model,
+        cached_tokens: cached_tokens.map(|t| t as i32),
+        conversation_id,
+        client_ip: None,
+        user_agent: None,
     };
 
     Ok(event)

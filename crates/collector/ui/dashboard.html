@@ -435,10 +435,16 @@ tbody tr:hover { background: var(--bg-hover); }
     <div class="kpi-card">
       <div class="kpi-label">Total Tokens</div>
       <div class="kpi-value" id="totalTokens">—</div>
+      <div id="tokenBreakdown" style="font-size:11px;color:var(--text-muted);margin-top:4px"></div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Avg Tokens / Call</div>
       <div class="kpi-value" id="avgTokens">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Cached Tokens</div>
+      <div class="kpi-value" id="cachedTokens">—</div>
+      <div id="cacheRatio" style="font-size:11px;color:var(--text-muted);margin-top:4px"></div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Error Rate</div>
@@ -501,6 +507,7 @@ tbody tr:hover { background: var(--bg-hover); }
           <button class="tab-btn active" data-tab="tools">Top Tools</button>
           <button class="tab-btn" data-tab="tasks">Top Tasks</button>
           <button class="tab-btn" data-tab="servers">Top MCP Servers</button>
+          <button class="tab-btn" data-tab="events">Events</button>
         </div>
         <button class="btn-sm" id="btnExportCsv" title="Export as CSV">⬇ CSV</button>
       </div>
@@ -701,6 +708,9 @@ function renderKPIs() {
 
   const totalCalls = tools.reduce((s, t) => s + Number(t.calls || 0), 0);
   const totalTokens = tools.reduce((s, t) => s + Number(t.total_estimated_tokens || 0), 0);
+  const totalIn = tools.reduce((s, t) => s + Number((t.avg_input_tokens || 0) * (t.calls || 0)), 0);
+  const totalOut = tools.reduce((s, t) => s + Number((t.avg_output_tokens || 0) * (t.calls || 0)), 0);
+  const totalCached = tools.reduce((s, t) => s + Number(t.cached_tokens_total || 0), 0);
   const avgTokens = totalCalls > 0 ? Math.round(totalTokens / totalCalls) : 0;
   const totalMcpServers = servers.length;
 
@@ -715,6 +725,15 @@ function renderKPIs() {
 
   document.getElementById('totalCalls').textContent = formatNum(totalCalls);
   document.getElementById('totalTokens').textContent = formatNum(totalTokens);
+  const breakdown = document.getElementById('tokenBreakdown');
+  if (totalIn > 0 || totalOut > 0) {
+    breakdown.textContent = `in: ${formatNum(Math.round(totalIn))} · out: ${formatNum(Math.round(totalOut))}`;
+  } else { breakdown.textContent = ''; }
+  document.getElementById('cachedTokens').textContent = formatNum(totalCached);
+  const cacheRatio = document.getElementById('cacheRatio');
+  if (totalTokens > 0 && totalCached > 0) {
+    cacheRatio.textContent = `${((totalCached / totalTokens) * 100).toFixed(1)}% cache hit`;
+  } else { cacheRatio.textContent = ''; }
   document.getElementById('avgTokens').textContent = formatNum(avgTokens);
   document.getElementById('totalMcpServers').textContent = totalMcpServers;
   const erEl = document.getElementById('errorRate');
@@ -732,6 +751,14 @@ function formatNum(n) {
 function renderTab(tab) {
   state.currentTab = tab;
   const container = document.getElementById('reportContent');
+
+  // Events tab has its own async fetch — handle separately
+  if (tab === 'events') {
+    evState.offset = 0;
+    renderEventsTab();
+    return;
+  }
+
   const data = state.data ? state.data[tab] : null;
 
   if (!data || data.length === 0) {
@@ -741,14 +768,17 @@ function renderTab(tab) {
 
   if (tab === 'tools') {
     container.innerHTML = buildTable(
-      ['Tool', 'MCP Server', 'Calls', 'Total Tokens', 'Avg Duration', 'Errors', 'Avg Resp Bytes'],
+      ['Tool', 'MCP Server', 'Calls', 'Total Tokens', 'Avg In', 'Avg Out', 'Cached', 'Top Model', 'Avg Duration', 'Errors'],
       data,
       t => [
         t.tool_name, t.mcp_server || '—',
         formatNum(t.calls), formatNum(t.total_estimated_tokens),
+        t.avg_input_tokens ? formatNum(Math.round(t.avg_input_tokens)) : '—',
+        t.avg_output_tokens ? formatNum(Math.round(t.avg_output_tokens)) : '—',
+        t.cached_tokens_total ? formatNum(t.cached_tokens_total) : '—',
+        t.top_model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${t.top_model}</span>` : '—',
         t.avg_duration_ms ? Number(t.avg_duration_ms).toFixed(0) + 'ms' : '—',
-        `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors}</span>`,
-        t.avg_response_bytes ? formatNum(Math.round(t.avg_response_bytes)) : '—'
+        `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors}</span>`
       ]
     );
   } else if (tab === 'tasks') {
@@ -772,6 +802,8 @@ function renderTab(tab) {
         t.error_rate != null ? (Number(t.error_rate) * 100).toFixed(1) + '%' : '—'
       ]
     );
+  } else if (tab === 'events') {
+    renderEventsTab();
   }
 }
 
@@ -785,6 +817,101 @@ function buildTable(headers, rows, cellFn) {
   return html;
 }
 
+// ── Events feed ──────────────────────────────────────────────────
+const evState = { offset: 0, limit: 50, convFilter: '' };
+
+async function fetchEvents() {
+  const range = state.timeRange;
+  const from = isoBefore(RANGE_MS[range]);
+  const to = nowISO();
+  let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=${evState.limit}&offset=${evState.offset}`;
+  if (state.filterIde) q += `&ide=${state.filterIde}`;
+  if (state.filterAgent) q += `&agent=${state.filterAgent}`;
+  if (evState.convFilter) q += `&conversation_id=${encodeURIComponent(evState.convFilter)}`;
+  const data = await fetch(BASE + '/reports/events' + q).then(r => r.json());
+  return data;
+}
+
+async function renderEventsTab() {
+  const container = document.getElementById('reportContent');
+  container.innerHTML = '<div class="empty-state"><p>Loading...</p></div>';
+  try {
+    const rows = await fetchEvents();
+    if (!rows || rows.length === 0) {
+      container.innerHTML = `
+        ${renderEventsFilter()}
+        <div class="empty-state"><p>No events found</p><p class="hint">Use the form below to send a test event</p></div>`;
+      return;
+    }
+    const table = buildTable(
+      ['Timestamp', 'Tool', 'Model', 'In ↑', 'Out ↓', 'Cached', 'Duration', 'Status', 'Agent', 'IDE', 'IP'],
+      rows,
+      r => [
+        `<span style="font-size:11px;white-space:nowrap">${new Date(r.started_at).toLocaleString()}</span>`,
+        `<strong>${r.tool_name}</strong>`,
+        r.model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${r.model}</span>` : '—',
+        r.estimated_input_tokens ? formatNum(r.estimated_input_tokens) : '—',
+        r.estimated_output_tokens ? formatNum(r.estimated_output_tokens) : '—',
+        r.cached_tokens ? `<span class="text-green">${formatNum(r.cached_tokens)}</span>` : '—',
+        r.duration_ms + 'ms',
+        r.ok ? '<span class="text-green">✓</span>' : '<span class="text-red">✗</span>',
+        r.agent || '—',
+        r.ide || '—',
+        r.client_ip ? `<span style="font-size:11px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim().substring(0,16)}</span>` : '—',
+      ]
+    );
+    container.innerHTML = renderEventsFilter() + table + renderEventsPagination(rows.length);
+    attachEventsPaginationListeners();
+    attachEventsFilterListeners();
+  } catch(e) {
+    container.innerHTML = `<div class="empty-state"><p class="text-red">Error: ${e.message}</p></div>`;
+  }
+}
+
+function renderEventsFilter() {
+  return `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <label style="font-size:11px;color:var(--text-muted)">Conversation:</label>
+    <input id="evConvFilter" type="text" placeholder="conversation_id" value="${evState.convFilter}"
+      style="font-size:12px;font-family:inherit;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:5px;padding:4px 8px;width:200px">
+    <button id="evFilterBtn" class="btn-sm">Filter</button>
+    <button id="evResetBtn" class="btn-sm">Reset</button>
+  </div>`;
+}
+
+function renderEventsPagination(count) {
+  const hasPrev = evState.offset > 0;
+  const hasNext = count === evState.limit;
+  return `<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted)">
+    <button id="evPrev" class="btn-sm" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>← Prev</button>
+    <span>offset ${evState.offset} – ${evState.offset + count}</span>
+    <button id="evNext" class="btn-sm" ${hasNext ? '' : 'disabled style="opacity:.4"'}>Next →</button>
+  </div>`;
+}
+
+function attachEventsPaginationListeners() {
+  document.getElementById('evPrev')?.addEventListener('click', () => {
+    evState.offset = Math.max(0, evState.offset - evState.limit);
+    renderEventsTab();
+  });
+  document.getElementById('evNext')?.addEventListener('click', () => {
+    evState.offset += evState.limit;
+    renderEventsTab();
+  });
+}
+
+function attachEventsFilterListeners() {
+  document.getElementById('evFilterBtn')?.addEventListener('click', () => {
+    evState.convFilter = document.getElementById('evConvFilter').value.trim();
+    evState.offset = 0;
+    renderEventsTab();
+  });
+  document.getElementById('evResetBtn')?.addEventListener('click', () => {
+    evState.convFilter = '';
+    evState.offset = 0;
+    renderEventsTab();
+  });
+}
+
 function exportCsv() {
   const tab = state.currentTab;
   const data = state.data ? state.data[tab] : null;
@@ -793,8 +920,11 @@ function exportCsv() {
   let headers, rows;
 
   if (tab === 'tools') {
-    headers = ['Tool', 'MCP Server', 'Calls', 'Total Tokens', 'Avg Duration (ms)', 'Errors', 'Avg Resp Bytes'];
-    rows = data.map(t => [t.tool_name, t.mcp_server || '', t.calls, t.total_estimated_tokens, (t.avg_duration_ms || 0).toFixed(0), t.errors, Math.round(t.avg_response_bytes || 0)]);
+    headers = ['Tool', 'MCP Server', 'Calls', 'Total Tokens', 'Avg In', 'Avg Out', 'Cached', 'Top Model', 'Avg Duration (ms)', 'Errors'];
+    rows = data.map(t => [t.tool_name, t.mcp_server || '', t.calls, t.total_estimated_tokens,
+      Math.round(t.avg_input_tokens || 0), Math.round(t.avg_output_tokens || 0),
+      t.cached_tokens_total || 0, t.top_model || '',
+      (t.avg_duration_ms || 0).toFixed(0), t.errors]);
   } else if (tab === 'tasks') {
     headers = ['Task ID', 'Tool Calls', 'Total Tokens', 'Total Duration (ms)', 'Errors', 'Distinct Tools'];
     rows = data.map(t => [t.task_id, t.tool_calls, t.total_estimated_tokens, t.total_duration_ms || 0, t.errors, t.distinct_tools]);
