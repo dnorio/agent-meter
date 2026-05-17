@@ -14,20 +14,81 @@
 └─────────────────┘     │  │  otlp)          │  │     └───────────────┘
                         │  └─────────────────┘  │
                         └──────────────────────┘
+                        
+┌─────────────────┐     ┌──────────────────────┐
+│   VSCode        │────>│  agent-meter          │
+│ (Copilot Chat)  │OTLP │  collector            │
+│                 │HTTP │  :4318/v1/traces      │
+│ OTLP_ENABLED    │     │  (protobuf)           │
+└─────────────────┘     └──────────────────────┘
 ```
 
-There are two separate concerns:
+There are three separate concerns:
 
-1. **Events ingestion (REST API)** — agents send tool-call data to the collector
-2. **OTEL export** — the collector *exports* its own spans (for debugging the collector)
-
-The collector currently **does not** run an OTLP receiver. To send OTEL spans *from agents* to the collector, an OTLP HTTP receiver must be added (see [Future: OTLP Receiver](#future-otlp-receiver)).
+1. **Events ingestion (REST API)** — agents send tool-call data via `POST /events/tool-call`
+2. **OTLP Receiver** — VSCode Copilot sends native OTLP spans via `POST /v1/traces` (port 4318)
+3. **OTEL export** — the collector *exports* its own spans (for debugging the collector)
 
 ---
 
-## 1. Sending Tool-Call Data (REST API)
+## 1. OTLP Receiver (VSCode Copilot Native)
 
-All agents should send tool-call events via the existing HTTP API.
+**VSCode Copilot Chat** has built-in OpenTelemetry support. Enable it to send traces directly to agent-meter:
+
+### VSCode Settings
+
+```json
+{
+  "github.copilot.chat.otel.enabled": true,
+  "github.copilot.chat.otel.otlpEndpoint": "http://agent-meter:4318",
+  "github.copilot.chat.otel.captureContent": false
+}
+```
+
+### Environment Variables (alternative)
+
+```bash
+export COPILOT_OTEL_ENABLED=true
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://agent-meter:4318
+```
+
+### What Gets Collected
+
+VSCode emits OTLP spans following [GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/):
+
+| Span Type | Description | Mapped To |
+|-----------|-------------|-----------|
+| `invoke_agent` | Full agent session | (future: task lifecycle) |
+| `execute_tool` | Tool invocation | `agent_tool_calls` table |
+| `chat` | LLM API call | metadata only |
+
+Span attributes captured:
+- `gen_ai.agent.name` → `agent`
+- `gen_ai.tool.name` → `tool_name`
+- `gen_ai.usage.input_tokens` → `estimated_input_tokens`
+- `gen_ai.usage.output_tokens` → `estimated_output_tokens`
+- `gen_ai.response.model` → stored in metadata
+- `status.code` → `ok` (1=OK, 2=Error)
+
+### WSL Setup
+
+For VSCode running in WSL:
+
+```bash
+# Terminal 1: port-forward both ports
+kubectl port-forward svc/agent-meter 8081:3000 4318:4318
+
+# VSCode settings (localhost for WSL):
+{
+  "github.copilot.chat.otel.otlpEndpoint": "http://localhost:4318"
+}
+```
+
+---
+
+## 2. Sending Tool-Call Data (REST API)
+
+All other agents (OpenCode, Cursor, Antigravity, Codex) use the REST API.
 
 ### Using the CLI
 

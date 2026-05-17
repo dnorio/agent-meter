@@ -3,6 +3,7 @@ pub mod config;
 pub mod db;
 pub mod errors;
 pub mod models;
+pub mod otlp;
 pub mod routes;
 pub mod services;
 pub mod telemetry;
@@ -17,15 +18,21 @@ use tokio_util::sync::CancellationToken;
 pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
     let _otel_provider = telemetry::init_telemetry(&config);
 
-    let app = app::build(config.clone(), pool);
+    let main_app = app::build(config.clone(), pool.clone());
+    let otlp_app = app::build_otlp(config.clone(), pool.clone());
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
+    let otlp_addr: SocketAddr = format!("{}:{}", config.host, config.otlp_port).parse()?;
+
     tracing::info!(addr = %addr, "starting collector");
+    tracing::info!(addr = %otlp_addr, "starting OTLP receiver");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    let otlp_listener = tokio::net::TcpListener::bind(otlp_addr).await?;
 
     let token = CancellationToken::new();
     let token_clone = token.clone();
+    let otlp_token = token.clone();
 
     tokio::spawn(async move {
         signal::ctrl_c().await.ok();
@@ -33,9 +40,25 @@ pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
         token_clone.cancel();
     });
 
-    serve(listener, app)
-        .with_graceful_shutdown(async move { token.cancelled().await })
-        .await?;
+    let main_handle = tokio::spawn(async move {
+        if let Err(e) = serve(listener, main_app)
+            .with_graceful_shutdown(async move { token.cancelled().await })
+            .await
+        {
+            tracing::error!(error = %e, "main server failed");
+        }
+    });
+
+    let otlp_handle = tokio::spawn(async move {
+        if let Err(e) = serve(otlp_listener, otlp_app)
+            .with_graceful_shutdown(async move { otlp_token.cancelled().await })
+            .await
+        {
+            tracing::error!(error = %e, "OTLP server failed");
+        }
+    });
+
+    let _ = tokio::join!(main_handle, otlp_handle);
 
     if let Some(provider) = _otel_provider {
         if let Err(e) = provider.shutdown() {

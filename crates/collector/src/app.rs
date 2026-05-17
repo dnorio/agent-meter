@@ -29,3 +29,14 @@ pub fn build(config: Config, pool: PgPool) -> Router {
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
+
+pub fn build_otlp(config: Config, pool: PgPool) -> Router {
+    let state = AppState {
+        config: Arc::new(config),
+        pool,
+    };
+
+    Router::new()
+        .merge(routes::otlp::router())
+        .with_state(state)
+}

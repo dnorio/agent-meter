@@ -36,9 +36,58 @@
 - **Rust toolchain** (`cargo`) ou **Docker** para compilar o CLI
 - **Porta 8081** livre no WSL (para port-forward local)
 
-## Passo 1 — Setup do agent-meter CLI
+## Método Recomendado: OTLP Nativo do VSCode
 
-Execute o script universal dentro do WSL:
+**VSCode Copilot Chat** tem suporte nativo a OpenTelemetry. Este é o método **mais simples** e **recomendado**:
+
+### 1. Port-forward (WSL)
+
+```bash
+# Terminal dedicado — deixar rodando
+kubectl port-forward svc/agent-meter 8081:3000 4318:4318
+```
+
+### 2. VSCode Settings
+
+No VSCode (dentro do WSL), abra `settings.json`:
+
+```json
+{
+  "github.copilot.chat.otel.enabled": true,
+  "github.copilot.chat.otel.otlpEndpoint": "http://localhost:4318",
+  "github.copilot.chat.otel.captureContent": false
+}
+```
+
+Ou via Command Palette:
+1. `Ctrl+,` → pesquise "copilot otel"
+2. Enable: `github.copilot.chat.otel.enabled` = `true`
+3. Endpoint: `github.copilot.chat.otel.otlpEndpoint` = `http://localhost:4318`
+
+### 3. Verificação
+
+```bash
+# Verificar se o collector recebe spans
+curl -s http://localhost:8081/reports/top-tools?agent=copilot-vscode | jq
+
+# Dashboard
+open http://localhost:8081
+```
+
+### Vantagens do OTLP Nativo
+
+- ✅ **Zero configuração** de CLI ou scripts
+- ✅ **Automático** — VSCode envia todos os tool-calls
+- ✅ **Padrão OpenTelemetry** — compatível com GenAI semantic conventions
+- ✅ **Atributos ricos** — tokens, modelo, status, duration
+
+---
+
+## Método Alternativo: CLI + MCP Wrapper
+
+Use este método se precisar de customização adicional ou se o OTLP nativo não estiver disponível.
+
+### Passo 1 — Setup do agent-meter CLI
 
 ```bash
 # Na worktree do OpenCode (ou de qualquer worktree com o repositório)

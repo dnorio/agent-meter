@@ -4,6 +4,7 @@ use std::env;
 pub struct Config {
     pub host: String,
     pub port: u16,
+    pub otlp_port: u16,
     pub database_url: String,
     pub otel_endpoint: Option<String>,
     pub otel_service_name: String,
@@ -18,6 +19,10 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(8081),
+            otlp_port: env::var("AGENT_METER_OTLP_PORT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(4318),
             database_url: env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://agent_meter:agent_meter@localhost:5432/agent_meter".into()),
             otel_endpoint: env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok(),
