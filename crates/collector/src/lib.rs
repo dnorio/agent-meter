@@ -50,7 +50,7 @@ pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
     });
 
     let otlp_handle = tokio::spawn(async move {
-        if let Err(e) = serve(otlp_listener, otlp_app)
+        if let Err(e) = serve(otlp_listener, otlp_app.into_make_service_with_connect_info::<SocketAddr>())
             .with_graceful_shutdown(async move { otlp_token.cancelled().await })
             .await
         {

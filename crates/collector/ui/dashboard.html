@@ -782,7 +782,7 @@ function renderTab(tab) {
   // Events tab has its own async fetch — handle separately
   if (tab === 'events') {
     evState.offset = 0;
-    renderEventsTab();
+    renderEventsTab(true);
     return;
   }
 
@@ -838,17 +838,27 @@ function renderTab(tab) {
       ]
     );
   } else if (tab === 'events') {
-    renderEventsTab();
+    renderEventsTab(true);
   }
 }
 
-function buildTable(headers, rows, cellFn) {
-  let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+function buildTable(headers, rows, cellFn, tbodyId) {
+  let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead>';
+  html += `<tbody${tbodyId ? ` id="${tbodyId}"` : ''}>`;
   for (const row of rows) {
     const cells = cellFn(row);
     html += '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
   }
   html += '</tbody></table>';
+  return html;
+}
+
+function buildTbodyRows(rows, cellFn) {
+  let html = '';
+  for (const row of rows) {
+    const cells = cellFn(row);
+    html += '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
+  }
   return html;
 }
 
@@ -896,9 +906,13 @@ function stopEventsAutoRefresh() {
   if (state.eventsTimer) { clearInterval(state.eventsTimer); state.eventsTimer = null; }
 }
 
-async function renderEventsTab() {
+async function renderEventsTab(forceFullRender) {
   const container = document.getElementById('reportContent');
-  container.innerHTML = '<div class="empty-state"><p>Loading...</p></div>';
+  const existingTbody = document.getElementById('eventsTableBody');
+  // Only flash Loading on first render; on auto-refresh, update in-place
+  if (!existingTbody || forceFullRender) {
+    container.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+  }
   try {
     const rows = await fetchEvents();
     if (!rows || rows.length === 0) {
@@ -907,29 +921,52 @@ async function renderEventsTab() {
         <div class="empty-state"><p>No events found</p><p class="hint">Use the form below to send a test event</p></div>`;
       return;
     }
-    const table = buildTable(
-      ['When', 'Type', 'Tool / Op', 'Model', 'In ↑', 'Out ↓', 'Cached ♻', 'Duration', 'Status', 'Agent', 'IDE', 'IP'],
-      rows,
-      r => {
-        const isChat = r.tool_name === 'llm_chat';
-        const typeTag = isChat
-          ? `<span style="font-size:10px;padding:1px 5px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:3px;color:var(--accent)">💬 LLM</span>`
-          : `<span style="font-size:10px;padding:1px 5px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:3px;color:var(--green)">🔧 tool</span>`;
-        return [
-          `<span style="font-size:11px;white-space:nowrap;color:var(--text-muted)" title="${r.started_at}">${relativeTime(r.started_at)}</span>`,
-          typeTag,
-          `<strong style="${isChat ? 'color:var(--accent-hover)' : ''}">${r.tool_name}</strong>`,
-          r.model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${r.model}</span>` : '—',
-          r.estimated_input_tokens ? formatNum(r.estimated_input_tokens) : '—',
-          r.estimated_output_tokens ? formatNum(r.estimated_output_tokens) : '—',
-          r.cached_tokens ? `<span class="text-green">${formatNum(r.cached_tokens)}</span>` : '—',
-          r.duration_ms + 'ms',
-          r.ok ? '<span class="text-green">✓ ok</span>' : '<span class="text-red">✗ err</span>',
-          r.agent || '—',
-          `<span style="font-size:11px">${r.ide || '—'}</span>`,
-          r.client_ip ? `<span style="font-size:10px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim().substring(0, 15)}</span>` : '—',
-        ];
+
+    const rowFn = r => {
+      const isChat = r.tool_name === 'llm_chat';
+      const typeTag = isChat
+        ? `<span style="font-size:10px;padding:1px 5px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:3px;color:var(--accent)">💬 LLM</span>`
+        : `<span style="font-size:10px;padding:1px 5px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:3px;color:var(--green)">🔧 tool</span>`;
+      const convSnippet = r.conversation_id
+        ? `<span style="font-size:10px;font-family:monospace;color:var(--text-muted)" title="${r.conversation_id}">${r.conversation_id.substring(0,8)}…</span>`
+        : '—';
+      return [
+        `<span style="font-size:11px;white-space:nowrap;color:var(--text-muted)" title="${r.started_at}">${relativeTime(r.started_at)}</span>`,
+        typeTag,
+        `<strong style="${isChat ? 'color:var(--accent-hover)' : ''}">${r.tool_name}</strong>`,
+        r.model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${r.model}</span>` : '—',
+        r.estimated_input_tokens ? formatNum(r.estimated_input_tokens) : '—',
+        r.estimated_output_tokens ? formatNum(r.estimated_output_tokens) : '—',
+        r.cached_tokens ? `<span class="text-green">${formatNum(r.cached_tokens)}</span>` : '—',
+        r.duration_ms + 'ms',
+        r.ok ? '<span class="text-green">✓ ok</span>' : '<span class="text-red">✗ err</span>',
+        r.agent || '—',
+        convSnippet,
+        `<span style="font-size:11px">${r.ide || '—'}</span>`,
+        r.client_ip ? `<span style="font-size:10px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim().substring(0, 15)}</span>` : '—',
+      ];
+    };
+
+    // In-place update when tbody already rendered (no flicker)
+    const tbody = document.getElementById('eventsTableBody');
+    if (tbody && !forceFullRender) {
+      tbody.innerHTML = buildTbodyRows(rows, rowFn);
+      // Update live indicator text only
+      const liveEl = document.getElementById('evLiveIndicator');
+      if (liveEl) {
+        liveEl.innerHTML = state.eventsTimer
+          ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--green)"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1s ease-in-out infinite"></span>live</span>`
+          : `<span style="font-size:11px;color:var(--text-muted)">paused</span>`;
       }
+      // Update pagination
+      const pagEl = document.getElementById('eventsPagination');
+      if (pagEl) pagEl.innerHTML = renderEventsPaginationInner(rows.length);
+      return;
+    }
+
+    const table = buildTable(
+      ['When', 'Type', 'Tool / Op', 'Model', 'In ↑', 'Out ↓', 'Cached ♻', 'Duration', 'Status', 'Agent', 'Conv ID', 'IDE', 'IP'],
+      rows, rowFn, 'eventsTableBody'
     );
     container.innerHTML = renderEventsFilter() + table + renderEventsPagination(rows.length);
     attachEventsPaginationListeners();
@@ -940,11 +977,11 @@ async function renderEventsTab() {
 }
 
 function renderEventsFilter() {
-  const liveIndicator = state.eventsTimer
+  const liveHtml = state.eventsTimer
     ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--green)"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1s ease-in-out infinite"></span>live</span>`
     : `<span style="font-size:11px;color:var(--text-muted)">paused</span>`;
   return `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    ${liveIndicator}
+    <span id="evLiveIndicator">${liveHtml}</span>
     <label style="font-size:11px;color:var(--text-muted)">Conversation:</label>
     <input id="evConvFilter" type="text" placeholder="conversation_id" value="${evState.convFilter}"
       style="font-size:12px;font-family:inherit;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:5px;padding:4px 8px;width:200px">
@@ -954,24 +991,28 @@ function renderEventsFilter() {
   </div>`;
 }
 
-function renderEventsPagination(count) {
+function renderEventsPaginationInner(count) {
   const hasPrev = evState.offset > 0;
   const hasNext = count === evState.limit;
-  return `<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted)">
-    <button id="evPrev" class="btn-sm" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>← Prev</button>
+  return `<button id="evPrev" class="btn-sm" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>← Prev</button>
     <span>offset ${evState.offset} – ${evState.offset + count}</span>
-    <button id="evNext" class="btn-sm" ${hasNext ? '' : 'disabled style="opacity:.4"'}>Next →</button>
+    <button id="evNext" class="btn-sm" ${hasNext ? '' : 'disabled style="opacity:.4"'}>Next →</button>`;
+}
+
+function renderEventsPagination(count) {
+  return `<div id="eventsPagination" style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted)">
+    ${renderEventsPaginationInner(count)}
   </div>`;
 }
 
 function attachEventsPaginationListeners() {
   document.getElementById('evPrev')?.addEventListener('click', () => {
     evState.offset = Math.max(0, evState.offset - evState.limit);
-    renderEventsTab();
+    renderEventsTab(true);
   });
   document.getElementById('evNext')?.addEventListener('click', () => {
     evState.offset += evState.limit;
-    renderEventsTab();
+    renderEventsTab(true);
   });
 }
 
@@ -979,17 +1020,17 @@ function attachEventsFilterListeners() {
   document.getElementById('evFilterBtn')?.addEventListener('click', () => {
     evState.convFilter = document.getElementById('evConvFilter').value.trim();
     evState.offset = 0;
-    renderEventsTab();
+    renderEventsTab(true);
   });
   document.getElementById('evResetBtn')?.addEventListener('click', () => {
     evState.convFilter = '';
     evState.offset = 0;
-    renderEventsTab();
+    renderEventsTab(true);
   });
   document.getElementById('evLiveBtn')?.addEventListener('click', () => {
     if (state.eventsTimer) stopEventsAutoRefresh();
     else { evState.offset = 0; startEventsAutoRefresh(); }
-    renderEventsTab();
+    renderEventsTab(true);
   });
 }
 

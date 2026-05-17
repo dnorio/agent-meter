@@ -1,6 +1,6 @@
 use prost::Message;
 use sqlx::PgPool;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::errors::AppError;
 use crate::models::event::ToolCallEvent;
@@ -52,6 +52,18 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
 
             for span in spans {
                 let span_name = span.get("name").and_then(|v| v.as_str()).unwrap_or("");
+
+                // One-time debug: log all attribute keys for diagnosis (gated by env var)
+                if std::env::var("AGENT_METER_DEBUG_SPANS").is_ok() {
+                    let attr_keys: Vec<&str> = span.get("attributes")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.iter()
+                            .filter_map(|kv| kv.get("key").and_then(|k| k.as_str()))
+                            .collect())
+                        .unwrap_or_default();
+                    info!("span '{}' attribute keys: {:?} | resource service={:?} session={:?}",
+                        span_name, attr_keys, service_name, session_id);
+                }
 
                 // VS Code sends: "execute_tool <tool_name>", "chat <model>", "invoke_agent <agent>"
                 if span_name.starts_with("execute_tool") {
@@ -151,14 +163,24 @@ fn map_tool_call_json(
         None
     };
 
-    let input_tokens = json_attr_int(attrs_slice, "gen_ai.usage.input_tokens");
-    let output_tokens = json_attr_int(attrs_slice, "gen_ai.usage.output_tokens");
-    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens");
+    let input_tokens = json_attr_int(attrs_slice, "gen_ai.usage.input_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.prompt_tokens"));
+    let output_tokens = json_attr_int(attrs_slice, "gen_ai.usage.output_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.completion_tokens"));
+    // Multiple attribute names used by different SDK versions / providers
+    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.cached_tokens"))
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.input_tokens_cached"));
     let model = json_attr_str(attrs_slice, "gen_ai.response.model")
         .or_else(|| json_attr_str(attrs_slice, "gen_ai.request.model"));
+    // Conversation/thread ID from multiple possible attributes + traceId fallback
+    let trace_id = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
     let conversation_id = json_attr_str(attrs_slice, "gen_ai.conversation.id")
+        .or_else(|| json_attr_str(attrs_slice, "copilot.conversation.id"))
         .or_else(|| json_attr_str(attrs_slice, "thread.id"))
-        .or_else(|| session_id.map(|s| s.to_string()));
+        .or_else(|| json_attr_str(attrs_slice, "gen_ai.thread.id"))
+        .or_else(|| session_id.map(|s| s.to_string()))
+        .or(trace_id);
     let response_bytes = json_attr_int(attrs_slice, "gen_ai.response.bytes");
     let request_bytes = json_attr_int(attrs_slice, "gen_ai.request.bytes");
 
@@ -227,16 +249,24 @@ fn map_chat_span_json(
         None
     };
 
-    let input_tokens = json_attr_int(attrs_slice, "gen_ai.usage.input_tokens");
-    let output_tokens = json_attr_int(attrs_slice, "gen_ai.usage.output_tokens");
-    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens");
+    let input_tokens = json_attr_int(attrs_slice, "gen_ai.usage.input_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.prompt_tokens"));
+    let output_tokens = json_attr_int(attrs_slice, "gen_ai.usage.output_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.completion_tokens"));
+    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.cached_tokens"))
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.input_tokens_cached"));
     let model = json_attr_str(attrs_slice, "gen_ai.response.model")
         .or_else(|| json_attr_str(attrs_slice, "gen_ai.request.model"))
         .or_else(|| model_hint.map(|s| s.to_string()));
     let system = json_attr_str(attrs_slice, "gen_ai.system");
+    let trace_id = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
     let conversation_id = json_attr_str(attrs_slice, "gen_ai.conversation.id")
+        .or_else(|| json_attr_str(attrs_slice, "copilot.conversation.id"))
         .or_else(|| json_attr_str(attrs_slice, "thread.id"))
-        .or_else(|| session_id.map(|s| s.to_string()));
+        .or_else(|| json_attr_str(attrs_slice, "gen_ai.thread.id"))
+        .or_else(|| session_id.map(|s| s.to_string()))
+        .or(trace_id);
 
     // Use gen_ai.system as mcp_server equivalent for LLM provider grouping
     let mcp_server = system.or_else(|| {
@@ -358,7 +388,26 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
                         Err(e) => warn!("failed to map OTLP execute_tool span: {e}"),
                     }
                 } else if span.name.starts_with("chat") {
-                    // protobuf chat spans — minimal handling for now
+                    let model_hint = span.name.strip_prefix("chat").map(|s| s.trim()).filter(|s| !s.is_empty());
+                    match map_chat_span_proto(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, model_hint) {
+                        Ok(event) => {
+                            match tokio::task::block_in_place(|| {
+                                tokio::runtime::Handle::current().block_on(async {
+                                    event_service::insert_tool_call(pool, event).await
+                                })
+                            }) {
+                                Ok(record) => {
+                                    results.push(serde_json::json!({
+                                        "event_id": record.event_id,
+                                        "tool_name": record.tool_name,
+                                        "duration_ms": record.duration_ms,
+                                    }));
+                                }
+                                Err(e) => warn!("failed to insert OTLP chat span: {e}"),
+                            }
+                        }
+                        Err(e) => warn!("failed to map OTLP chat span: {e}"),
+                    }
                 } else if span.name.starts_with("invoke_agent") {
                     // agent session boundary — skip
                 } else {
@@ -398,12 +447,19 @@ fn map_tool_call(
         None
     };
 
-    let input_tokens = get_attr_int(&span.attributes, "gen_ai.usage.input_tokens");
-    let output_tokens = get_attr_int(&span.attributes, "gen_ai.usage.output_tokens");
-    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens");
+    let input_tokens = get_attr_int(&span.attributes, "gen_ai.usage.input_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.prompt_tokens"));
+    let output_tokens = get_attr_int(&span.attributes, "gen_ai.usage.output_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.completion_tokens"));
+    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.cached_tokens"))
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.input_tokens_cached"));
     let model = get_attr_str(&span.attributes, "gen_ai.response.model")
         .or_else(|| get_attr_str(&span.attributes, "gen_ai.request.model"));
     let conversation_id = get_attr_str(&span.attributes, "gen_ai.conversation.id")
+        .or_else(|| get_attr_str(&span.attributes, "copilot.conversation.id"))
+        .or_else(|| get_attr_str(&span.attributes, "thread.id"))
+        .or_else(|| get_attr_str(&span.attributes, "gen_ai.thread.id"))
         .or_else(|| session_id.map(|s| s.to_string()));
 
     let mut metadata = serde_json::json!({});
@@ -440,6 +496,69 @@ fn map_tool_call(
     };
 
     Ok(event)
+}
+
+fn map_chat_span_proto(
+    span: &Span,
+    _resource_attrs: &[KeyValue],
+    service_name: Option<&str>,
+    session_id: Option<&str>,
+    ide: Option<&str>,
+    client_ip: Option<&str>,
+    user_agent: Option<&str>,
+    model_hint: Option<&str>,
+) -> Result<ToolCallEvent, &'static str> {
+    let start = chrono::DateTime::from_timestamp_nanos(span.start_time_unix_nano as i64);
+    let end = chrono::DateTime::from_timestamp_nanos(span.end_time_unix_nano as i64);
+    let ok = span.status.as_ref().map(|s| s.code != 2).unwrap_or(true);
+    let error = if !ok { span.status.as_ref().map(|s| s.message.clone()) } else { None };
+
+    let input_tokens = get_attr_int(&span.attributes, "gen_ai.usage.input_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.prompt_tokens"));
+    let output_tokens = get_attr_int(&span.attributes, "gen_ai.usage.output_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.completion_tokens"));
+    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.cached_tokens"))
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.input_tokens_cached"));
+    let model = get_attr_str(&span.attributes, "gen_ai.response.model")
+        .or_else(|| get_attr_str(&span.attributes, "gen_ai.request.model"))
+        .or_else(|| model_hint.map(|s| s.to_string()));
+    let system = get_attr_str(&span.attributes, "gen_ai.system");
+    let conversation_id = get_attr_str(&span.attributes, "gen_ai.conversation.id")
+        .or_else(|| get_attr_str(&span.attributes, "copilot.conversation.id"))
+        .or_else(|| get_attr_str(&span.attributes, "thread.id"))
+        .or_else(|| session_id.map(|s| s.to_string()));
+    let agent_name = get_attr_str(&span.attributes, "gen_ai.agent.name")
+        .or_else(|| service_name.map(|s| s.to_string()));
+    let mcp_server = system.or_else(|| {
+        model.as_ref().map(|m| {
+            if m.contains("claude") { "anthropic".to_string() }
+            else if m.contains("gpt") || m.contains("o1") || m.contains("o3") { "openai".to_string() }
+            else if m.contains("gemini") { "google".to_string() }
+            else { "unknown".to_string() }
+        })
+    });
+    let mut metadata = serde_json::json!({ "span_type": "chat" });
+    if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
+    if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
+
+    Ok(ToolCallEvent {
+        event_id: uuid::Uuid::new_v4(),
+        task_id: None, repo: None, branch: None,
+        ide: ide.map(|s| s.to_string()).or_else(|| Some("antigravity".into())),
+        agent: agent_name, skill: None, mcp_server,
+        tool_name: "llm_chat".to_string(),
+        started_at: start, ended_at: end, ok, error,
+        request_bytes: None, response_bytes: None,
+        estimated_input_tokens: input_tokens.map(|t| t as i32),
+        estimated_output_tokens: output_tokens.map(|t| t as i32),
+        request_sha256: None, response_sha256: None,
+        metadata: Some(metadata), model,
+        cached_tokens: cached_tokens.map(|t| t as i32),
+        conversation_id,
+        client_ip: client_ip.map(|s| s.to_string()),
+        user_agent: user_agent.map(|s| s.to_string()),
+    })
 }
 
 fn get_attr_str<'a>(attrs: &'a [KeyValue], key: &str) -> Option<String> {
