@@ -458,6 +458,11 @@ tbody tr:hover { background: var(--bg-hover); }
       <div class="kpi-label">Period</div>
       <div class="kpi-value" id="periodRange" style="font-size:13px;font-weight:400;color:var(--text-secondary)">—</div>
     </div>
+    <div class="kpi-card" style="border-left:2px solid var(--accent);cursor:pointer" id="lastEventCard" title="Click to open Events tab">
+      <div class="kpi-label">Last Event</div>
+      <div class="kpi-value" id="lastEventTime" style="font-size:13px;font-weight:500">—</div>
+      <div id="lastEventTool" style="font-size:11px;color:var(--text-muted);margin-top:2px">waiting...</div>
+    </div>
   </div>
 
   <div class="sparkline-section" id="sparklineSection">
@@ -475,7 +480,7 @@ tbody tr:hover { background: var(--bg-hover); }
       <button class="time-btn" data-range="7d">7d</button>
       <button class="time-btn" data-range="30d">30d</button>
     </div>
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
       <select id="filterIde" style="font-size:12px;font-family:inherit;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);border-radius:5px;padding:4px 8px">
         <option value="">all IDEs</option>
         <option value="opencode">OpenCode</option>
@@ -493,6 +498,10 @@ tbody tr:hover { background: var(--bg-hover); }
         <option value="antigravity">Antigravity</option>
         <option value="codex">Codex</option>
       </select>
+      <select id="filterModel" style="font-size:12px;font-family:inherit;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);border-radius:5px;padding:4px 8px">
+        <option value="">all models</option>
+      </select>
+      <button id="btnClearFilters" style="font-size:11px;font-family:inherit;padding:4px 10px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:5px;cursor:pointer" title="Clear all filters">✕ clear</button>
     </div>
     <svg class="sparkline-svg" id="sparklineSvg" preserveAspectRatio="none">
       <rect width="100%" height="100%" fill="var(--bg-elevated)" rx="6"/>
@@ -575,7 +584,11 @@ tbody tr:hover { background: var(--bg-hover); }
 
 <script>
 const BASE = '';
-const state = { currentTab: 'tools', data: null, timeRange: '6h', timeData: null, filterIde: '', filterAgent: '' };
+const state = {
+  currentTab: 'tools', data: null, timeRange: '6h', timeData: null,
+  filterIde: '', filterAgent: '', filterModel: '',
+  lastEventAt: null, eventsTimer: null,
+};
 
 function isoBefore(ago) {
   return new Date(Date.now() - ago).toISOString();
@@ -606,18 +619,29 @@ async function checkHealth() {
   }
 }
 
-async function fetchReports() {
+function getFilters() {
+  const ide = document.getElementById('filterIde').value;
+  const agent = document.getElementById('filterAgent').value;
+  const model = document.getElementById('filterModel').value;
+  state.filterIde = ide; state.filterAgent = agent; state.filterModel = model;
+  return { ide, agent, model };
+}
+
+function buildQuery(extra = {}) {
   const range = state.timeRange;
   const from = isoBefore(RANGE_MS[range]);
   const to = nowISO();
-  const ide = document.getElementById('filterIde').value;
-  const agent = document.getElementById('filterAgent').value;
-  state.filterIde = ide;
-  state.filterAgent = agent;
+  const f = getFilters();
   let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-  if (ide) q += `&ide=${ide}`;
-  if (agent) q += `&agent=${agent}`;
+  if (f.ide) q += `&ide=${f.ide}`;
+  if (f.agent) q += `&agent=${f.agent}`;
+  // model filter not yet supported server-side on top-tools/tasks — skip for reports
+  for (const [k, v] of Object.entries(extra)) if (v) q += `&${k}=${encodeURIComponent(v)}`;
+  return q;
+}
 
+async function fetchReports() {
+  const q = buildQuery();
   try {
     const [tools, tasks, servers] = await Promise.all([
       fetch(BASE + '/reports/top-tools' + q).then(r => r.json()),
@@ -625,27 +649,28 @@ async function fetchReports() {
       fetch(BASE + '/reports/top-mcp-servers' + q).then(r => r.json()),
     ]);
     state.data = { tools, tasks, servers };
+    updateModelFilter(tools);
     renderKPIs();
-    renderTab(state.currentTab);
+    if (state.currentTab !== 'events') renderTab(state.currentTab);
   } catch { /* noop */ }
 }
 
 async function fetchSparkline() {
-  const range = state.timeRange;
-  const from = isoBefore(RANGE_MS[range]);
-  const to = nowISO();
-  const b = bucketFor(range);
-  const ide = document.getElementById('filterIde').value;
-  const agent = document.getElementById('filterAgent').value;
-  let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&bucket=${b}`;
-  if (ide) q += `&ide=${ide}`;
-  if (agent) q += `&agent=${agent}`;
-
+  const b = bucketFor(state.timeRange);
+  const q = buildQuery({ bucket: b });
   try {
     const data = await fetch(BASE + '/reports/calls-over-time' + q).then(r => r.json());
     state.timeData = data;
     renderSparkline(data);
   } catch { /* noop */ }
+}
+
+function updateModelFilter(tools) {
+  const sel = document.getElementById('filterModel');
+  const current = sel.value;
+  const models = [...new Set((tools || []).map(t => t.top_model).filter(Boolean))];
+  sel.innerHTML = '<option value="">all models</option>' +
+    models.map(m => `<option value="${m}"${m === current ? ' selected' : ''}>${m}</option>`).join('');
 }
 
 function renderSparkline(data) {
@@ -703,14 +728,16 @@ function renderSparkline(data) {
 function renderKPIs() {
   const d = state.data;
   if (!d) return;
-  const tools = d.tools || [];
+  // filter out llm_chat from tool counts for the tool-specific KPIs
+  const tools = (d.tools || []).filter(t => t.tool_name !== 'llm_chat');
+  const allTools = d.tools || [];
   const servers = d.servers || [];
 
   const totalCalls = tools.reduce((s, t) => s + Number(t.calls || 0), 0);
-  const totalTokens = tools.reduce((s, t) => s + Number(t.total_estimated_tokens || 0), 0);
-  const totalIn = tools.reduce((s, t) => s + Number((t.avg_input_tokens || 0) * (t.calls || 0)), 0);
-  const totalOut = tools.reduce((s, t) => s + Number((t.avg_output_tokens || 0) * (t.calls || 0)), 0);
-  const totalCached = tools.reduce((s, t) => s + Number(t.cached_tokens_total || 0), 0);
+  const totalTokens = allTools.reduce((s, t) => s + Number(t.total_estimated_tokens || 0), 0);
+  const totalIn = allTools.reduce((s, t) => s + Number((t.avg_input_tokens || 0) * (t.calls || 0)), 0);
+  const totalOut = allTools.reduce((s, t) => s + Number((t.avg_output_tokens || 0) * (t.calls || 0)), 0);
+  const totalCached = allTools.reduce((s, t) => s + Number(t.cached_tokens_total || 0), 0);
   const avgTokens = totalCalls > 0 ? Math.round(totalTokens / totalCalls) : 0;
   const totalMcpServers = servers.length;
 
@@ -768,18 +795,26 @@ function renderTab(tab) {
 
   if (tab === 'tools') {
     container.innerHTML = buildTable(
-      ['Tool', 'MCP Server', 'Calls', 'Total Tokens', 'Avg In', 'Avg Out', 'Cached', 'Top Model', 'Avg Duration', 'Errors'],
+      ['Type', 'Tool / Operation', 'Provider', 'Calls', 'Avg In ↑', 'Avg Out ↓', 'Cached ♻', 'Top Model', 'Avg Duration', 'Errors'],
       data,
-      t => [
-        t.tool_name, t.mcp_server || '—',
-        formatNum(t.calls), formatNum(t.total_estimated_tokens),
-        t.avg_input_tokens ? formatNum(Math.round(t.avg_input_tokens)) : '—',
-        t.avg_output_tokens ? formatNum(Math.round(t.avg_output_tokens)) : '—',
-        t.cached_tokens_total ? formatNum(t.cached_tokens_total) : '—',
-        t.top_model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${t.top_model}</span>` : '—',
-        t.avg_duration_ms ? Number(t.avg_duration_ms).toFixed(0) + 'ms' : '—',
-        `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors}</span>`
-      ]
+      t => {
+        const isChat = t.tool_name === 'llm_chat';
+        const typeTag = isChat
+          ? `<span style="font-size:10px;padding:1px 5px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:3px;color:var(--accent);white-space:nowrap">💬 LLM</span>`
+          : `<span style="font-size:10px;padding:1px 5px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:3px;color:var(--green);white-space:nowrap">🔧 tool</span>`;
+        return [
+          typeTag,
+          `<strong>${t.tool_name}</strong>`,
+          t.mcp_server || '—',
+          formatNum(t.calls),
+          t.avg_input_tokens ? formatNum(Math.round(t.avg_input_tokens)) : '—',
+          t.avg_output_tokens ? formatNum(Math.round(t.avg_output_tokens)) : '—',
+          t.cached_tokens_total ? `<span class="text-green">${formatNum(t.cached_tokens_total)}</span>` : '—',
+          t.top_model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${t.top_model}</span>` : '—',
+          t.avg_duration_ms ? Number(t.avg_duration_ms).toFixed(0) + 'ms' : '—',
+          `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors || 0}</span>`,
+        ];
+      }
     );
   } else if (tab === 'tasks') {
     container.innerHTML = buildTable(
@@ -824,12 +859,41 @@ async function fetchEvents() {
   const range = state.timeRange;
   const from = isoBefore(RANGE_MS[range]);
   const to = nowISO();
+  const f = getFilters();
   let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=${evState.limit}&offset=${evState.offset}`;
-  if (state.filterIde) q += `&ide=${state.filterIde}`;
-  if (state.filterAgent) q += `&agent=${state.filterAgent}`;
+  if (f.ide) q += `&ide=${f.ide}`;
+  if (f.agent) q += `&agent=${f.agent}`;
+  if (f.model) q += `&model=${encodeURIComponent(f.model)}`;
   if (evState.convFilter) q += `&conversation_id=${encodeURIComponent(evState.convFilter)}`;
   const data = await fetch(BASE + '/reports/events' + q).then(r => r.json());
+  // update last event KPI
+  if (data && data.length > 0) {
+    const ev = data[0];
+    state.lastEventAt = ev.started_at;
+    document.getElementById('lastEventTime').textContent = relativeTime(ev.started_at);
+    document.getElementById('lastEventTool').textContent = ev.tool_name + (ev.model ? ` · ${ev.model}` : '');
+  }
   return data;
+}
+
+function relativeTime(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 5000) return 'just now';
+  if (diff < 60000) return Math.floor(diff / 1000) + 's ago';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return new Date(iso).toLocaleDateString();
+}
+
+function startEventsAutoRefresh() {
+  stopEventsAutoRefresh();
+  state.eventsTimer = setInterval(() => {
+    if (state.currentTab === 'events' && evState.offset === 0) renderEventsTab();
+  }, 5000);
+}
+
+function stopEventsAutoRefresh() {
+  if (state.eventsTimer) { clearInterval(state.eventsTimer); state.eventsTimer = null; }
 }
 
 async function renderEventsTab() {
@@ -844,21 +908,28 @@ async function renderEventsTab() {
       return;
     }
     const table = buildTable(
-      ['Timestamp', 'Tool', 'Model', 'In ↑', 'Out ↓', 'Cached', 'Duration', 'Status', 'Agent', 'IDE', 'IP'],
+      ['When', 'Type', 'Tool / Op', 'Model', 'In ↑', 'Out ↓', 'Cached ♻', 'Duration', 'Status', 'Agent', 'IDE', 'IP'],
       rows,
-      r => [
-        `<span style="font-size:11px;white-space:nowrap">${new Date(r.started_at).toLocaleString()}</span>`,
-        `<strong>${r.tool_name}</strong>`,
-        r.model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${r.model}</span>` : '—',
-        r.estimated_input_tokens ? formatNum(r.estimated_input_tokens) : '—',
-        r.estimated_output_tokens ? formatNum(r.estimated_output_tokens) : '—',
-        r.cached_tokens ? `<span class="text-green">${formatNum(r.cached_tokens)}</span>` : '—',
-        r.duration_ms + 'ms',
-        r.ok ? '<span class="text-green">✓</span>' : '<span class="text-red">✗</span>',
-        r.agent || '—',
-        r.ide || '—',
-        r.client_ip ? `<span style="font-size:11px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim().substring(0,16)}</span>` : '—',
-      ]
+      r => {
+        const isChat = r.tool_name === 'llm_chat';
+        const typeTag = isChat
+          ? `<span style="font-size:10px;padding:1px 5px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:3px;color:var(--accent)">💬 LLM</span>`
+          : `<span style="font-size:10px;padding:1px 5px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:3px;color:var(--green)">🔧 tool</span>`;
+        return [
+          `<span style="font-size:11px;white-space:nowrap;color:var(--text-muted)" title="${r.started_at}">${relativeTime(r.started_at)}</span>`,
+          typeTag,
+          `<strong style="${isChat ? 'color:var(--accent-hover)' : ''}">${r.tool_name}</strong>`,
+          r.model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${r.model}</span>` : '—',
+          r.estimated_input_tokens ? formatNum(r.estimated_input_tokens) : '—',
+          r.estimated_output_tokens ? formatNum(r.estimated_output_tokens) : '—',
+          r.cached_tokens ? `<span class="text-green">${formatNum(r.cached_tokens)}</span>` : '—',
+          r.duration_ms + 'ms',
+          r.ok ? '<span class="text-green">✓ ok</span>' : '<span class="text-red">✗ err</span>',
+          r.agent || '—',
+          `<span style="font-size:11px">${r.ide || '—'}</span>`,
+          r.client_ip ? `<span style="font-size:10px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim().substring(0, 15)}</span>` : '—',
+        ];
+      }
     );
     container.innerHTML = renderEventsFilter() + table + renderEventsPagination(rows.length);
     attachEventsPaginationListeners();
@@ -869,12 +940,17 @@ async function renderEventsTab() {
 }
 
 function renderEventsFilter() {
+  const liveIndicator = state.eventsTimer
+    ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--green)"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1s ease-in-out infinite"></span>live</span>`
+    : `<span style="font-size:11px;color:var(--text-muted)">paused</span>`;
   return `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    ${liveIndicator}
     <label style="font-size:11px;color:var(--text-muted)">Conversation:</label>
     <input id="evConvFilter" type="text" placeholder="conversation_id" value="${evState.convFilter}"
       style="font-size:12px;font-family:inherit;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:5px;padding:4px 8px;width:200px">
     <button id="evFilterBtn" class="btn-sm">Filter</button>
     <button id="evResetBtn" class="btn-sm">Reset</button>
+    <button id="evLiveBtn" class="btn-sm" style="margin-left:auto">${state.eventsTimer ? '⏸ Pause' : '▶ Live'}</button>
   </div>`;
 }
 
@@ -908,6 +984,11 @@ function attachEventsFilterListeners() {
   document.getElementById('evResetBtn')?.addEventListener('click', () => {
     evState.convFilter = '';
     evState.offset = 0;
+    renderEventsTab();
+  });
+  document.getElementById('evLiveBtn')?.addEventListener('click', () => {
+    if (state.eventsTimer) stopEventsAutoRefresh();
+    else { evState.offset = 0; startEventsAutoRefresh(); }
     renderEventsTab();
   });
 }
@@ -1009,15 +1090,19 @@ document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   refreshAll();
   setInterval(checkHealth, 15000);
-  setInterval(fetchReports, 5000);
+  setInterval(fetchReports, 30000);
   setInterval(fetchSparkline, 15000);
+  // kickstart last-event KPI by fetching latest event once
+  fetchEvents().catch(() => {});
 
   // tab switching
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      if (btn.dataset.tab !== 'events') stopEventsAutoRefresh();
       renderTab(btn.dataset.tab);
+      if (btn.dataset.tab === 'events') startEventsAutoRefresh();
     });
   });
 
@@ -1049,9 +1134,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   });
 
-  // origin filter
+  // filters
   document.getElementById('filterIde').addEventListener('change', refreshAll);
   document.getElementById('filterAgent').addEventListener('change', refreshAll);
+  document.getElementById('filterModel').addEventListener('change', refreshAll);
+  document.getElementById('btnClearFilters').addEventListener('click', () => {
+    document.getElementById('filterIde').value = '';
+    document.getElementById('filterAgent').value = '';
+    document.getElementById('filterModel').value = '';
+    refreshAll();
+  });
+
+  // last event card → switch to Events tab
+  document.getElementById('lastEventCard').addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === 'events');
+    });
+    renderTab('events');
+    startEventsAutoRefresh();
+  });
+
+  // update relative times every 30s
+  setInterval(() => {
+    if (state.lastEventAt) {
+      document.getElementById('lastEventTime').textContent = relativeTime(state.lastEventAt);
+    }
+  }, 30000);
 
   // CSV export
   document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
