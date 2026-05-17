@@ -167,8 +167,9 @@ fn map_tool_call_json(
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.prompt_tokens"));
     let output_tokens = json_attr_int(attrs_slice, "gen_ai.usage.output_tokens")
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.completion_tokens"));
-    // Multiple attribute names used by different SDK versions / providers
-    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens")
+    // VS Code Copilot uses dot notation: cache_read.input_tokens (not underscore)
+    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read.input_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens"))
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.cached_tokens"))
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.input_tokens_cached"));
     let model = json_attr_str(attrs_slice, "gen_ai.response.model")
@@ -176,6 +177,7 @@ fn map_tool_call_json(
     // Conversation/thread ID from multiple possible attributes + traceId fallback
     let trace_id = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
     let conversation_id = json_attr_str(attrs_slice, "gen_ai.conversation.id")
+        .or_else(|| json_attr_str(attrs_slice, "copilot_chat.chat_session_id"))
         .or_else(|| json_attr_str(attrs_slice, "copilot.conversation.id"))
         .or_else(|| json_attr_str(attrs_slice, "thread.id"))
         .or_else(|| json_attr_str(attrs_slice, "gen_ai.thread.id"))
@@ -253,7 +255,8 @@ fn map_chat_span_json(
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.prompt_tokens"));
     let output_tokens = json_attr_int(attrs_slice, "gen_ai.usage.output_tokens")
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.completion_tokens"));
-    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens")
+    let cached_tokens = json_attr_int(attrs_slice, "gen_ai.usage.cache_read.input_tokens")
+        .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.cache_read_input_tokens"))
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.cached_tokens"))
         .or_else(|| json_attr_int(attrs_slice, "gen_ai.usage.input_tokens_cached"));
     let model = json_attr_str(attrs_slice, "gen_ai.response.model")
@@ -262,6 +265,7 @@ fn map_chat_span_json(
     let system = json_attr_str(attrs_slice, "gen_ai.system");
     let trace_id = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
     let conversation_id = json_attr_str(attrs_slice, "gen_ai.conversation.id")
+        .or_else(|| json_attr_str(attrs_slice, "copilot_chat.chat_session_id"))
         .or_else(|| json_attr_str(attrs_slice, "copilot.conversation.id"))
         .or_else(|| json_attr_str(attrs_slice, "thread.id"))
         .or_else(|| json_attr_str(attrs_slice, "gen_ai.thread.id"))
@@ -451,12 +455,14 @@ fn map_tool_call(
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.prompt_tokens"));
     let output_tokens = get_attr_int(&span.attributes, "gen_ai.usage.output_tokens")
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.completion_tokens"));
-    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens")
+    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read.input_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens"))
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.cached_tokens"))
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.input_tokens_cached"));
     let model = get_attr_str(&span.attributes, "gen_ai.response.model")
         .or_else(|| get_attr_str(&span.attributes, "gen_ai.request.model"));
     let conversation_id = get_attr_str(&span.attributes, "gen_ai.conversation.id")
+        .or_else(|| get_attr_str(&span.attributes, "copilot_chat.chat_session_id"))
         .or_else(|| get_attr_str(&span.attributes, "copilot.conversation.id"))
         .or_else(|| get_attr_str(&span.attributes, "thread.id"))
         .or_else(|| get_attr_str(&span.attributes, "gen_ai.thread.id"))
@@ -517,7 +523,8 @@ fn map_chat_span_proto(
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.prompt_tokens"));
     let output_tokens = get_attr_int(&span.attributes, "gen_ai.usage.output_tokens")
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.completion_tokens"));
-    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens")
+    let cached_tokens = get_attr_int(&span.attributes, "gen_ai.usage.cache_read.input_tokens")
+        .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.cache_read_input_tokens"))
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.cached_tokens"))
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.input_tokens_cached"));
     let model = get_attr_str(&span.attributes, "gen_ai.response.model")
@@ -525,6 +532,7 @@ fn map_chat_span_proto(
         .or_else(|| model_hint.map(|s| s.to_string()));
     let system = get_attr_str(&span.attributes, "gen_ai.system");
     let conversation_id = get_attr_str(&span.attributes, "gen_ai.conversation.id")
+        .or_else(|| get_attr_str(&span.attributes, "copilot_chat.chat_session_id"))
         .or_else(|| get_attr_str(&span.attributes, "copilot.conversation.id"))
         .or_else(|| get_attr_str(&span.attributes, "thread.id"))
         .or_else(|| session_id.map(|s| s.to_string()));
