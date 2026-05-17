@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use crate::errors::AppError;
-use crate::models::tool_call::{TopMcpServer, TopTask, TopTool};
+use crate::models::tool_call::{EventFeedRow, TopMcpServer, TopTask, TopTool};
 
 pub struct ReportQuery {
     pub from: Option<chrono::DateTime<chrono::Utc>>,
@@ -27,6 +27,23 @@ impl Default for ReportQuery {
     }
 }
 
+pub struct EventQuery {
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    pub to: Option<chrono::DateTime<chrono::Utc>>,
+    pub ide: Option<String>,
+    pub agent: Option<String>,
+    pub model: Option<String>,
+    pub conversation_id: Option<String>,
+    pub limit: i64,
+    pub offset: i64,
+}
+
+impl Default for EventQuery {
+    fn default() -> Self {
+        Self { from: None, to: None, ide: None, agent: None, model: None, conversation_id: None, limit: 50, offset: 0 }
+    }
+}
+
 pub async fn top_tools(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTool>, AppError> {
     let rows = sqlx::query_as::<_, TopTool>(
         r#"
@@ -37,7 +54,16 @@ pub async fn top_tools(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTool>, A
             SUM(estimated_total_tokens)::bigint as total_estimated_tokens,
             AVG(duration_ms)::float8 as avg_duration_ms,
             COUNT(*) FILTER (WHERE not ok)::bigint as errors,
-            AVG(response_bytes)::float8 as avg_response_bytes
+            AVG(response_bytes)::float8 as avg_response_bytes,
+            (SELECT model FROM agent_tool_calls t2
+             WHERE t2.mcp_server IS NOT DISTINCT FROM agent_tool_calls.mcp_server
+               AND t2.tool_name = agent_tool_calls.tool_name
+               AND t2.model IS NOT NULL
+             GROUP BY model ORDER BY COUNT(*) DESC LIMIT 1
+            ) as top_model,
+            SUM(cached_tokens)::bigint as cached_tokens_total,
+            AVG(estimated_input_tokens)::float8 as avg_input_tokens,
+            AVG(estimated_output_tokens)::float8 as avg_output_tokens
         FROM agent_tool_calls
         WHERE ($1::timestamptz IS NULL OR started_at >= $1)
           AND ($2::timestamptz IS NULL OR started_at <= $2)
@@ -57,6 +83,38 @@ pub async fn top_tools(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTool>, A
     .bind(&q.agent)
     .bind(&q.skill)
     .bind(q.limit)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
+}
+
+pub async fn events_feed(pool: &PgPool, q: &EventQuery) -> Result<Vec<EventFeedRow>, AppError> {
+    let rows = sqlx::query_as::<_, EventFeedRow>(
+        r#"
+        SELECT
+            event_id, tool_name, model, started_at, duration_ms, ok,
+            estimated_input_tokens, estimated_output_tokens, cached_tokens,
+            agent, ide, mcp_server, conversation_id, client_ip
+        FROM agent_tool_calls
+        WHERE ($1::timestamptz IS NULL OR started_at >= $1)
+          AND ($2::timestamptz IS NULL OR started_at <= $2)
+          AND ($3::text IS NULL OR ide = $3)
+          AND ($4::text IS NULL OR agent = $4)
+          AND ($5::text IS NULL OR model = $5)
+          AND ($6::text IS NULL OR conversation_id = $6)
+        ORDER BY started_at DESC
+        LIMIT $7 OFFSET $8
+        "#,
+    )
+    .bind(q.from)
+    .bind(q.to)
+    .bind(&q.ide)
+    .bind(&q.agent)
+    .bind(&q.model)
+    .bind(&q.conversation_id)
+    .bind(q.limit)
+    .bind(q.offset)
     .fetch_all(pool)
     .await?;
 

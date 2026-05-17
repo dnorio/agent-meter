@@ -53,8 +53,13 @@ pub async fn insert_tool_call(
             mcp_server, tool_name, started_at, ended_at, duration_ms,
             ok, error, request_bytes, response_bytes,
             estimated_input_tokens, estimated_output_tokens, estimated_total_tokens,
-            request_sha256, response_sha256, metadata
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+            request_sha256, response_sha256, metadata,
+            model, cached_tokens, conversation_id, client_ip, user_agent
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+            $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+            $23, $24, $25, $26, $27
+        )
         RETURNING *
         "#,
     )
@@ -80,6 +85,11 @@ pub async fn insert_tool_call(
     .bind(&event.request_sha256)
     .bind(&event.response_sha256)
     .bind(&metadata)
+    .bind(&event.model)
+    .bind(event.cached_tokens)
+    .bind(&event.conversation_id)
+    .bind(&event.client_ip)
+    .bind(&event.user_agent)
     .fetch_one(pool)
     .await?;
 

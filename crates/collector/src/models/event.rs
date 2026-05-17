@@ -25,6 +25,12 @@ pub struct ToolCallEvent {
     pub request_sha256: Option<String>,
     pub response_sha256: Option<String>,
     pub metadata: Option<serde_json::Value>,
+    // Enriched fields (T-239)
+    pub model: Option<String>,
+    pub cached_tokens: Option<i32>,
+    pub conversation_id: Option<String>,
+    pub client_ip: Option<String>,
+    pub user_agent: Option<String>,
 }
 
 fn default_uuid() -> Uuid {
