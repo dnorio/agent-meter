@@ -55,14 +55,20 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
 
                 // One-time debug: log all attribute keys for diagnosis (gated by env var)
                 if std::env::var("AGENT_METER_DEBUG_SPANS").is_ok() {
-                    let attr_keys: Vec<&str> = span.get("attributes")
-                        .and_then(|v| v.as_array())
-                        .map(|a| a.iter()
+                    let attrs_dbg = span.get("attributes").and_then(|v| v.as_array());
+                    let attr_keys: Vec<&str> = attrs_dbg.map(|a| a.iter()
                             .filter_map(|kv| kv.get("key").and_then(|k| k.as_str()))
                             .collect())
                         .unwrap_or_default();
                     info!("span '{}' attribute keys: {:?} | resource service={:?} session={:?}",
                         span_name, attr_keys, service_name, session_id);
+                    // If this is a chat span, dump the raw user_request value
+                    if span_name.starts_with("chat") {
+                        let raw_user_req = span.get("attributes").and_then(|v| v.as_array())
+                            .and_then(|a| a.iter().find(|kv| kv.get("key").and_then(|k| k.as_str()) == Some("copilot_chat.user_request")))
+                            .map(|kv| kv.to_string());
+                        info!("chat span user_request raw: {:?}", raw_user_req);
+                    }
                 }
 
                 // VS Code sends: "execute_tool <tool_name>", "chat <model>", "invoke_agent <agent>"
@@ -186,6 +192,17 @@ fn map_tool_call_json(
     let response_bytes = json_attr_int(attrs_slice, "gen_ai.response.bytes");
     let request_bytes = json_attr_int(attrs_slice, "gen_ai.request.bytes");
 
+    // User prompt: VS Code Copilot sends it as copilot_chat.user_request;
+    // fall back to GenAI semantic-convention keys if other IDEs are used.
+    // Filter out tool_result payloads (Anthropic agentic loop sends "[{\"type\":\"tool_result\"...}]"
+    // as the "user turn" for subsequent LLM calls — we only want the actual human text).
+    let user_prompt = json_attr_str(attrs_slice, "copilot_chat.user_request")
+        .filter(|s| !s.trim_start().starts_with("[{"))
+        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt"))
+        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt.0.content"))
+        .or_else(|| json_user_message_content(attrs_slice))
+        .or_else(|| extract_first_human_text(attrs_slice));
+
     let mut metadata = serde_json::json!({});
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
     if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
@@ -217,6 +234,7 @@ fn map_tool_call_json(
         conversation_id,
         client_ip: client_ip.map(|s| s.to_string()),
         user_agent: user_agent.map(|s| s.to_string()),
+        user_prompt,
     })
 }
 
@@ -285,6 +303,17 @@ fn map_chat_span_json(
     let agent_name = json_attr_str(attrs_slice, "gen_ai.agent.name")
         .or_else(|| service_name.map(|s| s.to_string()));
 
+    // User prompt: VS Code Copilot sends it as copilot_chat.user_request;
+    // fall back to GenAI semantic-convention keys if other IDEs are used.
+    // Filter out tool_result payloads (Anthropic agentic loop sends "[{\"type\":\"tool_result\"...}]"
+    // as the "user turn" for subsequent LLM calls — we only want the actual human text).
+    let user_prompt = json_attr_str(attrs_slice, "copilot_chat.user_request")
+        .filter(|s| !s.trim_start().starts_with("[{"))
+        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt"))
+        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt.0.content"))
+        .or_else(|| json_user_message_content(attrs_slice))
+        .or_else(|| extract_first_human_text(attrs_slice));
+
     let mut metadata = serde_json::json!({ "span_type": "chat" });
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
     if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
@@ -315,6 +344,7 @@ fn map_chat_span_json(
         conversation_id,
         client_ip: client_ip.map(|s| s.to_string()),
         user_agent: user_agent.map(|s| s.to_string()),
+        user_prompt,
     })
 }
 
@@ -344,6 +374,49 @@ fn json_attr_str(attrs: &[serde_json::Value], key: &str) -> Option<String> {
     attrs.iter()
         .find(|kv| kv.get("key").and_then(|k| k.as_str()) == Some(key))
         .and_then(|kv| kv.pointer("/value/stringValue").and_then(|v| v.as_str()).map(|s| s.to_string()))
+}
+
+/// Finds the first message with role="user" among indexed prompt attributes
+/// (gen_ai.prompt.{N}.role / gen_ai.prompt.{N}.content convention).
+fn json_user_message_content(attrs: &[serde_json::Value]) -> Option<String> {
+    // Collect all (index, role/content) pairs
+    for i in 0..16usize {
+        let role_key = format!("gen_ai.prompt.{i}.role");
+        let content_key = format!("gen_ai.prompt.{i}.content");
+        let role = json_attr_str(attrs, &role_key);
+        if role.as_deref() == Some("user") {
+            if let Some(content) = json_attr_str(attrs, &content_key) {
+                return Some(content);
+            }
+        }
+    }
+    None
+}
+
+/// Parses the first human text message from a gen_ai.input.messages JSON string.
+/// Skips messages whose content is an array (tool_result payloads from agentic loops).
+fn parse_first_human_text(raw: &str) -> Option<String> {
+    let msgs: serde_json::Value = serde_json::from_str(raw).ok()?;
+    let arr = msgs.as_array()?;
+    for msg in arr {
+        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
+        if role != "user" { continue; }
+        let content = msg.get("content")?;
+        // Only accept plain string content — skip arrays (tool_result payloads)
+        if let Some(text) = content.as_str() {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() && !trimmed.starts_with("[{") {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Extracts the first human text from gen_ai.input.messages attribute (JSON variant).
+fn extract_first_human_text(attrs: &[serde_json::Value]) -> Option<String> {
+    let raw = json_attr_str(attrs, "gen_ai.input.messages")?;
+    parse_first_human_text(&raw)
 }
 
 fn json_attr_int(attrs: &[serde_json::Value], key: &str) -> Option<i64> {
@@ -468,6 +541,15 @@ fn map_tool_call(
         .or_else(|| get_attr_str(&span.attributes, "gen_ai.thread.id"))
         .or_else(|| session_id.map(|s| s.to_string()));
 
+    let user_prompt = get_attr_str(&span.attributes, "copilot_chat.user_request")
+        .filter(|s| !s.trim_start().starts_with("[{"))
+        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt"))
+        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt.0.content"))
+        .or_else(|| {
+            let raw = get_attr_str(&span.attributes, "gen_ai.input.messages")?;
+            parse_first_human_text(&raw)
+        });
+
     let mut metadata = serde_json::json!({});
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
     if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
@@ -498,6 +580,7 @@ fn map_tool_call(
         cached_tokens: cached_tokens.map(|t| t as i32),
         conversation_id,
         client_ip: client_ip.map(|s| s.to_string()),
+        user_prompt,
         user_agent: user_agent.map(|s| s.to_string()),
     };
 
@@ -546,6 +629,14 @@ fn map_chat_span_proto(
             else { "unknown".to_string() }
         })
     });
+    let user_prompt = get_attr_str(&span.attributes, "copilot_chat.user_request")
+        .filter(|s| !s.trim_start().starts_with("[{"))
+        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt"))
+        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt.0.content"))
+        .or_else(|| {
+            let raw = get_attr_str(&span.attributes, "gen_ai.input.messages")?;
+            parse_first_human_text(&raw)
+        });
     let mut metadata = serde_json::json!({ "span_type": "chat" });
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
     if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
@@ -566,6 +657,7 @@ fn map_chat_span_proto(
         conversation_id,
         client_ip: client_ip.map(|s| s.to_string()),
         user_agent: user_agent.map(|s| s.to_string()),
+        user_prompt,
     })
 }
 

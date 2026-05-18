@@ -35,6 +35,7 @@ pub struct AgentToolCall {
     pub conversation_id: Option<String>,
     pub client_ip: Option<String>,
     pub user_agent: Option<String>,
+    pub user_prompt: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

@@ -31,6 +31,7 @@ pub struct ToolCallEvent {
     pub conversation_id: Option<String>,
     pub client_ip: Option<String>,
     pub user_agent: Option<String>,
+    pub user_prompt: Option<String>,
 }
 
 fn default_uuid() -> Uuid {
