@@ -95,7 +95,7 @@ pub async fn events_feed(pool: &PgPool, q: &EventQuery) -> Result<Vec<EventFeedR
         SELECT
             event_id, tool_name, model, started_at, duration_ms, ok,
             estimated_input_tokens, estimated_output_tokens, cached_tokens,
-            agent, ide, mcp_server, conversation_id, client_ip
+            agent, ide, mcp_server, conversation_id, client_ip, user_prompt
         FROM agent_tool_calls
         WHERE ($1::timestamptz IS NULL OR started_at >= $1)
           AND ($2::timestamptz IS NULL OR started_at <= $2)

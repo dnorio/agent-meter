@@ -69,6 +69,7 @@ pub struct EventFeedRow {
     pub mcp_server: Option<String>,
     pub conversation_id: Option<String>,
     pub client_ip: Option<String>,
+    pub user_prompt: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

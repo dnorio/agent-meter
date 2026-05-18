@@ -53,24 +53,6 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
             for span in spans {
                 let span_name = span.get("name").and_then(|v| v.as_str()).unwrap_or("");
 
-                // One-time debug: log all attribute keys for diagnosis (gated by env var)
-                if std::env::var("AGENT_METER_DEBUG_SPANS").is_ok() {
-                    let attrs_dbg = span.get("attributes").and_then(|v| v.as_array());
-                    let attr_keys: Vec<&str> = attrs_dbg.map(|a| a.iter()
-                            .filter_map(|kv| kv.get("key").and_then(|k| k.as_str()))
-                            .collect())
-                        .unwrap_or_default();
-                    info!("span '{}' attribute keys: {:?} | resource service={:?} session={:?}",
-                        span_name, attr_keys, service_name, session_id);
-                    // If this is a chat span, dump the raw user_request value
-                    if span_name.starts_with("chat") {
-                        let raw_user_req = span.get("attributes").and_then(|v| v.as_array())
-                            .and_then(|a| a.iter().find(|kv| kv.get("key").and_then(|k| k.as_str()) == Some("copilot_chat.user_request")))
-                            .map(|kv| kv.to_string());
-                        info!("chat span user_request raw: {:?}", raw_user_req);
-                    }
-                }
-
                 // VS Code sends: "execute_tool <tool_name>", "chat <model>", "invoke_agent <agent>"
                 if span_name.starts_with("execute_tool") {
                     let tool_hint = span_name.strip_prefix("execute_tool").map(|s| s.trim()).filter(|s| !s.is_empty());
@@ -394,23 +376,96 @@ fn json_user_message_content(attrs: &[serde_json::Value]) -> Option<String> {
 }
 
 /// Parses the first human text message from a gen_ai.input.messages JSON string.
-/// Skips messages whose content is an array (tool_result payloads from agentic loops).
+/// Handles multiple content formats sent by VS Code Copilot:
+///
+///   1. Gemini/Copilot format (parts array with "content" field):
+///      {"role":"user","parts":[{"type":"text","content":"<userRequest>prompt</userRequest>..."}]}
+///      The actual user text may be wrapped in <userRequest>…</userRequest> tags.
+///
+///   2. Anthropic block array with "text" field:
+///      {"role":"user","content":[{"type":"text","text":"prompt"}]}
+///      Skips if the first block is a "tool_result" (agentic loop turn).
+///
+///   3. Plain string content:
+///      {"role":"user","content":"prompt"}
 fn parse_first_human_text(raw: &str) -> Option<String> {
     let msgs: serde_json::Value = serde_json::from_str(raw).ok()?;
     let arr = msgs.as_array()?;
+
     for msg in arr {
         let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
         if role != "user" { continue; }
-        let content = msg.get("content")?;
-        // Only accept plain string content — skip arrays (tool_result payloads)
-        if let Some(text) = content.as_str() {
+
+        // Format 1: "parts" array (Copilot/Gemini format)
+        // VS Code Copilot sends multiple parts per user message:
+        //   parts[0]: context blocks (<environment_info>, <workspace_info>, <availableDeferredTools>, …)
+        //   parts[1]: <conversation-summary>…</conversation-summary>
+        //   parts[N]: the actual user text (plain, no XML wrapper)
+        // Strategy: iterate in REVERSE to find the last part whose content is plain text.
+        if let Some(parts) = msg.get("parts").and_then(|p| p.as_array()) {
+            // Pass 1: find the last text-type part that is NOT a context XML block
+            for part in parts.iter().rev() {
+                if part.get("type").and_then(|t| t.as_str()) == Some("text") {
+                    if let Some(content) = part.get("content").and_then(|c| c.as_str()) {
+                        let trimmed = content.trim();
+                        // Context blocks start with '<' — skip them
+                        if trimmed.starts_with('<') { continue; }
+                        if !trimmed.is_empty() {
+                            return Some(trimmed.to_string());
+                        }
+                    }
+                }
+            }
+            // Pass 2 removed: text_after_last_close_tag produced false positives for claude
+            // agentic spans (found inner tags like </workspaceFolder> and returned workspace
+            // context text as user_prompt). When all parts are XML context blocks (as in claude
+            // agentic mode), pass 1 yields None — which is correct; user_prompt stays NULL.
+            // extract_user_request_tag kept only via extract_first_human_text below.
+            continue; // tried "parts", skip "content" variants
+        }
+
+        // Format 2: plain string content
+        if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
             let trimmed = text.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with("[{") {
+            if !trimmed.is_empty() && !trimmed.starts_with("[{") && !trimmed.starts_with('<') {
                 return Some(trimmed.to_string());
+            }
+            continue;
+        }
+
+        // Format 3: Anthropic block array
+        if let Some(blocks) = msg.get("content").and_then(|c| c.as_array()) {
+            // Skip if first block is tool_result (agentic loop turn)
+            let first_type = blocks.first()
+                .and_then(|b| b.get("type"))
+                .and_then(|t| t.as_str())
+                .unwrap_or("");
+            if first_type == "tool_result" { continue; }
+
+            for block in blocks {
+                if block.get("type").and_then(|t| t.as_str()) == Some("text") {
+                    if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
+                        let trimmed = text.trim();
+                        if !trimmed.is_empty() {
+                            return Some(trimmed.to_string());
+                        }
+                    }
+                }
             }
         }
     }
     None
+}
+
+/// Extracts content between <userRequest>…</userRequest> tags, if present.
+fn extract_user_request_tag(content: &str) -> Option<String> {
+    const START: &str = "<userRequest>";
+    const END: &str = "</userRequest>";
+    let start_idx = content.find(START)?;
+    let after_start = start_idx + START.len();
+    let end_idx = content[after_start..].find(END)?;
+    let text = content[after_start..after_start + end_idx].trim();
+    if !text.is_empty() { Some(text.to_string()) } else { None }
 }
 
 /// Extracts the first human text from gen_ai.input.messages attribute (JSON variant).

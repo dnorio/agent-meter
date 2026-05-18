@@ -922,6 +922,7 @@ async function renderEventsTab(forceFullRender) {
       return;
     }
 
+    evState.rows = rows; // cache for CSV export
     const rowFn = r => {
       const isChat = r.tool_name === 'llm_chat';
       const typeTag = isChat
@@ -930,6 +931,9 @@ async function renderEventsTab(forceFullRender) {
       const convSnippet = r.conversation_id
         ? `<span style="font-size:10px;font-family:monospace;color:var(--text-muted)" title="${r.conversation_id}">${r.conversation_id.substring(0,8)}…</span>`
         : '—';
+      const promptSnippet = r.user_prompt
+        ? `<span style="font-size:11px;color:var(--text-muted);cursor:default;max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom" title="${r.user_prompt.replace(/"/g, '&quot;')}">${r.user_prompt.substring(0, 50)}${r.user_prompt.length > 50 ? '…' : ''}</span>`
+        : '<span style="color:var(--text-muted);font-size:10px">—</span>';
       return [
         `<span style="font-size:11px;white-space:nowrap;color:var(--text-muted)" title="${r.started_at}">${relativeTime(r.started_at)}</span>`,
         typeTag,
@@ -944,6 +948,7 @@ async function renderEventsTab(forceFullRender) {
         convSnippet,
         `<span style="font-size:11px">${r.ide || '—'}</span>`,
         r.client_ip ? `<span style="font-size:10px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim().substring(0, 15)}</span>` : '—',
+        promptSnippet,
       ];
     };
 
@@ -965,7 +970,7 @@ async function renderEventsTab(forceFullRender) {
     }
 
     const table = buildTable(
-      ['When', 'Type', 'Tool / Op', 'Model', 'In ↑', 'Out ↓', 'Cached ♻', 'Duration', 'Status', 'Agent', 'Conv ID', 'IDE', 'IP'],
+      ['When', 'Type', 'Tool / Op', 'Model', 'In ↑', 'Out ↓', 'Cached ♻', 'Duration', 'Status', 'Agent', 'Conv ID', 'IDE', 'IP', 'Prompt'],
       rows, rowFn, 'eventsTableBody'
     );
     container.innerHTML = renderEventsFilter() + table + renderEventsPagination(rows.length);
@@ -1036,8 +1041,9 @@ function attachEventsFilterListeners() {
 
 function exportCsv() {
   const tab = state.currentTab;
-  const data = state.data ? state.data[tab] : null;
-  if (!data || data.length === 0) return;
+  // Events tab uses evState.rows (fetched separately); other tabs use state.data
+  const data = tab === 'events' ? null : (state.data ? state.data[tab] : null);
+  if (tab !== 'events' && (!data || data.length === 0)) return;
 
   let headers, rows;
 
@@ -1050,6 +1056,16 @@ function exportCsv() {
   } else if (tab === 'tasks') {
     headers = ['Task ID', 'Tool Calls', 'Total Tokens', 'Total Duration (ms)', 'Errors', 'Distinct Tools'];
     rows = data.map(t => [t.task_id, t.tool_calls, t.total_estimated_tokens, t.total_duration_ms || 0, t.errors, t.distinct_tools]);
+  } else if (tab === 'events') {
+    const evRows = evState.rows || [];
+    if (evRows.length === 0) return;
+    headers = ['When', 'Type', 'Tool / Op', 'Model', 'In', 'Out', 'Cached', 'Duration (ms)', 'Status', 'Agent', 'Conv ID', 'IDE', 'IP', 'Prompt'];
+    rows = evRows.map(r => [
+      r.started_at, r.tool_name === 'llm_chat' ? 'LLM' : 'tool',
+      r.tool_name, r.model || '', r.estimated_input_tokens || '', r.estimated_output_tokens || '',
+      r.cached_tokens || '', r.duration_ms, r.ok ? 'ok' : 'err',
+      r.agent || '', r.conversation_id || '', r.ide || '', r.client_ip || '', r.user_prompt || ''
+    ]);
   } else {
     headers = ['MCP Server', 'Calls', 'Total Tokens', 'Avg Resp Bytes', 'Error Rate (%)'];
     rows = data.map(t => [t.mcp_server || '', t.calls, t.total_estimated_tokens, Math.round(t.avg_response_bytes || 0), t.error_rate != null ? (Number(t.error_rate) * 100).toFixed(1) : '']);
