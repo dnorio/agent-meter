@@ -125,21 +125,21 @@ pub async fn top_tasks(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTask>, A
     let rows = sqlx::query_as::<_, TopTask>(
         r#"
         SELECT
-            task_id,
+            conversation_id as task_id,
             COUNT(*)::bigint as tool_calls,
             SUM(estimated_total_tokens)::bigint as total_estimated_tokens,
             SUM(duration_ms)::bigint as total_duration_ms,
             COUNT(*) FILTER (WHERE not ok)::bigint as errors,
             COUNT(DISTINCT tool_name)::bigint as distinct_tools
         FROM agent_tool_calls
-        WHERE task_id IS NOT NULL
+        WHERE conversation_id IS NOT NULL
           AND ($1::timestamptz IS NULL OR started_at >= $1)
           AND ($2::timestamptz IS NULL OR started_at <= $2)
           AND ($3::text IS NULL OR repo = $3)
           AND ($4::text IS NULL OR ide = $4)
           AND ($5::text IS NULL OR agent = $5)
           AND ($6::text IS NULL OR skill = $6)
-        GROUP BY task_id
+        GROUP BY conversation_id
         ORDER BY tool_calls DESC
         LIMIT $7
         "#,
@@ -168,6 +168,7 @@ pub async fn top_mcp_servers(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopMc
             (COUNT(*) FILTER (WHERE not ok)::float8 / NULLIF(COUNT(*)::float8, 0)) as error_rate
         FROM agent_tool_calls
         WHERE mcp_server IS NOT NULL
+          AND tool_name != 'llm_chat'
           AND ($1::timestamptz IS NULL OR started_at >= $1)
           AND ($2::timestamptz IS NULL OR started_at <= $2)
           AND ($3::text IS NULL OR repo = $3)

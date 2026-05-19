@@ -750,7 +750,7 @@ tbody tr:hover { background: var(--bg-hover); }
       <div class="section-actions">
         <div class="tabs">
           <button class="tab-btn active" data-tab="tools">Top Tools</button>
-          <button class="tab-btn" data-tab="tasks">Top Tasks</button>
+          <button class="tab-btn" data-tab="tasks">Top Conversations</button>
           <button class="tab-btn" data-tab="servers">Top MCP Servers</button>
           <button class="tab-btn" data-tab="events">Events</button>
         </div>
@@ -819,8 +819,6 @@ tbody tr:hover { background: var(--bg-hover); }
 
   <footer>
     <a href="/health">Health</a>
-    <span>·</span>
-    <a href="/metrics">Metrics</a>
     <span>·</span>
     <span>agent-meter</span>
   </footer>
@@ -1033,9 +1031,20 @@ function renderKPIs() {
 }
 
 function formatNum(n) {
+  if (n == null) return '—';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
   return String(n);
+}
+
+function formatDuration(ms) {
+  if (ms == null || ms === '' || isNaN(Number(ms))) return '—';
+  const n = Number(ms);
+  if (n < 1000) return n.toFixed(0) + 'ms';
+  if (n < 60000) return (n / 1000).toFixed(1) + 's';
+  const m = Math.floor(n / 60000);
+  const s = Math.round((n % 60000) / 1000);
+  return `${m}m ${s}s`;
 }
 
 function renderTab(tab) {
@@ -1074,18 +1083,19 @@ function renderTab(tab) {
           t.avg_output_tokens ? formatNum(Math.round(t.avg_output_tokens)) : '—',
           t.cached_tokens_total ? `<span class="text-green">${formatNum(t.cached_tokens_total)}</span>` : '—',
           t.top_model ? `<span style="font-size:11px;padding:2px 6px;background:var(--bg-elevated);border-radius:4px;color:var(--accent)">${t.top_model}</span>` : '—',
-          t.avg_duration_ms ? Number(t.avg_duration_ms).toFixed(0) + 'ms' : '—',
+          formatDuration(t.avg_duration_ms),
           `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors || 0}</span>`,
         ];
       }
     );
   } else if (tab === 'tasks') {
     container.innerHTML = buildTable(
-      ['Task ID', 'Tool Calls', 'Total Tokens', 'Total Duration', 'Errors', 'Distinct Tools'],
+      ['Conv ID', 'Tool Calls', 'Total Tokens', 'Total Duration', 'Errors', 'Distinct Tools'],
       data,
       t => [
-        t.task_id, formatNum(t.tool_calls), formatNum(t.total_estimated_tokens),
-        t.total_duration_ms ? formatNum(t.total_duration_ms) + 'ms' : '—',
+        `<span class="conv-id-cell" data-conv="${t.task_id}" style="font-size:10px;font-family:monospace;color:var(--text-muted);cursor:pointer" title="Ver eventos desta conversa">${t.task_id}</span>`,
+        formatNum(t.tool_calls), formatNum(t.total_estimated_tokens),
+        formatDuration(t.total_duration_ms),
         `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors}</span>`,
         t.distinct_tools
       ]
@@ -1224,7 +1234,7 @@ async function renderEventsTab(forceFullRender) {
         r.estimated_input_tokens ? formatNum(r.estimated_input_tokens) : '—',
         r.estimated_output_tokens ? formatNum(r.estimated_output_tokens) : '—',
         r.cached_tokens ? `<span class="text-green">${formatNum(r.cached_tokens)}</span>` : '—',
-        r.duration_ms + 'ms',
+        formatDuration(r.duration_ms),
         r.ok ? '<span class="text-green">✓ ok</span>' : '<span class="text-red">✗ err</span>',
         r.agent || '—',
         convSnippet,
@@ -1603,9 +1613,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (p) showPromptModal(p.text, { tool: p.tool, model: p.model, agent: p.agent, time: p.time });
       return;
     }
-    // CONV ID click → preenche filtro e aplica
+    // CONV ID click → muda para aba Events, preenche filtro e aplica
     const convCell = e.target.closest('.conv-id-cell');
     if (convCell) {
+      // Mudar para aba Events
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      const evBtn = document.querySelector('.tab-btn[data-tab="events"]');
+      if (evBtn) evBtn.classList.add('active');
+      stopEventsAutoRefresh();
+      state.currentTab = 'events';
+      // Preencher filtro e carregar
       const input = document.getElementById('evConvFilter');
       if (input) {
         input.value = convCell.dataset.conv;
@@ -1613,6 +1630,7 @@ document.addEventListener('DOMContentLoaded', () => {
         evState.convFilter = convCell.dataset.conv;
         loadEvents(true);
       }
+      startEventsAutoRefresh();
     }
   });
   document.getElementById('modalCloseBtn').addEventListener('click', hidePromptModal);
