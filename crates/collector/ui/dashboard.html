@@ -364,7 +364,6 @@ td {
   font-size: 13px;
   color: var(--text-secondary);
   border-top: 1px solid var(--border);
-  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1208,7 +1207,7 @@ async function renderEventsTab(forceFullRender) {
         ? `<span style="font-size:10px;padding:1px 5px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:3px;color:var(--accent)">💬 LLM</span>`
         : `<span style="font-size:10px;padding:1px 5px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:3px;color:var(--green)">🔧 tool</span>`;
       const convSnippet = r.conversation_id
-        ? `<span style="font-size:10px;font-family:monospace;color:var(--text-muted)" title="${r.conversation_id}">${r.conversation_id.substring(0,8)}…</span>`
+        ? `<span class="conv-id-cell" data-conv="${r.conversation_id}" style="font-size:10px;font-family:monospace;color:var(--text-muted);cursor:pointer" title="Clique para filtrar por esta conversa">${r.conversation_id}</span>`
         : '—';
       const promptSnippet = r.user_prompt
         ? (() => {
@@ -1230,7 +1229,7 @@ async function renderEventsTab(forceFullRender) {
         r.agent || '—',
         convSnippet,
         `<span style="font-size:11px">${r.ide || '—'}</span>`,
-        r.client_ip ? `<span style="font-size:10px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim().substring(0, 15)}</span>` : '—',
+        r.client_ip ? `<span style="font-size:10px;color:var(--text-muted)">${r.client_ip.split(',')[0].trim()}</span>` : '—',
         promptSnippet,
       ];
     };
@@ -1599,9 +1598,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Prompt modal ─────────────────────────────────────────────
   document.getElementById('reportContent').addEventListener('click', e => {
     const btn = e.target.closest('[data-pidx]');
-    if (!btn) return;
-    const p = _promptCache[parseInt(btn.dataset.pidx, 10)];
-    if (p) showPromptModal(p.text, { tool: p.tool, model: p.model, agent: p.agent, time: p.time });
+    if (btn) {
+      const p = _promptCache[parseInt(btn.dataset.pidx, 10)];
+      if (p) showPromptModal(p.text, { tool: p.tool, model: p.model, agent: p.agent, time: p.time });
+      return;
+    }
+    // CONV ID click → preenche filtro e aplica
+    const convCell = e.target.closest('.conv-id-cell');
+    if (convCell) {
+      const input = document.getElementById('evConvFilter');
+      if (input) {
+        input.value = convCell.dataset.conv;
+        input.dispatchEvent(new Event('input'));
+        evState.convFilter = convCell.dataset.conv;
+        loadEvents(true);
+      }
+    }
   });
   document.getElementById('modalCloseBtn').addEventListener('click', hidePromptModal);
   document.getElementById('modalCloseBtn2').addEventListener('click', hidePromptModal);
