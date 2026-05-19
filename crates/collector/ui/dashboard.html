@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>agent-meter dashboard</title>
+<title>Agent Meter — Agentic Observability</title>
+<meta name="description" content="Agentic AI observability & FinOps — real-time token tracking, cost attribution and tool-call analysis.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'><defs><linearGradient id='ag' x1='4' y1='28' x2='28' y2='4' gradientUnits='userSpaceOnUse'><stop stop-color='%236366f1'/><stop offset='.5' stop-color='%23818cf8'/><stop offset='1' stop-color='%23a5b4fc'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='%230a0a0f'/><circle cx='16' cy='17' r='11' stroke='%236366f1' stroke-width='.5' opacity='.3'/><path d='M7 19 A9 9 0 0 0 25 19' stroke='%232a2a3a' stroke-width='2.5' stroke-linecap='round'/><path d='M7 19 A9 9 0 0 0 20.1 11' stroke='url(%23ag)' stroke-width='2.5' stroke-linecap='round'/><line x1='16' y1='19' x2='20.1' y2='11' stroke='%23a5b4fc' stroke-width='1.5' stroke-linecap='round'/><circle cx='16' cy='19' r='2' fill='url(%23ag)'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg-base: #0a0a0f;
@@ -36,7 +38,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.bg-glow {
+  position: fixed;
+  top: -240px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 600px;
+  background: radial-gradient(ellipse at center, rgba(99,102,241,0.07) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 .app {
+  position: relative;
+  z-index: 1;
   max-width: 1360px;
   margin: 0 auto;
   padding: 24px;
@@ -51,8 +67,28 @@ header {
   border-bottom: 1px solid var(--border);
 }
 
-header h1 {
-  font-size: 24px;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-title {
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
   background: linear-gradient(135deg, var(--accent), var(--accent-hover));
@@ -60,10 +96,34 @@ header h1 {
   -webkit-text-fill-color: transparent;
 }
 
-header .subtitle {
-  font-size: 13px;
+.brand-sub {
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-muted);
-  margin-top: 2px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+footer {
+  margin-top: 48px;
+  padding: 20px 0 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+footer a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+footer a:hover {
+  color: var(--text-secondary);
 }
 
 .health-badge {
@@ -257,14 +317,14 @@ header .subtitle {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
-  min-width: 600px;
+  table-layout: fixed;
 }
 
 thead {
@@ -272,7 +332,7 @@ thead {
 }
 
 th {
-  padding: 10px 14px;
+  padding: 8px 10px 8px 10px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -280,13 +340,34 @@ th {
   color: var(--text-muted);
   text-align: left;
   white-space: nowrap;
+  position: relative;
+  user-select: none;
+}
+
+.resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 1;
+}
+.resize-handle:hover, .resize-handle.resizing {
+  background: var(--accent);
 }
 
 td {
-  padding: 9px 14px;
+  padding: 7px 10px;
   font-size: 13px;
   color: var(--text-secondary);
   border-top: 1px solid var(--border);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 tbody tr { transition: background 0.15s ease; }
@@ -401,6 +482,10 @@ tbody tr:hover { background: var(--bg-hover); }
 
 .error-rate { font-variant-numeric: tabular-nums; }
 
+@media (max-width: 1200px) {
+  .col-hide-lg { display: none; }
+}
+
 @media (max-width: 768px) {
   .app { padding: 12px; }
   header { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -408,22 +493,174 @@ tbody tr:hover { background: var(--bg-hover); }
   .form-grid { grid-template-columns: 1fr; }
   .section-header { flex-direction: column; align-items: flex-start; }
   .time-filter { flex-wrap: wrap; }
-  th, td { padding: 6px 8px; font-size: 12px; }
+  th, td { padding: 5px 7px; font-size: 12px; }
+  .col-hide-md { display: none; }
+}
+
+@media (max-width: 520px) {
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .col-hide-sm { display: none; }
+  .tabs { flex-wrap: wrap; }
+}
+
+/* ── Prompt modal ─────────────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(4px);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+
+.modal-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 760px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  animation: modal-in 0.18s ease;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-header h3 { font-size: 14px; font-weight: 600; }
+
+.modal-close-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 20px; line-height: 1;
+  padding: 0 2px; border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.modal-close-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+.modal-meta {
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 4px 14px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.modal-meta strong { color: var(--text-secondary); }
+
+.modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.modal-prompt-text {
+  font-family: 'Inter', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0;
+  tab-size: 2;
+}
+
+.modal-footer {
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.modal-footer-meta {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* clickable prompt cell button */
+.prompt-btn {
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--accent-hover);
+  font-size: 11px;
+  font-family: inherit;
+  text-align: left;
+  padding: 2px 7px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  transition: background 0.15s, border-color 0.15s;
+  vertical-align: middle;
+}
+.prompt-btn:hover {
+  background: rgba(99,102,241,0.18);
+  border-color: rgba(99,102,241,0.5);
+}
+.prompt-btn-empty {
+  color: var(--text-muted);
+  font-size: 10px;
 }
 </style>
 </head>
 <body>
+<div class="bg-glow" aria-hidden="true"></div>
 <div class="app">
   <header>
-    <div>
-      <h1>agent-meter</h1>
-      <div class="subtitle">Agentic AI observability &amp; FinOps collector</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <div class="health-badge" id="healthBadge">
-        <span class="health-dot loading" id="healthDot"></span>
-        <span id="healthText">checking...</span>
+    <a class="brand" href="#">
+      <svg class="brand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="am-brand-g" x1="4" y1="28" x2="28" y2="4" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#6366f1"/>
+            <stop offset=".5" stop-color="#818cf8"/>
+            <stop offset="1" stop-color="#a5b4fc"/>
+          </linearGradient>
+        </defs>
+        <rect width="32" height="32" rx="8" fill="#0a0a0f"/>
+        <circle cx="16" cy="17" r="11" stroke="#6366f1" stroke-width=".5" opacity=".3"/>
+        <path d="M7 19 A9 9 0 0 0 25 19" stroke="#2a2a3a" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M7 19 A9 9 0 0 0 20.1 11" stroke="url(#am-brand-g)" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="16" y1="19" x2="20.1" y2="11" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="16" cy="19" r="2" fill="url(#am-brand-g)"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-title">agent-meter</span>
+        <span class="brand-sub">Agentic Observability</span>
       </div>
+    </a>
+    <div class="health-badge" id="healthBadge">
+      <span class="health-dot loading" id="healthDot"></span>
+      <span id="healthText">checking...</span>
     </div>
   </header>
 
@@ -578,6 +815,33 @@ tbody tr:hover { background: var(--bg-hover); }
         <span style="font-size:12px;color:var(--text-muted)" id="sendStatus"></span>
       </div>
       <div class="form-result" id="formResult"></div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/health">Health</a>
+    <span>·</span>
+    <a href="/metrics">Metrics</a>
+    <span>·</span>
+    <span>agent-meter</span>
+  </footer>
+</div>
+
+<!-- ── Prompt reader modal ────────────────────────────────────── -->
+<div class="modal-overlay" id="promptModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modalTitle">Prompt</h3>
+      <button class="modal-close-btn" id="modalCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-meta" id="modalMeta"></div>
+    <div class="modal-body">
+      <pre class="modal-prompt-text" id="modalContent"></pre>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-footer-meta" id="modalCharCount"></span>
+      <button class="btn btn-secondary" id="modalCopyBtn">Copy</button>
+      <button class="btn btn-secondary" id="modalCloseBtn2">Close</button>
     </div>
   </div>
 </div>
@@ -843,11 +1107,26 @@ function renderTab(tab) {
 }
 
 function buildTable(headers, rows, cellFn, tbodyId) {
-  let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead>';
+  // Build colgroup for fixed-layout tables
+  const colgroup = '<colgroup>' + headers.map(h => {
+    const w   = typeof h === 'object' ? (h.width || '') : '';
+    const cls = typeof h === 'object' ? (h.cls   || '') : '';
+    const attrs = [w ? `style="width:${w}"` : '', cls ? `class="${cls}"` : ''].filter(Boolean).join(' ');
+    return `<col${attrs ? ' ' + attrs : ''}>`;
+  }).join('') + '</colgroup>';
+  let html = '<table>' + colgroup + '<thead><tr>' + headers.map(h => {
+    const text = typeof h === 'object' ? h.text : h;
+    const cls  = typeof h === 'object' ? (h.cls || '') : '';
+    return `<th${cls ? ` class="${cls}"` : ''}>${text}<div class="resize-handle"></div></th>`;
+  }).join('') + '</tr></thead>';
   html += `<tbody${tbodyId ? ` id="${tbodyId}"` : ''}>`;
   for (const row of rows) {
     const cells = cellFn(row);
-    html += '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
+    html += '<tr>' + cells.map((c, i) => {
+      const h = headers[i];
+      const cls = typeof h === 'object' ? (h.cls || '') : '';
+      return `<td${cls ? ` class="${cls}"` : ''}>${c}</td>`;
+    }).join('') + '</tr>';
   }
   html += '</tbody></table>';
   return html;
@@ -932,8 +1211,12 @@ async function renderEventsTab(forceFullRender) {
         ? `<span style="font-size:10px;font-family:monospace;color:var(--text-muted)" title="${r.conversation_id}">${r.conversation_id.substring(0,8)}…</span>`
         : '—';
       const promptSnippet = r.user_prompt
-        ? `<span style="font-size:11px;color:var(--text-muted);cursor:default;max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom" title="${r.user_prompt.replace(/"/g, '&quot;')}">${r.user_prompt.substring(0, 50)}${r.user_prompt.length > 50 ? '…' : ''}</span>`
-        : '<span style="color:var(--text-muted);font-size:10px">—</span>';
+        ? (() => {
+            const idx = _promptCache.length;
+            _promptCache.push({ text: r.user_prompt, tool: r.tool_name, model: r.model || '', agent: r.agent || '', time: r.started_at });
+            return `<button class="prompt-btn" data-pidx="${idx}" title="Clique para ler o prompt completo">📄 ${escHtml(r.user_prompt.substring(0, 36))}${r.user_prompt.length > 36 ? '…' : ''}</button>`;
+          })()
+        : `<span class="prompt-btn-empty">—</span>`;
       return [
         `<span style="font-size:11px;white-space:nowrap;color:var(--text-muted)" title="${r.started_at}">${relativeTime(r.started_at)}</span>`,
         typeTag,
@@ -970,12 +1253,29 @@ async function renderEventsTab(forceFullRender) {
     }
 
     const table = buildTable(
-      ['When', 'Type', 'Tool / Op', 'Model', 'In ↑', 'Out ↓', 'Cached ♻', 'Duration', 'Status', 'Agent', 'Conv ID', 'IDE', 'IP', 'Prompt'],
+      [
+        {text: 'When',      width: '62px'},
+        {text: 'Type',      width: '44px',  cls: 'col-hide-sm'},
+        {text: 'Tool / Op', width: '130px'},
+        {text: 'Model',     width: '120px', cls: 'col-hide-sm'},
+        {text: 'In ↑',     width: '55px',  cls: 'col-hide-md'},
+        {text: 'Out ↓',    width: '55px',  cls: 'col-hide-md'},
+        {text: 'Cached ♻', width: '62px',  cls: 'col-hide-md'},
+        {text: 'Duration',  width: '72px'},
+        {text: 'Status',    width: '58px'},
+        {text: 'Agent',     width: '120px', cls: 'col-hide-sm'},
+        {text: 'Conv ID',   width: '68px',  cls: 'col-hide-lg'},
+        {text: 'IDE',       width: '85px',  cls: 'col-hide-sm'},
+        {text: 'IP',        width: '72px',  cls: 'col-hide-lg'},
+        {text: 'Prompt'  /* no width → takes all remaining space */},
+      ],
       rows, rowFn, 'eventsTableBody'
     );
     container.innerHTML = renderEventsFilter() + table + renderEventsPagination(rows.length);
     attachEventsPaginationListeners();
     attachEventsFilterListeners();
+    const tbl = document.getElementById('eventsTableBody')?.closest('table');
+    if (tbl) { initColumnResize(tbl); addTruncationTooltips(tbl); }
   } catch(e) {
     container.innerHTML = `<div class="empty-state"><p class="text-red">Error: ${e.message}</p></div>`;
   }
@@ -1138,6 +1438,81 @@ async function sendEvent(evt) {
   result.style.display = 'block';
 }
 
+// ── Column resize ────────────────────────────────────────────────
+let _colResizing = null;
+
+function initColumnResize(table) {
+  const cols = Array.from(table.querySelectorAll('colgroup col'));
+  table.querySelectorAll('th').forEach((th, i) => {
+    const handle = th.querySelector('.resize-handle');
+    if (!handle || !cols[i]) return;
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      _colResizing = { col: cols[i], startX: e.clientX, startW: th.offsetWidth, handle };
+      handle.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (!_colResizing) return;
+  const w = Math.max(36, _colResizing.startW + (e.clientX - _colResizing.startX));
+  _colResizing.col.style.width = w + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  if (!_colResizing) return;
+  _colResizing.handle.classList.remove('resizing');
+  _colResizing = null;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// ── Truncation tooltips ───────────────────────────────────────────
+function addTruncationTooltips(tableEl) {
+  tableEl.querySelectorAll('td').forEach(td => {
+    if (td.querySelector('[data-pidx]')) return; // prompt cell has its own modal
+    const text = td.textContent.trim();
+    if (text && text !== '—') td.title = text;
+  });
+}
+
+// ── Prompt modal ─────────────────────────────────────────────────
+const _promptCache = [];
+
+function showPromptModal(text, meta = {}) {
+  const modal   = document.getElementById('promptModal');
+  const content = document.getElementById('modalContent');
+  const charEl  = document.getElementById('modalCharCount');
+  const metaEl  = document.getElementById('modalMeta');
+
+  content.textContent = text || '(vazio)';
+  charEl.textContent  = `${(text || '').length.toLocaleString()} caracteres`;
+
+  const parts = [];
+  if (meta.tool)  parts.push(`Tool: <strong>${escHtml(meta.tool)}</strong>`);
+  if (meta.model) parts.push(`Model: <strong style="color:var(--accent)">${escHtml(meta.model)}</strong>`);
+  if (meta.agent) parts.push(`Agent: <strong>${escHtml(meta.agent)}</strong>`);
+  if (meta.time)  parts.push(relativeTime(meta.time));
+  metaEl.innerHTML    = parts.join(' &nbsp;·&nbsp; ');
+  metaEl.style.display = parts.length ? 'flex' : 'none';
+
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('modalCloseBtn').focus();
+}
+
+function hidePromptModal() {
+  document.getElementById('promptModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function refreshAll() {
   fetchReports();
   fetchSparkline();
@@ -1220,6 +1595,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // CSV export
   document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
+
+  // ── Prompt modal ─────────────────────────────────────────────
+  document.getElementById('reportContent').addEventListener('click', e => {
+    const btn = e.target.closest('[data-pidx]');
+    if (!btn) return;
+    const p = _promptCache[parseInt(btn.dataset.pidx, 10)];
+    if (p) showPromptModal(p.text, { tool: p.tool, model: p.model, agent: p.agent, time: p.time });
+  });
+  document.getElementById('modalCloseBtn').addEventListener('click', hidePromptModal);
+  document.getElementById('modalCloseBtn2').addEventListener('click', hidePromptModal);
+  document.getElementById('promptModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) hidePromptModal();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') hidePromptModal();
+  });
+  document.getElementById('modalCopyBtn').addEventListener('click', () => {
+    const text = document.getElementById('modalContent').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('modalCopyBtn');
+      btn.textContent = 'Copiado!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    }).catch(() => {
+      // Fallback for non-https
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  });
 });
 </script>
 </body>
