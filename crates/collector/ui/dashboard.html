@@ -92,6 +92,7 @@ header {
   font-weight: 700;
   letter-spacing: -0.02em;
   background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -865,7 +866,43 @@ const state = {
   filterIde: '', filterAgent: '', filterModel: '',
   lastEventAt: null, eventsTimer: null,
   reportSort: { tools: null, tasks: null, servers: null },
+  pollers: { health: null, reports: null, sparkline: null, relativeTime: null },
 };
+
+function runVisiblePollers() {
+  if (document.hidden) return;
+  checkHealth();
+  fetchSparkline();
+  // While user is focused on Events, avoid heavy report aggregates every cycle.
+  if (state.currentTab !== 'events') fetchReports();
+}
+
+function startGlobalPolling() {
+  if (state.pollers.health || state.pollers.reports || state.pollers.sparkline || state.pollers.relativeTime) return;
+  state.pollers.health = setInterval(() => {
+    if (!document.hidden) checkHealth();
+  }, 15000);
+  state.pollers.reports = setInterval(() => {
+    if (!document.hidden && state.currentTab !== 'events') fetchReports();
+  }, 30000);
+  state.pollers.sparkline = setInterval(() => {
+    if (!document.hidden) fetchSparkline();
+  }, 15000);
+  state.pollers.relativeTime = setInterval(() => {
+    if (state.lastEventAt) {
+      document.getElementById('lastEventTime').textContent = relativeTime(state.lastEventAt);
+    }
+  }, 30000);
+}
+
+function stopGlobalPolling() {
+  Object.keys(state.pollers).forEach(k => {
+    if (state.pollers[k]) {
+      clearInterval(state.pollers[k]);
+      state.pollers[k] = null;
+    }
+  });
+}
 
 function compareSortValues(a, b, dir) {
   const aNum = typeof a === 'number' ? a : Number(a);
@@ -1583,11 +1620,18 @@ function refreshAll() {
 document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   refreshAll();
-  setInterval(checkHealth, 15000);
-  setInterval(fetchReports, 30000);
-  setInterval(fetchSparkline, 15000);
+  startGlobalPolling();
   // kickstart last-event KPI by fetching latest event once
   fetchEvents().catch(() => {});
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopEventsAutoRefresh();
+    } else {
+      runVisiblePollers();
+      if (state.currentTab === 'events') startEventsAutoRefresh();
+    }
+  });
 
   // tab switching
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1648,13 +1692,6 @@ document.addEventListener('DOMContentLoaded', () => {
     startEventsAutoRefresh();
   });
 
-  // update relative times every 30s
-  setInterval(() => {
-    if (state.lastEventAt) {
-      document.getElementById('lastEventTime').textContent = relativeTime(state.lastEventAt);
-    }
-  }, 30000);
-
   // CSV export
   document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
 
@@ -1694,7 +1731,7 @@ document.addEventListener('DOMContentLoaded', () => {
         input.value = convCell.dataset.conv;
         input.dispatchEvent(new Event('input'));
         evState.convFilter = convCell.dataset.conv;
-        loadEvents(true);
+        renderEventsTab(true);
       }
       startEventsAutoRefresh();
     }
