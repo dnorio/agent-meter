@@ -36,13 +36,26 @@ pub struct EventQuery {
     pub agent: Option<String>,
     pub model: Option<String>,
     pub conversation_id: Option<String>,
+    pub before_started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub before_event_id: Option<uuid::Uuid>,
     pub limit: i64,
     pub offset: i64,
 }
 
 impl Default for EventQuery {
     fn default() -> Self {
-        Self { from: None, to: None, ide: None, agent: None, model: None, conversation_id: None, limit: 50, offset: 0 }
+        Self {
+            from: None,
+            to: None,
+            ide: None,
+            agent: None,
+            model: None,
+            conversation_id: None,
+            before_started_at: None,
+            before_event_id: None,
+            limit: 50,
+            offset: 0,
+        }
     }
 }
 
@@ -150,8 +163,16 @@ pub async fn events_feed(pool: &PgPool, q: &EventQuery) -> Result<Vec<EventFeedR
           AND ($4::text IS NULL OR agent = $4)
           AND ($5::text IS NULL OR model = $5)
           AND ($6::text IS NULL OR conversation_id = $6)
-        ORDER BY started_at DESC
-        LIMIT $7 OFFSET $8
+                    AND (
+                                $7::timestamptz IS NULL
+                                OR started_at < $7
+                                OR (
+                                        started_at = $7
+                                        AND event_id < COALESCE($8::uuid, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)
+                                )
+                    )
+                ORDER BY started_at DESC, event_id DESC
+                LIMIT $9 OFFSET $10
         "#,
     )
     .bind(q.from)
@@ -160,6 +181,8 @@ pub async fn events_feed(pool: &PgPool, q: &EventQuery) -> Result<Vec<EventFeedR
     .bind(&q.agent)
     .bind(&q.model)
     .bind(&q.conversation_id)
+        .bind(q.before_started_at)
+        .bind(q.before_event_id)
     .bind(q.limit)
     .bind(q.offset)
     .fetch_all(pool)

@@ -121,6 +121,8 @@ pub struct EventFeedParams {
     agent: Option<String>,
     model: Option<String>,
     conversation_id: Option<String>,
+    before_started_at: Option<String>,
+    before_event_id: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
@@ -135,6 +137,11 @@ async fn events_feed(
     let to = params.to.as_deref()
         .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
         .map(|dt| dt.with_timezone(&chrono::Utc));
+    let before_started_at = params.before_started_at.as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    let before_event_id = params.before_event_id.as_deref()
+        .and_then(|s| uuid::Uuid::parse_str(s).ok());
     let q = EventQuery {
         from,
         to,
@@ -142,6 +149,8 @@ async fn events_feed(
         agent: params.agent,
         model: params.model,
         conversation_id: params.conversation_id,
+        before_started_at,
+        before_event_id,
         limit: params.limit.unwrap_or(50).min(200),
         offset: params.offset.unwrap_or(0),
     };

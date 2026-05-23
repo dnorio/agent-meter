@@ -41,7 +41,7 @@ async fn test_dashboard_html() {
     assert_eq!(resp.status(), 200);
     let body = resp.text().await.unwrap();
     assert!(body.starts_with("<!DOCTYPE html>"));
-    assert!(body.contains("agent-meter dashboard"));
+    assert!(body.contains("<title>Agent Meter"));
 }
 
 #[tokio::test]
@@ -111,6 +111,89 @@ async fn test_reports_top_mcp_servers() {
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.is_array(), "top-mcp-servers should be an array");
+}
+
+#[tokio::test]
+async fn test_reports_events_supports_cursor_pagination() {
+    let (base_url, client) = setup().await;
+    let run_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let conversation_id = format!("conv-cursor-test-{}", run_id);
+
+    for (event_id, started_at, tool_name) in [
+        (
+            uuid::Uuid::new_v4().to_string(),
+            "2026-05-17T00:00:03Z",
+            "cursor_test_tool_3",
+        ),
+        (
+            uuid::Uuid::new_v4().to_string(),
+            "2026-05-17T00:00:02Z",
+            "cursor_test_tool_2",
+        ),
+        (
+            uuid::Uuid::new_v4().to_string(),
+            "2026-05-17T00:00:01Z",
+            "cursor_test_tool_1",
+        ),
+    ] {
+        let event = json!({
+            "event_id": event_id,
+            "task_id": format!("events-cursor-test-{}", run_id),
+            "tool_name": tool_name,
+            "started_at": started_at,
+            "ended_at": started_at,
+            "ok": true,
+            "request_bytes": 10,
+            "response_bytes": 20,
+            "conversation_id": conversation_id
+        });
+        let resp = client
+            .post(format!("{}/events/tool-call", base_url))
+            .json(&event)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "cursor event insert should succeed");
+    }
+
+    let first_page: serde_json::Value = client
+        .get(format!(
+            "{}/reports/events?conversation_id={}&limit=2",
+            base_url, conversation_id
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let first_page = first_page.as_array().unwrap();
+    assert_eq!(first_page.len(), 2);
+    assert_eq!(first_page[0]["tool_name"], "cursor_test_tool_3");
+    assert_eq!(first_page[1]["tool_name"], "cursor_test_tool_2");
+
+    let before_started_at = first_page[1]["started_at"].as_str().unwrap();
+    let before_event_id = first_page[1]["event_id"].as_str().unwrap();
+    let second_page: serde_json::Value = client
+        .get(format!(
+            "{}/reports/events?conversation_id={}&limit=2&before_started_at={}&before_event_id={}",
+            base_url,
+            conversation_id,
+            before_started_at,
+            before_event_id
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let second_page = second_page.as_array().unwrap();
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page[0]["tool_name"], "cursor_test_tool_1");
 }
 
 #[tokio::test]

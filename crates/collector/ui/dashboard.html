@@ -1127,7 +1127,7 @@ function renderTab(tab) {
 
   // Events tab has its own async fetch — handle separately
   if (tab === 'events') {
-    evState.offset = 0;
+    resetEventsPagination();
     renderEventsTab(true);
     return;
   }
@@ -1241,19 +1241,30 @@ function buildTbodyRows(rows, cellFn) {
 }
 
 // ── Events feed ──────────────────────────────────────────────────
-const evState = { offset: 0, limit: 50, convFilter: '' };
+const evState = { cursor: null, nextCursor: null, history: [], limit: 50, convFilter: '' };
+
+function resetEventsPagination() {
+  evState.cursor = null;
+  evState.nextCursor = null;
+  evState.history = [];
+}
 
 async function fetchEvents() {
   const range = state.timeRange;
   const from = isoBefore(RANGE_MS[range]);
   const to = nowISO();
   const f = getFilters();
-  let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=${evState.limit}&offset=${evState.offset}`;
+  let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=${evState.limit}`;
   if (f.ide) q += `&ide=${f.ide}`;
   if (f.agent) q += `&agent=${f.agent}`;
   if (f.model) q += `&model=${encodeURIComponent(f.model)}`;
   if (evState.convFilter) q += `&conversation_id=${encodeURIComponent(evState.convFilter)}`;
+  if (evState.cursor?.started_at) q += `&before_started_at=${encodeURIComponent(evState.cursor.started_at)}`;
+  if (evState.cursor?.event_id) q += `&before_event_id=${encodeURIComponent(evState.cursor.event_id)}`;
   const data = await fetch(BASE + '/reports/events' + q).then(r => r.json());
+  evState.nextCursor = data && data.length === evState.limit
+    ? { started_at: data[data.length - 1].started_at, event_id: data[data.length - 1].event_id }
+    : null;
   // update last event KPI
   if (data && data.length > 0) {
     const ev = data[0];
@@ -1276,7 +1287,7 @@ function relativeTime(iso) {
 function startEventsAutoRefresh() {
   stopEventsAutoRefresh();
   state.eventsTimer = setInterval(() => {
-    if (state.currentTab === 'events' && evState.offset === 0) renderEventsTab();
+    if (state.currentTab === 'events' && !evState.cursor) renderEventsTab();
   }, 5000);
 }
 
@@ -1396,10 +1407,11 @@ function renderEventsFilter() {
 }
 
 function renderEventsPaginationInner(count) {
-  const hasPrev = evState.offset > 0;
-  const hasNext = count === evState.limit;
+  const hasPrev = evState.history.length > 0;
+  const hasNext = !!evState.nextCursor && count === evState.limit;
+  const page = evState.history.length + 1;
   return `<button id="evPrev" class="btn-sm" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>← Prev</button>
-    <span>offset ${evState.offset} – ${evState.offset + count}</span>
+    <span>page ${page} · ${count} rows</span>
     <button id="evNext" class="btn-sm" ${hasNext ? '' : 'disabled style="opacity:.4"'}>Next →</button>`;
 }
 
@@ -1411,11 +1423,15 @@ function renderEventsPagination(count) {
 
 function attachEventsPaginationListeners() {
   document.getElementById('evPrev')?.addEventListener('click', () => {
-    evState.offset = Math.max(0, evState.offset - evState.limit);
+    stopEventsAutoRefresh();
+    evState.cursor = evState.history.pop() ?? null;
     renderEventsTab(true);
   });
   document.getElementById('evNext')?.addEventListener('click', () => {
-    evState.offset += evState.limit;
+    if (!evState.nextCursor) return;
+    stopEventsAutoRefresh();
+    evState.history.push(evState.cursor);
+    evState.cursor = evState.nextCursor;
     renderEventsTab(true);
   });
 }
@@ -1423,17 +1439,20 @@ function attachEventsPaginationListeners() {
 function attachEventsFilterListeners() {
   document.getElementById('evFilterBtn')?.addEventListener('click', () => {
     evState.convFilter = document.getElementById('evConvFilter').value.trim();
-    evState.offset = 0;
+    resetEventsPagination();
     renderEventsTab(true);
   });
   document.getElementById('evResetBtn')?.addEventListener('click', () => {
     evState.convFilter = '';
-    evState.offset = 0;
+    resetEventsPagination();
     renderEventsTab(true);
   });
   document.getElementById('evLiveBtn')?.addEventListener('click', () => {
     if (state.eventsTimer) stopEventsAutoRefresh();
-    else { evState.offset = 0; startEventsAutoRefresh(); }
+    else {
+      resetEventsPagination();
+      startEventsAutoRefresh();
+    }
     renderEventsTab(true);
   });
 }
