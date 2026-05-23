@@ -49,34 +49,77 @@ impl Default for EventQuery {
 pub async fn top_tools(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTool>, AppError> {
     let rows = sqlx::query_as::<_, TopTool>(
         r#"
+        WITH filtered AS (
+            SELECT
+                mcp_server,
+                tool_name,
+                model,
+                estimated_total_tokens,
+                duration_ms,
+                ok,
+                response_bytes,
+                cached_tokens,
+                estimated_input_tokens,
+                estimated_output_tokens
+            FROM agent_tool_calls
+            WHERE ($1::timestamptz IS NULL OR started_at >= $1)
+              AND ($2::timestamptz IS NULL OR started_at <= $2)
+              AND ($3::text IS NULL OR repo = $3)
+              AND ($4::text IS NULL OR ide = $4)
+              AND ($5::text IS NULL OR agent = $5)
+              AND ($6::text IS NULL OR model = $6)
+              AND ($7::text IS NULL OR skill = $7)
+        ),
+        agg AS (
+            SELECT
+                mcp_server,
+                tool_name,
+                COUNT(*)::bigint AS calls,
+                SUM(estimated_total_tokens)::bigint AS total_estimated_tokens,
+                AVG(duration_ms)::float8 AS avg_duration_ms,
+                COUNT(*) FILTER (WHERE NOT ok)::bigint AS errors,
+                AVG(response_bytes)::float8 AS avg_response_bytes,
+                SUM(cached_tokens)::bigint AS cached_tokens_total,
+                AVG(estimated_input_tokens)::float8 AS avg_input_tokens,
+                AVG(estimated_output_tokens)::float8 AS avg_output_tokens
+            FROM filtered
+            GROUP BY mcp_server, tool_name
+        ),
+        top_models AS (
+            SELECT mcp_server, tool_name, model
+            FROM (
+                SELECT
+                    mcp_server,
+                    tool_name,
+                    model,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY mcp_server, tool_name
+                        ORDER BY COUNT(*) DESC, model ASC
+                    ) AS rn
+                FROM filtered
+                WHERE model IS NOT NULL
+                GROUP BY mcp_server, tool_name, model
+            ) ranked
+            WHERE rn = 1
+        )
         SELECT
-            mcp_server,
-            tool_name,
-            COUNT(*)::bigint as calls,
-            SUM(estimated_total_tokens)::bigint as total_estimated_tokens,
-            AVG(duration_ms)::float8 as avg_duration_ms,
-            COUNT(*) FILTER (WHERE not ok)::bigint as errors,
-            AVG(response_bytes)::float8 as avg_response_bytes,
-            (SELECT model FROM agent_tool_calls t2
-             WHERE t2.mcp_server IS NOT DISTINCT FROM agent_tool_calls.mcp_server
-               AND t2.tool_name = agent_tool_calls.tool_name
-               AND t2.model IS NOT NULL
-             GROUP BY model ORDER BY COUNT(*) DESC LIMIT 1
-            ) as top_model,
-            SUM(cached_tokens)::bigint as cached_tokens_total,
-            AVG(estimated_input_tokens)::float8 as avg_input_tokens,
-            AVG(estimated_output_tokens)::float8 as avg_output_tokens
-        FROM agent_tool_calls
-        WHERE ($1::timestamptz IS NULL OR started_at >= $1)
-          AND ($2::timestamptz IS NULL OR started_at <= $2)
-          AND ($3::text IS NULL OR repo = $3)
-          AND ($4::text IS NULL OR ide = $4)
-          AND ($5::text IS NULL OR agent = $5)
-                    AND ($6::text IS NULL OR model = $6)
-                    AND ($7::text IS NULL OR skill = $7)
-        GROUP BY mcp_server, tool_name
+            agg.mcp_server,
+            agg.tool_name,
+            agg.calls,
+            agg.total_estimated_tokens,
+            agg.avg_duration_ms,
+            agg.errors,
+            agg.avg_response_bytes,
+            top_models.model AS top_model,
+            agg.cached_tokens_total,
+            agg.avg_input_tokens,
+            agg.avg_output_tokens
+        FROM agg
+        LEFT JOIN top_models
+          ON top_models.mcp_server IS NOT DISTINCT FROM agg.mcp_server
+         AND top_models.tool_name = agg.tool_name
         ORDER BY calls DESC
-                LIMIT $8
+        LIMIT $8
         "#,
     )
     .bind(q.from)
@@ -84,7 +127,7 @@ pub async fn top_tools(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopTool>, A
     .bind(&q.repo)
     .bind(&q.ide)
     .bind(&q.agent)
-        .bind(&q.model)
+    .bind(&q.model)
     .bind(&q.skill)
     .bind(q.limit)
     .fetch_all(pool)
