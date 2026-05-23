@@ -344,6 +344,21 @@ th {
   user-select: none;
 }
 
+th.th-sortable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+th.th-sortable:hover {
+  background: var(--bg-hover);
+}
+
+.sort-indicator {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--accent);
+}
+
 .resize-handle {
   position: absolute;
   right: 0;
@@ -849,7 +864,28 @@ const state = {
   currentTab: 'tools', data: null, timeRange: '6h', timeData: null,
   filterIde: '', filterAgent: '', filterModel: '',
   lastEventAt: null, eventsTimer: null,
+  reportSort: { tools: null, tasks: null, servers: null },
 };
+
+function compareSortValues(a, b, dir) {
+  const aNum = typeof a === 'number' ? a : Number(a);
+  const bNum = typeof b === 'number' ? b : Number(b);
+  const bothNumeric = !Number.isNaN(aNum) && !Number.isNaN(bNum);
+  let out;
+  if (bothNumeric) {
+    out = aNum - bNum;
+  } else {
+    out = String(a ?? '').localeCompare(String(b ?? ''), undefined, { sensitivity: 'base' });
+  }
+  return dir === 'asc' ? out : -out;
+}
+
+function applyReportSort(tab) {
+  const sort = state.reportSort[tab];
+  const rows = state.data && state.data[tab];
+  if (!sort || !rows || rows.length === 0) return;
+  rows.sort((a, b) => compareSortValues(a[sort.key], b[sort.key], sort.dir));
+}
 
 function isoBefore(ago) {
   return new Date(Date.now() - ago).toISOString();
@@ -896,7 +932,7 @@ function buildQuery(extra = {}) {
   let q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
   if (f.ide) q += `&ide=${f.ide}`;
   if (f.agent) q += `&agent=${f.agent}`;
-  // model filter not yet supported server-side on top-tools/tasks — skip for reports
+  if (f.model) q += `&model=${encodeURIComponent(f.model)}`;
   for (const [k, v] of Object.entries(extra)) if (v) q += `&${k}=${encodeURIComponent(v)}`;
   return q;
 }
@@ -910,6 +946,7 @@ async function fetchReports() {
       fetch(BASE + '/reports/top-mcp-servers' + q).then(r => r.json()),
     ]);
     state.data = { tools, tasks, servers };
+    state.reportSort = { tools: null, tasks: null, servers: null };
     updateModelFilter(tools);
     renderKPIs();
     if (state.currentTab !== 'events') renderTab(state.currentTab);
@@ -1066,6 +1103,7 @@ function renderTab(tab) {
   }
 
   if (tab === 'tools') {
+    applyReportSort(tab);
     container.innerHTML = buildTable(
       ['Type', 'Tool / Operation', 'Provider', 'Calls', 'Avg In ↑', 'Avg Out ↓', 'Cached ♻', 'Top Model', 'Avg Duration', 'Errors'],
       data,
@@ -1086,9 +1124,12 @@ function renderTab(tab) {
           formatDuration(t.avg_duration_ms),
           `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors || 0}</span>`,
         ];
-      }
+      },
+      undefined,
+      [null, 'tool_name', 'mcp_server', 'calls', 'avg_input_tokens', 'avg_output_tokens', 'cached_tokens_total', 'top_model', 'avg_duration_ms', 'errors']
     );
   } else if (tab === 'tasks') {
+    applyReportSort(tab);
     container.innerHTML = buildTable(
       ['Conv ID', 'Tool Calls', 'Total Tokens', 'Total Duration', 'Errors', 'Distinct Tools'],
       data,
@@ -1098,9 +1139,12 @@ function renderTab(tab) {
         formatDuration(t.total_duration_ms),
         `<span class="${t.errors > 0 ? 'text-red' : ''}">${t.errors}</span>`,
         t.distinct_tools
-      ]
+      ],
+      undefined,
+      ['task_id', 'tool_calls', 'total_estimated_tokens', 'total_duration_ms', 'errors', 'distinct_tools']
     );
   } else if (tab === 'servers') {
+    applyReportSort(tab);
     container.innerHTML = buildTable(
       ['MCP Server', 'Calls', 'Total Tokens', 'Avg Resp Bytes', 'Error Rate'],
       data,
@@ -1108,14 +1152,16 @@ function renderTab(tab) {
         t.mcp_server || '—', formatNum(t.calls), formatNum(t.total_estimated_tokens),
         t.avg_response_bytes ? formatNum(Math.round(t.avg_response_bytes)) : '—',
         t.error_rate != null ? (Number(t.error_rate) * 100).toFixed(1) + '%' : '—'
-      ]
+      ],
+      undefined,
+      ['mcp_server', 'calls', 'total_estimated_tokens', 'avg_response_bytes', 'error_rate']
     );
   } else if (tab === 'events') {
     renderEventsTab(true);
   }
 }
 
-function buildTable(headers, rows, cellFn, tbodyId) {
+function buildTable(headers, rows, cellFn, tbodyId, sortKeys) {
   // Build colgroup for fixed-layout tables
   const colgroup = '<colgroup>' + headers.map(h => {
     const w   = typeof h === 'object' ? (h.width || '') : '';
@@ -1123,10 +1169,17 @@ function buildTable(headers, rows, cellFn, tbodyId) {
     const attrs = [w ? `style="width:${w}"` : '', cls ? `class="${cls}"` : ''].filter(Boolean).join(' ');
     return `<col${attrs ? ' ' + attrs : ''}>`;
   }).join('') + '</colgroup>';
-  let html = '<table>' + colgroup + '<thead><tr>' + headers.map(h => {
+  const currentSort = state.reportSort[state.currentTab];
+  let html = '<table>' + colgroup + '<thead><tr>' + headers.map((h, i) => {
     const text = typeof h === 'object' ? h.text : h;
     const cls  = typeof h === 'object' ? (h.cls || '') : '';
-    return `<th${cls ? ` class="${cls}"` : ''}>${text}<div class="resize-handle"></div></th>`;
+    const sortKey = sortKeys ? sortKeys[i] : null;
+    const sortCls = sortKey ? ' th-sortable' : '';
+    const sortIndicator = sortKey && currentSort && currentSort.key === sortKey
+      ? `<span class="sort-indicator">${currentSort.dir === 'asc' ? '↑' : '↓'}</span>`
+      : '';
+    const sortAttr = sortKey ? ` data-sort-key="${sortKey}"` : '';
+    return `<th${cls || sortCls ? ` class="${cls}${sortCls}"` : ''}${sortAttr}>${text}${sortIndicator}<div class="resize-handle"></div></th>`;
   }).join('') + '</tr></thead>';
   html += `<tbody${tbodyId ? ` id="${tbodyId}"` : ''}>`;
   for (const row of rows) {
@@ -1607,6 +1660,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Prompt modal ─────────────────────────────────────────────
   document.getElementById('reportContent').addEventListener('click', e => {
+    const sortHeader = e.target.closest('th[data-sort-key]');
+    if (sortHeader && !e.target.closest('.resize-handle')) {
+      const tab = state.currentTab;
+      if (tab !== 'events') {
+        const key = sortHeader.dataset.sortKey;
+        const prev = state.reportSort[tab];
+        const dir = prev && prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc';
+        state.reportSort[tab] = { key, dir };
+        renderTab(tab);
+      }
+      return;
+    }
+
     const btn = e.target.closest('[data-pidx]');
     if (btn) {
       const p = _promptCache[parseInt(btn.dataset.pidx, 10)];
