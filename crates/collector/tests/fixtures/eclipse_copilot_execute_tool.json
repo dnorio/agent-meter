@@ -1,0 +1,154 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "eclipse-copilot"
+            }
+          },
+          {
+            "key": "session.id",
+            "value": {
+              "stringValue": "eclipse-session-001"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "11223344556677881122334455667788",
+              "spanId": "0102030405060708",
+              "name": "execute_tool read_file",
+              "startTimeUnixNano": "1717503000000000000",
+              "endTimeUnixNano": "1717503001400000000",
+              "status": {
+                "code": 1
+              },
+              "attributes": [
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "read_file"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "copilot-eclipse"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "gpt-4o"
+                  }
+                },
+                {
+                  "key": "gen_ai.system",
+                  "value": {
+                    "stringValue": "openai"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": 900
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": 120
+                  }
+                },
+                {
+                  "key": "gen_ai.conversation.id",
+                  "value": {
+                    "stringValue": "conv-eclipse-001"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"path\":\"src/main/java/App.java\"}"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.output",
+                  "value": {
+                    "stringValue": "public class App { }"
+                  }
+                },
+                {
+                  "key": "copilot_chat.user_request",
+                  "value": {
+                    "stringValue": "open file App.java"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "11223344556677881122334455667788",
+              "spanId": "1112131415161718",
+              "name": "chat gpt-4o",
+              "startTimeUnixNano": "1717503002000000000",
+              "endTimeUnixNano": "1717503005200000000",
+              "status": {
+                "code": 1
+              },
+              "attributes": [
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "gpt-4o"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "gpt-4o-2026-04-15"
+                  }
+                },
+                {
+                  "key": "gen_ai.system",
+                  "value": {
+                    "stringValue": "openai"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": 1600
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": 260
+                  }
+                },
+                {
+                  "key": "gen_ai.response.finish_reason",
+                  "value": {
+                    "stringValue": "stop"
+                  }
+                },
+                {
+                  "key": "gen_ai.conversation.id",
+                  "value": {
+                    "stringValue": "conv-eclipse-001"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

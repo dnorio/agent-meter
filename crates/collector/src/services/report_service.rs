@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use crate::errors::AppError;
-use crate::models::tool_call::{EventFeedRow, TopMcpServer, TopTask, TopTool};
+use crate::models::tool_call::{EventFeedRow, IdeBreakdown, TopMcpServer, TopTask, TopTool};
 
 pub struct ReportQuery {
     pub from: Option<chrono::DateTime<chrono::Utc>>,
@@ -155,7 +155,8 @@ pub async fn events_feed(pool: &PgPool, q: &EventQuery) -> Result<Vec<EventFeedR
         SELECT
             event_id, tool_name, model, started_at, duration_ms, ok,
             estimated_input_tokens, estimated_output_tokens, cached_tokens,
-            agent, ide, mcp_server, conversation_id, client_ip, user_prompt
+            agent, ide, mcp_server, conversation_id, client_ip, user_prompt,
+            tool_arguments, tool_result
         FROM agent_tool_calls
         WHERE ($1::timestamptz IS NULL OR started_at >= $1)
           AND ($2::timestamptz IS NULL OR started_at <= $2)
@@ -313,6 +314,38 @@ pub async fn calls_over_time(
     .bind(&q.repo)
     .bind(&q.ide)
     .bind(&q.agent)
+    .bind(&q.model)
+    .bind(&q.skill)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
+}
+
+pub async fn by_ide(pool: &PgPool, q: &ReportQuery) -> Result<Vec<IdeBreakdown>, AppError> {
+    let rows = sqlx::query_as::<_, IdeBreakdown>(
+        r#"
+        SELECT
+            COALESCE(ide, 'unknown') AS ide,
+            COUNT(*)::bigint AS calls,
+            SUM(estimated_total_tokens)::bigint AS total_estimated_tokens,
+            COUNT(*) FILTER (WHERE NOT ok)::bigint AS errors,
+            COUNT(*) FILTER (WHERE tool_name = 'llm_chat')::bigint AS llm_calls,
+            COUNT(*) FILTER (WHERE tool_name != 'llm_chat')::bigint AS tool_calls_count
+        FROM agent_tool_calls
+        WHERE ($1::timestamptz IS NULL OR started_at >= $1)
+          AND ($2::timestamptz IS NULL OR started_at <= $2)
+          AND ($3::text IS NULL OR repo = $3)
+          AND ($4::text IS NULL OR model = $4)
+          AND ($5::text IS NULL OR skill = $5)
+        GROUP BY ide
+        ORDER BY calls DESC
+        LIMIT 50
+        "#,
+    )
+    .bind(q.from)
+    .bind(q.to)
+    .bind(&q.repo)
     .bind(&q.model)
     .bind(&q.skill)
     .fetch_all(pool)

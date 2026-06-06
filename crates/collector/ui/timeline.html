@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Timeline · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .summary { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; padding:18px; background:var(--am-surface); border:1px solid var(--am-border); border-radius:12px; margin-bottom:16px; }
+  .summary-title { font-size: 18px; font-weight: 700; color: var(--am-text); }
+  .summary-id { font-family: var(--am-font-mono); font-size: 11px; color: var(--am-text-muted); margin-top:2px; }
+  .skpi { min-width: 90px; }
+  .skpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--am-text-muted); margin-bottom: 2px; font-weight: 600; }
+  .skpi-value { font-size: 20px; font-weight: 700; font-family: var(--am-font-mono); }
+  .skpi-value.ok { color: var(--am-success); }
+  .skpi-value.err { color: var(--am-danger); }
+
+  .minimap-wrap { padding: 8px; background: var(--am-surface); border: 1px solid var(--am-border); border-radius: 10px; margin-bottom: 12px; }
+  .minimap { width: 100%; height: 36px; cursor: crosshair; display: block; }
+
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:12px; background:var(--am-surface); border:1px solid var(--am-border); border-radius:10px; margin-bottom:12px; }
+  .toolbar label { font-size:12px; color:var(--am-text-muted); }
+  .toolbar input[type=checkbox] { vertical-align:middle; }
+  .legend { display:flex; gap:12px; margin-left:auto; font-size:12px; color:var(--am-text-muted); flex-wrap:wrap; }
+  .legend-swatch { width:10px; height:10px; border-radius:2px; display:inline-block; vertical-align:middle; margin-right:4px; }
+
+  .waterfall-wrap { display:grid; grid-template-columns: 1fr 360px; gap:12px; align-items:flex-start; }
+  .waterfall { background:var(--am-surface); border:1px solid var(--am-border); border-radius:10px; overflow:auto; max-height: calc(100vh - 380px); position: relative; }
+  .wf-svg { display:block; min-height: 200px; }
+  .grid { stroke: var(--am-border); stroke-width: 0.5; }
+  .axis-label { fill: var(--am-text-dim); font-size: 10px; font-family: var(--am-font-mono); }
+  .row-bg { fill: transparent; cursor: pointer; }
+  .row-bg:hover { fill: var(--am-surface-hover); }
+  .row-bg.selected { fill: color-mix(in srgb, var(--am-accent) 12%, transparent); }
+  .row-label { fill: var(--am-text); font-size: 12px; font-family: var(--am-font); }
+  .row-label.error { fill: var(--am-danger); }
+  .row-meta { fill: var(--am-text-muted); font-size: 11px; font-family: var(--am-font-mono); }
+  .bar { rx: 2; cursor: pointer; transition: opacity .12s; }
+  .bar:hover { opacity: 1 !important; }
+
+  .drawer { background:var(--am-surface); border:1px solid var(--am-border); border-radius:10px; padding:18px; max-height: calc(100vh - 380px); overflow:auto; position:sticky; top:12px; display:none; }
+  .drawer.open { display:block; }
+  .drawer h2 { font-size: 16px; margin: 4px 0 8px; word-break: break-all; }
+  .drawer h3 { font-size: 11px; text-transform: uppercase; color: var(--am-text-muted); letter-spacing: .04em; margin: 0; }
+  .drawer-meta { font-size: 12px; color: var(--am-text-muted); margin-bottom: 14px; font-family: var(--am-font-mono); }
+  .drawer-stat { display:flex; justify-content:space-between; padding:6px 0; border-bottom: 1px solid var(--am-border); font-size: 13px; }
+  .drawer-stat:last-child { border-bottom:none; }
+  .drawer-stat-label { color: var(--am-text-muted); }
+  .drawer-stat-value { font-family: var(--am-font-mono); }
+  .drawer-stat-value.ok { color: var(--am-success); }
+  .drawer-stat-value.err { color: var(--am-danger); }
+  .drawer-close { position: absolute; top: 10px; right: 12px; cursor: pointer; color: var(--am-text-muted); font-size: 20px; line-height: 1; user-select:none; }
+  .drawer-close:hover { color: var(--am-text); }
+
+  .tooltip { position: fixed; background: var(--am-surface-2); border: 1px solid var(--am-border); border-radius: 8px; padding: 10px 12px; font-size: 12px; min-width: 240px; pointer-events: none; z-index: 100; opacity: 0; transition: opacity .1s; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .tooltip.visible { opacity: 1; }
+  .tooltip-title { font-weight: 600; margin-bottom: 6px; word-break: break-all; }
+  .tooltip-row { display:flex; justify-content:space-between; padding: 2px 0; }
+  .tooltip-row span { color: var(--am-text-muted); }
+  .tooltip-row b.ok { color: var(--am-success); }
+  .tooltip-row b.err { color: var(--am-danger); }
+
+  .gap-bar { fill: var(--am-text-muted); opacity: 0.18; }
+  .critical-bar { stroke-width: 2; stroke: var(--am-accent); paint-order: stroke fill; }
+  .critical-label { fill: var(--am-accent); font-size: 10px; font-weight: 700; font-family: var(--am-font-mono); }
+  .stats-bar { display:flex; gap:20px; flex-wrap:wrap; font-size:12px; color:var(--am-text-muted); padding:8px 18px; background:var(--am-surface); border:1px solid var(--am-border); border-radius:8px; margin-bottom:12px; }
+  .stats-bar b { color:var(--am-text); font-family:var(--am-font-mono); }
+  .drawer-tabs { display:flex; gap:0; margin-bottom:14px; border-bottom:1px solid var(--am-border); }
+  .drawer-tab { padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--am-text-muted); transition:all .12s; }
+  .drawer-tab.active { color:var(--am-accent); border-bottom-color:var(--am-accent); }
+  .payload-block { background:var(--am-bg); border:1px solid var(--am-border); border-radius:6px; padding:10px; font-family:var(--am-font-mono); font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:160px; overflow-y:auto; margin-bottom:8px; color:var(--am-text); }
+  .payload-hdr { display:flex; justify-content:space-between; align-items:center; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--am-text-muted); margin-bottom:4px; }
+  .payload-copy { cursor:pointer; color:var(--am-accent); font-weight:600; }
+  .payload-copy:hover { opacity:.7; }
+  .live-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--am-success); font-weight:600; }
+  .live-badge::before { content:''; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--am-success); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .flame-container { background:var(--am-surface); border:1px solid var(--am-border); border-radius:10px; overflow:auto; padding:12px; }
+  .flame-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; font-size:12px; }
+  .flame-label { min-width:80px; color:var(--am-text-muted); text-align:right; }
+  .flame-bar-wrap { flex:1; height:20px; background:var(--am-border); border-radius:3px; overflow:hidden; position:relative; }
+  .flame-bar { height:100%; border-radius:3px; transition:width .3s; }
+  .flame-pct { position:absolute; right:6px; top:2px; font-size:11px; font-family:var(--am-font-mono); color:white; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.6); }
+  .flame-meta { min-width:100px; font-family:var(--am-font-mono); font-size:11px; color:var(--am-text-muted); }
+  @media (max-width: 1100px) { .waterfall-wrap { grid-template-columns: 1fr; } .drawer { position: static; max-height: 400px; } }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="am-page-header" style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <h1 class="am-page-title">Conversation timeline</h1>
+        <p class="am-page-subtitle">Waterfall view — drag minimap to zoom, ctrl+wheel to scale, click bars for details.</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a class="am-btn am-btn-ghost am-btn-sm" href="/conversations"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-chevron-left"/></svg>Conversations</a>
+      </div>
+    </div>
+
+    <div class="summary" id="summary">
+      <div style="flex:1;min-width:240px">
+        <div class="summary-title" id="convTitle">Loading…</div>
+        <div class="summary-id" id="convId"></div>
+      </div>
+      <div class="skpi"><div class="skpi-label">Duration</div><div class="skpi-value" id="kpiDuration">—</div></div>
+      <div class="skpi"><div class="skpi-label">Events</div><div class="skpi-value" id="kpiEvents">—</div></div>
+      <div class="skpi"><div class="skpi-label">Tokens</div><div class="skpi-value" id="kpiTokens">—</div></div>
+      <div class="skpi"><div class="skpi-label">Cost</div><div class="skpi-value" id="kpiCost">—</div></div>
+      <div class="skpi"><div class="skpi-label">Errors</div><div class="skpi-value" id="kpiErrors">—</div></div>
+    </div>
+
+    <div class="stats-bar" id="statsBar" style="display:none"></div>
+    <div class="minimap-wrap" id="minimapWrap"><svg class="minimap" id="minimap" preserveAspectRatio="none"></svg></div>
+
+    <div class="toolbar">
+      <label>Group:</label>
+      <select class="am-input" id="groupBy" style="max-width:140px">
+        <option value="none">None</option><option value="tool">Tool</option><option value="model">Model</option><option value="server">MCP Server</option>
+      </select>
+      <input class="am-input" id="filterText" placeholder="Filter tool/model/server…" style="max-width:240px">
+      <label><input type="checkbox" id="showErrorsOnly"> errors only</label>
+      <label><input type="checkbox" id="showGaps"> idle gaps</label>
+      <label><input type="checkbox" id="showCritical"> critical path</label>
+      <label class="live-badge" id="liveTailLabel" style="display:none"><input type="checkbox" id="liveTail"> live</label>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <div class="am-btn-group">
+          <button class="am-btn am-btn-ghost am-btn-sm active" id="btnViewWaterfall">⫶ Waterfall</button>
+          <button class="am-btn am-btn-ghost am-btn-sm" id="btnViewFlame">▦ Flame</button>
+          <button class="am-btn am-btn-ghost am-btn-sm" id="btnViewStats">📊 Stats</button>
+        </div>
+        <button class="am-btn am-btn-ghost am-btn-sm" id="btnZoomReset">Reset zoom</button>
+        <button class="am-btn am-btn-secondary am-btn-sm" id="btnExportJson"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-external"/></svg>Export JSON</button>
+      </div>
+      <div class="legend">
+        <span><span class="legend-swatch" style="background:var(--am-chart-1)"></span>llm</span>
+        <span><span class="legend-swatch" style="background:var(--am-chart-2)"></span>tool</span>
+        <span><span class="legend-swatch" style="background:var(--am-chart-4)"></span>fs</span>
+        <span><span class="legend-swatch" style="background:var(--am-chart-3)"></span>shell</span>
+        <span><span class="legend-swatch" style="background:var(--am-danger)"></span>error</span>
+      </div>
+    </div>
+
+    <div class="waterfall-wrap">
+      <div class="waterfall" id="waterfall"><svg class="wf-svg" id="wfSvg"></svg></div>
+      <aside class="drawer" id="drawer"><div id="drawerInner"></div></aside>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script src="/_static/app.js"></script>
+<script>
+amShell({active:'dashboard', breadcrumb:'Timeline'});
+
+const conversationId = (() => {
+  const fromQuery = new URLSearchParams(window.location.search).get('id');
+  if (fromQuery) return fromQuery;
+  const path = window.location.pathname.split('/').filter(Boolean);
+  return path[path.length - 2] || path[path.length - 1] || '';
+})();
+
+function categorize(ev) {
+  const tool = (ev.tool_name || '').toLowerCase();
+  const server = (ev.mcp_server || '').toLowerCase();
+  if (server.includes('openai') || server.includes('anthropic') || tool.includes('llm') || tool.includes('chat') || tool.includes('completion')) return 'llm';
+  if (tool.includes('read_file') || tool.includes('write') || tool.includes('edit') || tool.includes('grep') || tool.includes('search') || tool.includes('list_dir')) return 'fs';
+  if (tool.includes('terminal') || tool.includes('shell') || tool.includes('exec') || tool.includes('run')) return 'shell';
+  return 'tool';
+}
+const categoryColor = {
+  llm: 'var(--am-chart-1)',
+  fs: 'var(--am-chart-4)',
+  shell: 'var(--am-chart-3)',
+  tool: 'var(--am-chart-2)',
+};
+
+function fmtDuration(ms) {
+  if (!ms || ms < 0) ms = 0;
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return (ms/1000).toFixed(2) + 's';
+  if (ms < 3600000) return (ms/60000).toFixed(2) + 'm';
+  return (ms/3600000).toFixed(2) + 'h';
+}
+function fmtTokens(n) {
+  if (!n) return '0';
+  if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return String(n);
+}
+function fmtUsd(v) {
+  if (!v) return '$0.00';
+  if (v < 0.01) return '$' + v.toFixed(5);
+  if (v < 1) return '$' + v.toFixed(4);
+  return '$' + v.toFixed(2);
+}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+const state = { data:null, events:[], filtered:[], zoom:{from:0,to:1}, selected:null, groupBy:'none', filterText:'', errorsOnly:false, showGaps:false, showCritical:false, criticalPath:new Set(), gaps:[], viewMode:'waterfall', drawerTab:'event' };
+
+let liveTailTimer = null;
+
+// ── Compute helpers ────────────────────────────────────────────────────────────
+
+function computeGaps(events) {
+  const gaps = [];
+  const sorted = [...events].sort((a,b) => a.startMs - b.startMs);
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i].startMs - sorted[i-1].endMs;
+    if (gap > 80) gaps.push({ startMs: sorted[i-1].endMs, endMs: sorted[i].startMs, durationMs: gap });
+  }
+  return gaps;
+}
+
+function computeCriticalPath(events) {
+  if (!events.length) return new Set();
+  const sorted = [...events].sort((a,b) => a.startMs - b.startMs);
+  const dp = sorted.map(e => ({ totalMs: e.duration_ms, prev: -1 }));
+  for (let i = 1; i < sorted.length; i++) {
+    for (let j = 0; j < i; j++) {
+      if (sorted[j].endMs <= sorted[i].startMs + 20) {
+        const cand = dp[j].totalMs + sorted[i].duration_ms;
+        if (cand > dp[i].totalMs) dp[i] = { totalMs: cand, prev: j };
+      }
+    }
+  }
+  let best = 0;
+  for (let i = 1; i < dp.length; i++) if (dp[i].totalMs > dp[best].totalMs) best = i;
+  const path = new Set();
+  let cur = best;
+  while (cur >= 0) { path.add(sorted[cur].idx); cur = dp[cur].prev; }
+  return path;
+}
+
+function computeStats(events) {
+  if (!events.length) return null;
+  const durs = [...events].map(e => e.duration_ms).sort((a,b) => a-b);
+  const n = durs.length;
+  const pct = p => durs[Math.max(0, Math.min(n-1, Math.floor(n*p)))];
+  const byCategory = {};
+  let tokIn = 0, tokOut = 0, totalCost = 0, totalMs = 0;
+  for (const e of events) {
+    const c = e.category;
+    if (!byCategory[c]) byCategory[c] = { count:0, durationMs:0, cost:0 };
+    byCategory[c].count++;
+    byCategory[c].durationMs += e.duration_ms;
+    byCategory[c].cost += e.usd_cost||0;
+    tokIn += e.tokens_in||0;
+    tokOut += e.tokens_out||0;
+    totalCost += e.usd_cost||0;
+    totalMs += e.duration_ms;
+  }
+  return { p50:pct(.5), p95:pct(.95), p99:pct(.99), max:durs[n-1],
+           avg:Math.round(durs.reduce((s,v)=>s+v,0)/n),
+           byCategory, totalMs, tokIn, tokOut, totalCost, n };
+}
+
+function renderStatsHtml(events) {
+  const s = computeStats(events);
+  if (!s) return '<div class="am-empty" style="padding:20px">No events</div>';
+  const catOrder = ['llm','tool','shell','fs'];
+  const catRows = catOrder.filter(c => s.byCategory[c]).map(c => {
+    const cat = s.byCategory[c];
+    const pct = s.totalMs > 0 ? Math.round(cat.durationMs/s.totalMs*100) : 0;
+    const color = categoryColor[c];
+    return `<div class="drawer-stat" style="flex-direction:column;align-items:stretch;gap:4px;border-bottom:1px solid var(--am-border);padding:6px 0">
+      <div style="display:flex;justify-content:space-between">
+        <span class="drawer-stat-label" style="text-transform:capitalize">${c}</span>
+        <span class="drawer-stat-value">${pct}% · ${fmtDuration(cat.durationMs)}${cat.cost>0?' · '+fmtUsd(cat.cost):''}</span>
+      </div>
+      <div style="height:4px;border-radius:2px;background:var(--am-border);overflow:hidden">
+        <div style="height:4px;border-radius:2px;width:${pct}%;background:${color}"></div>
+      </div>
+    </div>`;
+  }).join('');
+  const ratio = s.tokOut > 0 ? (s.tokIn/s.tokOut).toFixed(1)+':1' : '—';
+  const costPer1k = (s.tokIn+s.tokOut) > 0 ? fmtUsd(s.totalCost/((s.tokIn+s.tokOut)/1000)) : '—';
+  // Histogram — log scale
+  const H=48, B=16;
+  const logMax = Math.log(s.max+1)||1;
+  const hist = new Array(B).fill(0);
+  for (const e of events) { const i=Math.min(B-1,Math.floor(Math.log(e.duration_ms+1)/logMax*B)); hist[i]++; }
+  const hMax = Math.max(1,...hist);
+  const histBars = hist.map((c,i)=>{
+    const h=(c/hMax)*H, x=(i/B*100).toFixed(1), w=(100/B-.5).toFixed(1);
+    return `<rect x="${x}%" y="${(H-h).toFixed(1)}" width="${w}%" height="${h.toFixed(1)}" fill="var(--am-chart-1)" opacity="0.7" rx="1"/>`;
+  }).join('');
+  return `
+    <h3>Latency (n=${s.n})</h3>
+    <div class="drawer-stat"><span class="drawer-stat-label">P50</span><span class="drawer-stat-value">${fmtDuration(s.p50)}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">P95</span><span class="drawer-stat-value">${fmtDuration(s.p95)}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">P99</span><span class="drawer-stat-value">${fmtDuration(s.p99)}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Max</span><span class="drawer-stat-value">${fmtDuration(s.max)}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Avg</span><span class="drawer-stat-value">${fmtDuration(s.avg)}</span></div>
+    <h3 style="margin-top:14px">By category</h3>${catRows}
+    <h3 style="margin-top:14px">Token efficiency</h3>
+    <div class="drawer-stat"><span class="drawer-stat-label">In</span><span class="drawer-stat-value">${fmtTokens(s.tokIn)}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Out</span><span class="drawer-stat-value">${fmtTokens(s.tokOut)}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Ratio in:out</span><span class="drawer-stat-value">${ratio}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Cost/1K tok</span><span class="drawer-stat-value">${costPer1k}</span></div>
+    <h3 style="margin-top:14px">Distribution</h3>
+    <svg width="100%" height="${H}" viewBox="0 0 100 ${H}" preserveAspectRatio="none" style="display:block;margin-top:6px">${histBars}</svg>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--am-text-muted);margin-top:2px"><span>0</span><span>${fmtDuration(s.max)}</span></div>`;
+}
+
+function updateStatsBar() {
+  const s = computeStats(state.filtered);
+  const bar = document.getElementById('statsBar');
+  if (!s || !state.events.length) { bar.style.display='none'; return; }
+  bar.style.display='flex';
+  const cp = state.criticalPath;
+  const cpMs = [...state.filtered].filter(e=>cp.has(e.idx)).reduce((sum,e)=>sum+e.duration_ms,0);
+  const cpPct = s.totalMs > 0 ? Math.round(cpMs/s.totalMs*100) : 0;
+  bar.innerHTML = `<span>P95 <b>${fmtDuration(s.p95)}</b></span><span>P50 <b>${fmtDuration(s.p50)}</b></span><span>Avg <b>${fmtDuration(s.avg)}</b></span>${cpMs>0?`<span>Critical path <b>${fmtDuration(cpMs)} (${cpPct}%)</b></span>`:''}`;
+}
+
+// ── Flame graph ────────────────────────────────────────────────────────────────
+
+function renderFlame() {
+  const container = document.querySelector('.waterfall-wrap');
+  // clear waterfall, show flame
+  const wf = document.getElementById('waterfall');
+  wf.style.display = 'none';
+  document.getElementById('minimapWrap').style.display = 'none';
+  let flame = document.getElementById('flameContainer');
+  if (!flame) {
+    flame = document.createElement('div');
+    flame.id = 'flameContainer';
+    flame.className = 'flame-container';
+    container.style.display = 'block';
+    container.appendChild(flame);
+  }
+  flame.style.display = 'block';
+  if (!state.filtered.length) { flame.innerHTML='<div class="am-empty">No events</div>'; return; }
+  const totalMs = state.filtered.reduce((s,e)=>s+e.duration_ms,0)||1;
+  const totalCost = state.filtered.reduce((s,e)=>s+(e.usd_cost||0),0);
+  const catOrder = ['llm','tool','shell','fs'];
+  const byCategory = {};
+  for (const e of state.filtered) {
+    const c = e.category;
+    if (!byCategory[c]) byCategory[c] = { events:[], durationMs:0, cost:0 };
+    byCategory[c].events.push(e);
+    byCategory[c].durationMs += e.duration_ms;
+    byCategory[c].cost += e.usd_cost||0;
+  }
+  let html = `<div style="font-size:13px;font-weight:700;color:var(--am-text);margin-bottom:14px">Flame Graph — ${state.filtered.length} events · ${fmtDuration(totalMs)} · ${fmtUsd(totalCost)}</div>`;
+  for (const cat of catOrder) {
+    const g = byCategory[cat]; if (!g) continue;
+    const pct = Math.round(g.durationMs/totalMs*100);
+    const color = categoryColor[cat];
+    html += `<div class="flame-row">
+      <div class="flame-label" style="text-transform:capitalize">${cat}</div>
+      <div class="flame-bar-wrap">
+        <div class="flame-bar" style="width:${pct}%;background:${color}"></div>
+        <div class="flame-pct">${pct}%</div>
+      </div>
+      <div class="flame-meta">${fmtDuration(g.durationMs)} · ${g.cost>0?fmtUsd(g.cost):'—'}</div>
+    </div>`;
+    // Top 5 tools inside category
+    const byTool = {};
+    for (const e of g.events) {
+      const k = e.tool_name||'unknown';
+      if (!byTool[k]) byTool[k] = { durationMs:0, count:0 };
+      byTool[k].durationMs += e.duration_ms;
+      byTool[k].count++;
+    }
+    const topTools = Object.entries(byTool).sort((a,b)=>b[1].durationMs-a[1].durationMs).slice(0,5);
+    for (const [tool, data] of topTools) {
+      const tPct = Math.round(data.durationMs/totalMs*100);
+      html += `<div class="flame-row" style="padding-left:16px">
+        <div class="flame-label" style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(tool)}">${escapeHtml(tool.slice(0,14))}</div>
+        <div class="flame-bar-wrap" style="height:14px">
+          <div class="flame-bar" style="width:${tPct}%;background:${color};opacity:.6"></div>
+          <div class="flame-pct" style="font-size:10px">${tPct}%</div>
+        </div>
+        <div class="flame-meta" style="font-size:10px">${fmtDuration(data.durationMs)} · ${data.count}×</div>
+      </div>`;
+    }
+  }
+  flame.innerHTML = html;
+}
+
+function hideFlame() {
+  const flame = document.getElementById('flameContainer');
+  if (flame) flame.style.display = 'none';
+  document.getElementById('waterfall').style.display = '';
+  document.getElementById('minimapWrap').style.display = '';
+  document.querySelector('.waterfall-wrap').style.display = '';
+}
+
+function setViewMode(mode) {
+  state.viewMode = mode;
+  document.getElementById('btnViewWaterfall').classList.toggle('active', mode==='waterfall');
+  document.getElementById('btnViewFlame').classList.toggle('active', mode==='flame');
+  document.getElementById('btnViewStats').classList.toggle('active', mode==='stats');
+  if (mode === 'waterfall') { hideFlame(); renderMinimap(); renderWaterfall(); }
+  else if (mode === 'flame') { hideFlame(); renderFlame(); }
+  else if (mode === 'stats') {
+    hideFlame();
+    document.getElementById('waterfall').style.display='none';
+    document.getElementById('minimapWrap').style.display='none';
+    let sc = document.getElementById('statsFullPanel');
+    if (!sc) {
+      sc = document.createElement('div');
+      sc.id = 'statsFullPanel';
+      sc.style.cssText = 'background:var(--am-surface);border:1px solid var(--am-border);border-radius:10px;padding:18px;max-width:540px';
+      document.querySelector('.waterfall-wrap').style.display='block';
+      document.querySelector('.waterfall-wrap').appendChild(sc);
+    }
+    sc.style.display='block';
+    sc.innerHTML = renderStatsHtml(state.filtered);
+  }
+  // hide full stats panel when leaving stats view
+  if (mode !== 'stats') {
+    const sc = document.getElementById('statsFullPanel');
+    if (sc) sc.style.display='none';
+  }
+}
+
+// ── Live tail ──────────────────────────────────────────────────────────────────
+
+function startLiveTail() {
+  stopLiveTail();
+  liveTailTimer = setInterval(async () => {
+    const prevCount = state.data ? state.data.event_count : 0;
+    try {
+      const r = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/timeline`);
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data.event_count !== prevCount) {
+        state.data = data;
+        state.events = (data.events||[]).map((e,i)=>({...e,idx:i,startMs:new Date(e.started_at).getTime(),endMs:new Date(e.ended_at).getTime(),category:categorize(e)}));
+        renderSummary(data);
+        applyFilters();
+      }
+      // auto-stop if conversation ended > 90s ago
+      const ended = data.ended_at ? new Date(data.ended_at).getTime() : 0;
+      if (ended && Date.now() - ended > 90000) stopLiveTail();
+    } catch(_) {}
+  }, 5000);
+}
+
+function stopLiveTail() {
+  clearInterval(liveTailTimer);
+  liveTailTimer = null;
+  const cb = document.getElementById('liveTail');
+  if (cb) cb.checked = false;
+}
+
+// ── Copy helpers ───────────────────────────────────────────────────────────────
+
+// Registry for copy targets (avoids inline JSON in onclick attributes)
+window._copyData = {};
+window._copyIdx = 0;
+window.registerCopy = function(text) {
+  const idx = ++window._copyIdx;
+  window._copyData[idx] = text;
+  return idx;
+};
+window.copyText = function(textOrIdx, btn) {
+  const text = typeof textOrIdx === 'number' ? (window._copyData[textOrIdx] || '') : textOrIdx;
+  if (!text) return;
+  const doFeedback = () => {
+    const orig = btn.textContent; btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(doFeedback).catch(() => {
+      // Fallback for non-secure contexts
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      doFeedback();
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    doFeedback();
+  }
+};
+// Strip Copilot XML attachment wrappers from titles
+function cleanTitle(text) {
+  if (!text) return '';
+  return text
+    .replace(/<attachments>[\s\S]*?<\/attachments>\s*/g, '')
+    .replace(/<attachment\b[^>]*>[\s\S]*?(?:<\/attachment>|$)/g, '')
+    .replace(/<\/?(?:context|references|instructions|response)\b[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function loadTimeline() {
+  try {
+    const r = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/timeline`);
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    state.data = data;
+    state.events = (data.events || []).map((e,i) => ({...e, idx:i, startMs:new Date(e.started_at).getTime(), endMs:new Date(e.ended_at).getTime(), category:categorize(e)}));
+    document.title = `${data.event_count} events · ${cleanTitle(data.title)||conversationId} · agent-meter`;
+    renderSummary(data);
+    applyFilters();
+    // Deep link: auto-open span from URL
+    const spanParam = new URLSearchParams(location.search).get('span');
+    if (spanParam) {
+      const ev = state.events.find(e => String(e.order) === spanParam);
+      if (ev) setTimeout(() => selectEvent(ev), 50);
+    }
+    // Auto live-tail if conversation started < 5 min ago and not ended
+    const startedMs = new Date(data.started_at).getTime();
+    const endedMs = data.ended_at ? new Date(data.ended_at).getTime() : 0;
+    if (!endedMs || (Date.now() - endedMs < 60000)) {
+      const liveLbl = document.getElementById('liveTailLabel');
+      if (liveLbl) liveLbl.style.display = '';
+      if (Date.now() - startedMs < 5 * 60 * 1000) {
+        document.getElementById('liveTail').checked = true;
+        startLiveTail();
+      }
+    }
+  } catch(e) {
+    document.getElementById('convTitle').textContent = 'Error loading timeline: ' + e.message;
+    console.error(e);
+  }
+}
+
+function renderSummary(data) {
+  document.getElementById('convTitle').textContent = cleanTitle(data.title) || 'Conversation';
+  document.getElementById('convId').textContent = data.conversation_id;
+  document.getElementById('kpiDuration').textContent = fmtDuration(data.total_duration_ms);
+  document.getElementById('kpiEvents').textContent = data.event_count;
+  document.getElementById('kpiTokens').textContent = fmtTokens((data.total_tokens_in||0)+(data.total_tokens_out||0));
+  document.getElementById('kpiCost').textContent = fmtUsd(data.total_usd_cost||0);
+  const errEl = document.getElementById('kpiErrors');
+  errEl.textContent = data.error_count;
+  errEl.className = 'skpi-value ' + (data.error_count > 0 ? 'err' : 'ok');
+}
+
+function applyFilters() {
+  const f = state.filterText.toLowerCase();
+  state.filtered = state.events.filter(e => {
+    if (state.errorsOnly && e.ok) return false;
+    if (!f) return true;
+    return (e.tool_name||'').toLowerCase().includes(f)
+        || (e.mcp_server||'').toLowerCase().includes(f)
+        || (e.model||'').toLowerCase().includes(f);
+  });
+  state.gaps = computeGaps(state.filtered);
+  state.criticalPath = computeCriticalPath(state.filtered);
+  updateStatsBar();
+  if (state.viewMode === 'waterfall') { renderMinimap(); renderWaterfall(); }
+  else if (state.viewMode === 'flame') renderFlame();
+  else if (state.viewMode === 'stats') {
+    const sc = document.getElementById('statsFullPanel');
+    if (sc) sc.innerHTML = renderStatsHtml(state.filtered);
+  }
+}
+
+let minimapDrag = null;
+function renderMinimap() {
+  const svg = document.getElementById('minimap');
+  if (!state.events.length) { svg.innerHTML=''; return; }
+  const W = svg.clientWidth || 1000, H = 36;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const t0 = Math.min(...state.events.map(e=>e.startMs));
+  const t1 = Math.max(...state.events.map(e=>e.endMs));
+  const span = Math.max(1, t1-t0);
+  const buckets = 200;
+  const counts = new Array(buckets).fill(0);
+  for (const e of state.filtered) {
+    const i = Math.min(buckets-1, Math.floor((e.startMs-t0)/span*buckets));
+    counts[i]++;
+  }
+  const maxC = Math.max(1, ...counts);
+  let bars = '';
+  for (let i=0; i<buckets; i++) {
+    if (!counts[i]) continue;
+    const x=(i/buckets)*W, w=W/buckets, h=(counts[i]/maxC)*(H-4);
+    bars += `<rect x="${x.toFixed(1)}" y="${(H-h).toFixed(1)}" width="${w.toFixed(2)}" height="${h.toFixed(1)}" fill="var(--am-chart-1)" opacity="0.55"/>`;
+  }
+  const wx = state.zoom.from*W, ww = (state.zoom.to-state.zoom.from)*W;
+  const win = `<rect x="${wx}" y="0" width="${ww}" height="${H}" fill="var(--am-accent)" opacity="0.18" stroke="var(--am-accent)" stroke-width="1"/>`;
+  svg.innerHTML = `<rect x="0" y="0" width="${W}" height="${H}" fill="var(--am-bg)"/>${bars}${win}`;
+
+  svg.onmousedown = (ev) => {
+    const r = svg.getBoundingClientRect();
+    const x0 = (ev.clientX - r.left) / r.width;
+    minimapDrag = { anchorFrom: x0 };
+    state.zoom.from = Math.max(0, x0 - 0.05);
+    state.zoom.to   = Math.min(1, x0 + 0.05);
+    renderMinimap(); renderWaterfall();
+  };
+  svg.onmousemove = (ev) => {
+    if (!minimapDrag) return;
+    const r = svg.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / r.width;
+    const lo = Math.min(minimapDrag.anchorFrom, x), hi = Math.max(minimapDrag.anchorFrom, x);
+    state.zoom.from = Math.max(0, lo); state.zoom.to = Math.min(1, hi);
+    renderMinimap(); renderWaterfall();
+  };
+}
+window.addEventListener('mouseup', () => minimapDrag = null);
+
+const ROW_H = 22, LEFT_PAD = 280, RIGHT_PAD = 16, TOP_PAD = 28;
+function renderWaterfall() {
+  const svg = document.getElementById('wfSvg');
+  const wrap = document.getElementById('waterfall');
+  if (!state.events.length) { svg.innerHTML='<text x="20" y="40" fill="var(--am-text-dim)">No events</text>'; return; }
+  const W = wrap.clientWidth;
+  const t0all = Math.min(...state.events.map(e=>e.startMs));
+  const t1all = Math.max(...state.events.map(e=>e.endMs));
+  const spanAll = Math.max(1, t1all-t0all);
+  const tFrom = t0all + state.zoom.from*spanAll;
+  const tTo   = t0all + state.zoom.to*spanAll;
+  const span = Math.max(1, tTo-tFrom);
+
+  let groups = null, rows = state.filtered;
+  if (state.groupBy !== 'none') {
+    const map = new Map();
+    for (const e of state.filtered) {
+      const k = state.groupBy==='tool' ? e.tool_name : state.groupBy==='model' ? (e.model||'unknown') : (e.mcp_server||'unknown');
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(e);
+    }
+    groups = [...map.entries()].sort((a,b) => b[1].length - a[1].length);
+    rows = groups.flatMap(([_, evs]) => evs);
+  }
+
+  const plotW = W - LEFT_PAD - RIGHT_PAD;
+  const xOf = (ms) => LEFT_PAD + ((ms-tFrom)/span)*plotW;
+
+  let html = '';
+  for (let i=0; i<=6; i++) {
+    const x = LEFT_PAD + (i/6)*plotW;
+    const t = tFrom + (i/6)*span;
+    const rel = t - t0all;
+    html += `<line class="grid" x1="${x}" y1="${TOP_PAD-4}" x2="${x}" y2="100%"/>`;
+    html += `<text class="axis-label" x="${x+2}" y="${TOP_PAD-8}">${fmtDuration(rel)}</text>`;
+  }
+
+  let yCursor = TOP_PAD;
+  if (groups) {
+    for (const [gname, evs] of groups) {
+      html += `<text class="row-meta" x="8" y="${yCursor+14}" font-weight="600">▾ ${escapeHtml(gname)} (${evs.length})</text>`;
+      yCursor += ROW_H;
+      for (const e of evs) { html += renderRow(e, xOf, yCursor); yCursor += ROW_H; }
+    }
+  } else {
+    rows.forEach((e,i) => { html += renderRow(e, xOf, TOP_PAD + i*ROW_H); });
+    yCursor = TOP_PAD + rows.length*ROW_H;
+  }
+
+  // Gap bars (idle time) — rendered on top of row backgrounds
+  if (state.showGaps) {
+    for (const g of state.gaps) {
+      const x1 = xOf(g.startMs), x2 = xOf(g.endMs);
+      if (x2 <= LEFT_PAD || x1 >= W - RIGHT_PAD) continue;
+      const gx = Math.max(LEFT_PAD, x1), gw = Math.max(1, Math.min(x2, W-RIGHT_PAD) - gx);
+      html += `<rect class="gap-bar" x="${gx}" y="${TOP_PAD}" width="${gw}" height="${yCursor - TOP_PAD}"/>`;
+      if (gw > 30) html += `<text class="axis-label" x="${gx+3}" y="${TOP_PAD+12}" fill="var(--am-text-muted)" opacity="0.7">⏸${fmtDuration(g.durationMs)}</text>`;
+    }
+  }
+
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', yCursor + 16);
+  svg.innerHTML = html;
+
+  for (const node of svg.querySelectorAll('.bar, .row-bg')) {
+    const idx = Number(node.getAttribute('data-idx'));
+    const ev = state.events[idx]; if (!ev) continue;
+    node.addEventListener('mousemove', (e) => showTooltip(ev, e));
+    node.addEventListener('mouseleave', hideTooltip);
+    node.addEventListener('click', () => selectEvent(ev));
+  }
+}
+
+function renderRow(e, xOf, y) {
+  const x1 = xOf(e.startMs), x2 = xOf(e.endMs);
+  const w = Math.max(2, x2-x1);
+  const isCritical = state.showCritical && state.criticalPath.has(e.idx);
+  const color = e.ok ? categoryColor[e.category] : 'var(--am-danger)';
+  const isSel = state.selected && state.selected.idx === e.idx;
+  const label = (e.tool_name||'').slice(0, 30);
+  const meta = (e.model || e.mcp_server || '').slice(0, 22);
+  const dur = fmtDuration(e.duration_ms);
+  const cost = e.usd_cost > 0 ? fmtUsd(e.usd_cost) : '';
+  let row = '';
+  row += `<rect class="row-bg ${isSel?'selected':''}" data-idx="${e.idx}" x="0" y="${y}" width="100%" height="${ROW_H}"/>`;
+  row += `<text class="row-label ${e.ok?'':'error'}" x="12" y="${y + ROW_H/2 + 4}">${e.ok?'':'⚠ '}${escapeHtml(label)}</text>`;
+  if (meta) row += `<text class="row-meta" x="160" y="${y + ROW_H/2 + 4}">${escapeHtml(meta)}</text>`;
+  const barClass = isCritical ? 'bar critical-bar' : 'bar';
+  row += `<rect class="${barClass}" data-idx="${e.idx}" x="${x1}" y="${y+4}" width="${w}" height="${ROW_H-8}" fill="${color}" opacity="${e.ok?0.85:0.95}"/>`;
+  if (isCritical) row += `<text class="critical-label" x="${x1+w+3}" y="${y + ROW_H/2 + 4}">●</text>`;
+  if (w > 70) row += `<text class="row-meta" x="${x1+4}" y="${y + ROW_H/2 + 4}" fill="white" opacity="0.92">${dur}${cost?' · '+cost:''}</text>`;
+  return row;
+}
+
+function showTooltip(e, mouse) {
+  const tt = document.getElementById('tooltip');
+  tt.innerHTML = `
+    <div class="tooltip-title">${e.ok?'':'⚠ '}${escapeHtml(e.tool_name)}</div>
+    <div class="tooltip-row"><span>Status</span><b class="${e.ok?'ok':'err'}">${e.ok?'ok':'error'}</b></div>
+    <div class="tooltip-row"><span>Model</span><b>${escapeHtml(e.model||'—')}</b></div>
+    <div class="tooltip-row"><span>Server</span><b>${escapeHtml(e.mcp_server||'—')}</b></div>
+    <div class="tooltip-row"><span>Duration</span><b>${fmtDuration(e.duration_ms)}</b></div>
+    <div class="tooltip-row"><span>Tokens in/out</span><b>${fmtTokens(e.tokens_in||0)} / ${fmtTokens(e.tokens_out||0)}</b></div>
+    <div class="tooltip-row"><span>Cost</span><b>${fmtUsd(e.usd_cost||0)}</b></div>
+    <div class="tooltip-row"><span>Started</span><b>${new Date(e.started_at).toLocaleTimeString()}</b></div>`;
+  tt.classList.add('visible');
+  tt.style.left = Math.min(mouse.clientX+14, window.innerWidth-280) + 'px';
+  tt.style.top  = Math.min(mouse.clientY+14, window.innerHeight-220) + 'px';
+}
+function hideTooltip() { document.getElementById('tooltip').classList.remove('visible'); }
+
+function renderDrawerContent(e) {
+  const isStats = state.drawerTab === 'stats';
+  if (isStats) return renderStatsHtml(state.filtered);
+  const totalMs = state.filtered.reduce((s, ev) => s + ev.duration_ms, 0) || 1;
+  const pctOfTotal = Math.min(100, Math.round(e.duration_ms / totalMs * 100));
+
+  const errBlock = e.error ? `
+    <div class="payload-hdr"><span>Error</span></div>
+    <pre class="payload-block" style="border-color:var(--am-danger);color:var(--am-danger)">${escapeHtml(e.error)}</pre>` : '';
+
+  const _promptCopyId = e.user_prompt ? registerCopy(e.user_prompt) : 0;
+  const promptBlock = e.user_prompt ? `
+    <div class="payload-hdr"><span>User prompt</span><span class="payload-copy" onclick="copyText(${_promptCopyId},this)">copy</span></div>
+    <pre class="payload-block" style="max-height:400px;overflow-y:auto">${escapeHtml(e.user_prompt)}</pre>` : '';
+
+  const argsJson = e.tool_arguments ? JSON.stringify(e.tool_arguments, null, 2) : null;
+  const _argsCopyId = argsJson ? registerCopy(argsJson) : 0;
+  const argsBlock = argsJson ? `
+    <div class="payload-hdr"><span>Arguments (input)</span><span class="payload-copy" onclick="copyText(${_argsCopyId},this)">copy</span></div>
+    <pre class="payload-block" style="max-height:400px;overflow-y:auto">${escapeHtml(argsJson)}</pre>` : '';
+
+  const resultText = e.tool_result || '';
+  const _resultCopyId = resultText ? registerCopy(resultText) : 0;
+  const resultBlock = resultText ? `
+    <div class="payload-hdr"><span>Result (output)</span><span class="payload-copy" onclick="copyText(${_resultCopyId},this)">copy</span></div>
+    <pre class="payload-block" style="max-height:400px;overflow-y:auto">${escapeHtml(resultText)}</pre>` : '';
+
+  // Finish reason — highlight dangerous values
+  const finishStyle = e.finish_reason === 'length' ? 'color:var(--am-warn);font-weight:600' :
+    e.finish_reason === 'content_filter' ? 'color:var(--am-danger);font-weight:600' : '';
+  const finishLabel = e.finish_reason === 'length' ? `⚠ ${e.finish_reason} (TRUNCATED)` :
+    e.finish_reason === 'content_filter' ? `⛔ ${e.finish_reason}` : e.finish_reason;
+
+  // Context utilization bar
+  const tokUsed = (e.tokens_in||0) + (e.tokens_out||0);
+  const maxTok = e.request_max_tokens;
+  const ctxPct = maxTok ? Math.min(100, Math.round(tokUsed / maxTok * 100)) : null;
+  const ctxBar = ctxPct !== null ? `<span style="display:inline-block;width:${Math.min(ctxPct,60)}px;height:3px;background:${ctxPct>90?'var(--am-warn)':'var(--am-accent)'};border-radius:2px;margin-left:6px;vertical-align:middle"></span>` : '';
+
+  // Trace/span IDs
+  const shortId = s => s ? s.slice(0,16)+'…' : '—';
+  const traceBlock = (e.trace_id || e.span_id || e.parent_span_id || e.tool_call_id) ? `
+    <div style="margin-top:12px;border-top:1px solid var(--am-border);padding-top:8px">
+      <div style="font-size:10px;color:var(--am-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Trace hierarchy</div>
+      ${e.trace_id?`<div class="drawer-stat"><span class="drawer-stat-label">Trace ID</span><span class="drawer-stat-value" style="font-family:monospace;font-size:10px" title="${escapeHtml(e.trace_id)}">${escapeHtml(shortId(e.trace_id))} <span class="payload-copy" style="font-size:9px" onclick="copyText(${JSON.stringify(e.trace_id)},this)">copy</span></span></div>`:''}
+      ${e.span_id?`<div class="drawer-stat"><span class="drawer-stat-label">Span ID</span><span class="drawer-stat-value" style="font-family:monospace;font-size:10px" title="${escapeHtml(e.span_id)}">${escapeHtml(shortId(e.span_id))} <span class="payload-copy" style="font-size:9px" onclick="copyText(${JSON.stringify(e.span_id)},this)">copy</span></span></div>`:''}
+      ${e.parent_span_id?`<div class="drawer-stat"><span class="drawer-stat-label">Parent span</span><span class="drawer-stat-value" style="font-family:monospace;font-size:10px" title="${escapeHtml(e.parent_span_id)}">${escapeHtml(shortId(e.parent_span_id))} <span class="payload-copy" style="font-size:9px" onclick="copyText(${JSON.stringify(e.parent_span_id)},this)">copy</span></span></div>`:''}
+      ${e.tool_call_id?`<div class="drawer-stat"><span class="drawer-stat-label">Tool call ID</span><span class="drawer-stat-value" style="font-family:monospace;font-size:10px" title="${escapeHtml(e.tool_call_id)}">${escapeHtml(e.tool_call_id.length>20?e.tool_call_id.slice(0,20)+'…':e.tool_call_id)} <span class="payload-copy" style="font-size:9px" onclick="copyText(${JSON.stringify(e.tool_call_id)},this)">copy</span></span></div>`:''}
+    </div>` : '';
+
+  return `
+    <h3>Event #${e.order}</h3>
+    <h2 style="font-size:15px;margin:2px 0 4px">${escapeHtml(e.tool_name)}</h2>
+    ${e.mcp_server?`<div class="drawer-meta" style="margin-bottom:6px"><span style="font-size:10px;background:var(--am-surface-2);padding:2px 6px;border-radius:4px;font-family:monospace">${escapeHtml(e.mcp_server)}</span></div>`:''}
+    ${e.llm_system&&e.llm_system!==e.mcp_server?`<div class="drawer-meta" style="margin-bottom:10px"><span style="font-size:10px;color:var(--am-muted)">via ${escapeHtml(e.llm_system)}</span></div>`:'<div style="margin-bottom:10px"></div>'}
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="am-btn am-btn-ghost am-btn-xs" onclick="copyText(JSON.stringify(state.selected,null,2),this)">⎘ JSON</button>
+      <a class="am-btn am-btn-ghost am-btn-xs" href="?span=${e.order}">🔗 link</a>
+    </div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Status</span><span class="drawer-stat-value ${e.ok?'ok':'err'}">${e.ok?'✓ ok':'✗ error'}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Duration</span><span class="drawer-stat-value">${fmtDuration(e.duration_ms)}</span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">% of trace</span><span class="drawer-stat-value">${pctOfTotal}%<span style="display:inline-block;width:${Math.min(pctOfTotal,60)}px;height:3px;background:var(--am-accent);border-radius:2px;margin-left:6px;vertical-align:middle"></span></span></div>
+    <div class="drawer-stat"><span class="drawer-stat-label">Model</span><span class="drawer-stat-value">${escapeHtml(e.model||'—')}</span></div>
+    <div style="margin-top:8px;border-top:1px solid var(--am-border);padding-top:8px">
+      <div style="font-size:10px;color:var(--am-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Token consumption</div>
+      <div class="drawer-stat"><span class="drawer-stat-label">Tokens in</span><span class="drawer-stat-value">${fmtTokens(e.tokens_in||0)}</span></div>
+      <div class="drawer-stat"><span class="drawer-stat-label">Tokens out</span><span class="drawer-stat-value">${fmtTokens(e.tokens_out||0)}</span></div>
+      ${(e.reasoning_tokens||0)>0?`<div class="drawer-stat"><span class="drawer-stat-label">Reasoning toks</span><span class="drawer-stat-value" style="color:var(--am-warn)">${fmtTokens(e.reasoning_tokens)} ⚡ billed separately</span></div>`:''}
+      ${(e.cached_tokens||0)>0?`<div class="drawer-stat"><span class="drawer-stat-label">Cached toks</span><span class="drawer-stat-value" style="color:var(--am-success)">${fmtTokens(e.cached_tokens)} 💾</span></div>`:''}
+      <div class="drawer-stat"><span class="drawer-stat-label">USD cost</span><span class="drawer-stat-value">${fmtUsd(e.usd_cost||0)}</span></div>
+    </div>
+    ${maxTok?`<div class="drawer-stat" style="margin-top:4px"><span class="drawer-stat-label">Context used</span><span class="drawer-stat-value">${ctxPct}% of ${fmtTokens(maxTok)} max${ctxBar}</span></div>`:''}
+    ${e.finish_reason?`<div class="drawer-stat"><span class="drawer-stat-label">Finish reason</span><span class="drawer-stat-value" style="${finishStyle}">${escapeHtml(finishLabel)}</span></div>`:''}
+    ${e.request_temperature!=null?`<div class="drawer-stat"><span class="drawer-stat-label">Temperature</span><span class="drawer-stat-value">${e.request_temperature}</span></div>`:''}
+    <div style="margin-top:8px;border-top:1px solid var(--am-border);padding-top:8px">
+      <div class="drawer-stat"><span class="drawer-stat-label">Started</span><span class="drawer-stat-value">${new Date(e.started_at).toLocaleString()}</span></div>
+      <div class="drawer-stat"><span class="drawer-stat-label">Category</span><span class="drawer-stat-value">${e.category}</span></div>
+    </div>
+    ${errBlock}${promptBlock}${argsBlock}${resultBlock}${traceBlock}`;
+}
+
+function selectEvent(e) {
+  state.selected = e;
+  history.replaceState({}, '', `?span=${e.order}`);
+  const drawer = document.getElementById('drawer');
+  drawer.classList.add('open');
+  const tabs = `<div class="drawer-tabs"><span class="drawer-tab ${state.drawerTab==='event'?'active':''}" onclick="setDrawerTab('event')">Event</span><span class="drawer-tab ${state.drawerTab==='stats'?'active':''}" onclick="setDrawerTab('stats')">Stats</span></div>`;
+  document.getElementById('drawerInner').innerHTML = `<div class="drawer-close" onclick="closeDrawer()">×</div>${tabs}${renderDrawerContent(e)}`;
+  renderWaterfall();
+}
+
+window.setDrawerTab = function(tab) {
+  state.drawerTab = tab;
+  if (state.selected) selectEvent(state.selected);
+};
+
+window.state = state;
+window.closeDrawer = function() {
+  document.getElementById('drawer').classList.remove('open');
+  state.selected = null;
+  history.replaceState({}, '', window.location.pathname);
+  if (state.viewMode === 'waterfall') renderWaterfall();
+};
+
+document.getElementById('groupBy').addEventListener('change', e => { state.groupBy = e.target.value; applyFilters(); });
+document.getElementById('filterText').addEventListener('input', e => { state.filterText = e.target.value; applyFilters(); });
+document.getElementById('showErrorsOnly').addEventListener('change', e => { state.errorsOnly = e.target.checked; applyFilters(); });
+document.getElementById('showGaps').addEventListener('change', e => { state.showGaps = e.target.checked; renderWaterfall(); });
+document.getElementById('showCritical').addEventListener('change', e => { state.showCritical = e.target.checked; updateStatsBar(); renderWaterfall(); });
+document.getElementById('liveTail').addEventListener('change', e => { if(e.target.checked) startLiveTail(); else stopLiveTail(); });
+document.getElementById('btnViewWaterfall').addEventListener('click', () => setViewMode('waterfall'));
+document.getElementById('btnViewFlame').addEventListener('click', () => setViewMode('flame'));
+document.getElementById('btnViewStats').addEventListener('click', () => setViewMode('stats'));
+document.getElementById('btnZoomReset').addEventListener('click', () => { state.zoom = {from:0,to:1}; renderMinimap(); renderWaterfall(); });
+document.getElementById('btnExportJson').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state.data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `timeline-${conversationId}.json`; a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('waterfall').addEventListener('wheel', (e) => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  const wrap = e.currentTarget.getBoundingClientRect();
+  const xRel = (e.clientX - wrap.left - LEFT_PAD) / (wrap.width - LEFT_PAD - RIGHT_PAD);
+  const span = state.zoom.to - state.zoom.from;
+  const focus = state.zoom.from + xRel * span;
+  const factor = e.deltaY < 0 ? 0.85 : 1.15;
+  let newSpan = Math.max(0.001, Math.min(1, span*factor));
+  let newFrom = focus - (focus - state.zoom.from)*factor;
+  let newTo = newFrom + newSpan;
+  if (newFrom < 0) { newTo -= newFrom; newFrom = 0; }
+  if (newTo > 1) { newFrom -= (newTo-1); newTo = 1; }
+  state.zoom = {from:Math.max(0,newFrom), to:Math.min(1,newTo)};
+  renderMinimap(); renderWaterfall();
+}, { passive: false });
+window.addEventListener('resize', () => { renderMinimap(); renderWaterfall(); });
+
+// Keyboard navigation — j/k to traverse spans, Esc to close drawer
+document.addEventListener('keydown', (ev) => {
+  if (['INPUT','SELECT','TEXTAREA'].includes(ev.target.tagName)) return;
+  const cur = state.selected ? state.filtered.findIndex(e => e.idx === state.selected.idx) : -1;
+  if (ev.key === 'j' || ev.key === 'ArrowDown') {
+    ev.preventDefault();
+    const next = state.filtered[Math.min(cur + 1, state.filtered.length - 1)];
+    if (next && next.idx !== state.selected?.idx) selectEvent(next);
+  } else if (ev.key === 'k' || ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    const prev = state.filtered[Math.max(cur - 1, 0)];
+    if (prev) selectEvent(prev);
+  } else if (ev.key === 'Escape') {
+    closeDrawer();
+  }
+});
+
+loadTimeline();
+</script>
+</body>
+</html>
