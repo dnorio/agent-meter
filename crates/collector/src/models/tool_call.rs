@@ -90,3 +90,13 @@ pub struct TopMcpServer {
     pub avg_response_bytes: Option<f64>,
     pub error_rate: Option<f64>,
 }
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct IdeBreakdown {
+    pub ide: String,
+    pub calls: i64,
+    pub total_estimated_tokens: Option<i64>,
+    pub errors: i64,
+    pub llm_calls: i64,
+    pub tool_calls_count: i64,
+}

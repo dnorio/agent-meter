@@ -35,7 +35,7 @@ pub async fn list_conversations(
     let rows: Vec<ConversationRow> = sqlx::query_as(
         r#"
         SELECT
-            conversation_id,
+            COALESCE(trace_id, conversation_id) AS conversation_id,
             MIN(user_prompt) FILTER (
                 WHERE user_prompt IS NOT NULL
                   AND LENGTH(user_prompt) BETWEEN 4 AND 500
@@ -77,7 +77,7 @@ pub async fn list_conversations(
         FROM agent_tool_calls
         WHERE conversation_id IS NOT NULL AND conversation_id <> ''
           AND ($3::text IS NULL OR ide = $3)
-        GROUP BY conversation_id
+        GROUP BY COALESCE(trace_id, conversation_id)
         -- Exclude synthetic/noise single-event conversations:
         -- 1. VS Code title/summary generation (copilotLanguageModelWrapper, title, summarize agents)
         -- 2. Inline completions with no model and no prompt (Eclipse ghost text)
@@ -152,7 +152,7 @@ pub async fn get_conversation_timeline(
         r#"
         SELECT
             (SELECT user_prompt FROM agent_tool_calls
-             WHERE conversation_id = $1
+             WHERE (conversation_id = $1 OR trace_id = $1)
                AND user_prompt IS NOT NULL
                AND LENGTH(user_prompt) BETWEEN 4 AND 500
                AND user_prompt NOT ILIKE 'Summarize the following%'
@@ -166,7 +166,7 @@ pub async fn get_conversation_timeline(
             COUNT(*)::bigint AS event_count,
             COUNT(*) FILTER (WHERE NOT ok)::bigint AS error_count
         FROM agent_tool_calls
-        WHERE conversation_id = $1
+        WHERE conversation_id = $1 OR trace_id = $1
         "#,
     )
     .bind(conversation_id)
@@ -220,7 +220,7 @@ pub async fn get_conversation_timeline(
             parent_span_id,
             tool_call_id
         FROM agent_tool_calls
-        WHERE conversation_id = $1
+        WHERE conversation_id = $1 OR trace_id = $1
         ORDER BY started_at ASC
         LIMIT $2
         "#,
