@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Cost · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .chart-svg { width: 100%; height: 240px; display: block; }
+  .pricing-row code { font-family: var(--am-font-mono); font-size: 11px; color: var(--am-text-muted); background: var(--am-surface-2); padding: 1px 6px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="am-page-header" style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <h1 class="am-page-title">Cost attribution</h1>
+        <p class="am-page-subtitle">FinOps view — track LLM spend by model, by day, by org. Live pricing reference.</p>
+      </div>
+      <div class="am-segment" id="windowSeg">
+        <button data-days="1">24h</button>
+        <button data-days="7" class="active">7d</button>
+        <button data-days="30">30d</button>
+        <button data-days="90">90d</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="am-kpi-grid">
+      <div class="am-kpi" style="--accent:var(--am-success)">
+        <div class="am-kpi-label"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-dollar"/></svg>Total spend</div>
+        <div class="am-kpi-value" id="kpiTotal">—</div>
+        <div class="am-kpi-meta"><span id="kpiTotalSub" class="am-muted">USD over period</span></div>
+      </div>
+      <div class="am-kpi" style="--accent:var(--am-chart-2)">
+        <div class="am-kpi-label"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-zap"/></svg>Burn rate</div>
+        <div class="am-kpi-value" id="kpiBurn">—</div>
+        <div class="am-kpi-meta"><span class="am-muted">USD / hour</span></div>
+      </div>
+      <div class="am-kpi" style="--accent:var(--am-chart-3)">
+        <div class="am-kpi-label"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-activity"/></svg>Avg / event</div>
+        <div class="am-kpi-value" id="kpiAvg">—</div>
+        <div class="am-kpi-meta"><span id="kpiEvents" class="am-muted">— events</span></div>
+      </div>
+      <div class="am-kpi" style="--accent:var(--am-chart-5)">
+        <div class="am-kpi-label"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-cpu"/></svg>Tokens in / out</div>
+        <div class="am-kpi-value" id="kpiTokens">—</div>
+        <div class="am-kpi-meta"><span class="am-muted">total tokens</span></div>
+      </div>
+    </div>
+
+    <!-- Daily spend chart -->
+    <div class="am-card" style="margin-bottom:18px">
+      <div class="am-card-header">
+        <div>
+          <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-trending-up"/></svg>Daily spend</h3>
+          <p class="am-card-subtitle">Hover bars for exact totals.</p>
+        </div>
+        <span id="statusText" class="am-muted" style="font-size:12px">loading…</span>
+      </div>
+      <div id="chartContainer"></div>
+    </div>
+
+    <!-- Top models -->
+    <div class="am-card" style="margin-bottom:18px">
+      <div class="am-card-header">
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-zap"/></svg>Top models by cost</h3>
+      </div>
+      <table class="am-table">
+        <thead><tr>
+          <th>Model</th>
+          <th class="num">Events</th>
+          <th class="num">Tokens in</th>
+          <th class="num">Tokens out</th>
+          <th class="num">USD</th>
+          <th>Share</th>
+        </tr></thead>
+        <tbody id="byModelBody"><tr><td colspan="6" class="am-muted" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Pricing reference -->
+    <div class="am-card">
+      <div class="am-card-header">
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-info"/></svg>Pricing reference</h3>
+        <p class="am-card-subtitle" style="margin:0">Current rate card we apply when computing per-event cost.</p>
+      </div>
+      <table class="am-table pricing-row">
+        <thead><tr>
+          <th>Model</th><th>Match</th>
+          <th class="num">Input $/M</th>
+          <th class="num">Output $/M</th>
+          <th class="num">Cached $/M</th>
+          <th>Source</th>
+        </tr></thead>
+        <tbody id="pricingBody"></tbody>
+      </table>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+
+<script src="/_static/app.js"></script>
+<script>
+amShell({active:'cost', breadcrumb:'Cost'});
+
+let CURRENT_DAYS = 7;
+let lastData = null;
+
+document.querySelectorAll('#windowSeg button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#windowSeg button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    CURRENT_DAYS = parseInt(b.dataset.days, 10);
+    load();
+  });
+});
+
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+async function load() {
+  const to = new Date();
+  const from = new Date(to.getTime() - CURRENT_DAYS * 86400 * 1000);
+  document.getElementById('statusText').textContent = 'loading…';
+  try {
+    const r = await fetch(`/api/cost/summary?from=${from.toISOString()}&to=${to.toISOString()}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    lastData = data;
+    renderSummary(data);
+    document.getElementById('statusText').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    document.getElementById('statusText').textContent = 'error: ' + e.message;
+  }
+  loadPricing();
+}
+
+function renderSummary(data) {
+  const k = data.kpis;
+  document.getElementById('kpiTotal').textContent = amMoney(k.total_usd);
+  document.getElementById('kpiTotalSub').textContent = `${k.total_events} events`;
+  document.getElementById('kpiBurn').textContent = amMoney(k.burn_rate_usd_per_hour);
+  document.getElementById('kpiAvg').textContent = amMoney(k.avg_usd_per_event);
+  document.getElementById('kpiEvents').textContent = `${k.total_events} events`;
+  document.getElementById('kpiTokens').textContent = `${amNum(k.total_tokens_in)} / ${amNum(k.total_tokens_out)}`;
+
+  const max = Math.max(0.001, ...data.by_model.map(m => m.usd_cost));
+  const tbody = document.getElementById('byModelBody');
+  if (!data.by_model.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:24px;text-align:center">No data</td></tr>`;
+  } else {
+    tbody.innerHTML = data.by_model.map(m => `
+      <tr>
+        <td><strong>${escapeHtml(m.model || '<unknown>')}</strong></td>
+        <td class="num am-mono">${amNum(m.events)}</td>
+        <td class="num am-mono">${amNum(m.tokens_in)}</td>
+        <td class="num am-mono">${amNum(m.tokens_out)}</td>
+        <td class="num am-mono"><strong>${amMoney(m.usd_cost)}</strong></td>
+        <td><div style="width:140px;height:6px;background:var(--am-surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(m.usd_cost/max*100).toFixed(1)}%;background:var(--am-chart-1);opacity:0.75"></div></div></td>
+      </tr>`).join('');
+  }
+  drawChart(data.by_day);
+}
+
+function drawChart(days) {
+  const c = document.getElementById('chartContainer');
+  if (!days || !days.length) {
+    c.innerHTML = `<div class="am-empty"><svg class="am-icon am-icon-xl"><use href="/_static/icons.svg#i-trending-up"/></svg><h3>No data</h3><div>No spend in this period.</div></div>`;
+    return;
+  }
+  const W = c.clientWidth || 800, H = 240;
+  const PAD_L = 56, PAD_B = 28, PAD_T = 12, PAD_R = 12;
+  const innerW = W - PAD_L - PAD_R, innerH = H - PAD_T - PAD_B;
+  const max = Math.max(0.001, ...days.map(d => d.usd_cost));
+  const barW = Math.max(2, innerW / days.length - 4);
+  let html = '';
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD_T + (innerH * i / 4);
+    const v = max * (1 - i / 4);
+    html += `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="var(--am-border)" stroke-dasharray="2 4"/>`;
+    html += `<text x="${PAD_L - 8}" y="${y + 3}" text-anchor="end" fill="var(--am-text-dim)" font-size="10">${amMoney(v)}</text>`;
+  }
+  days.forEach((d, i) => {
+    const x = PAD_L + (i / days.length) * innerW + 2;
+    const h = (d.usd_cost / max) * innerH;
+    const y = PAD_T + innerH - h;
+    html += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="var(--am-chart-2)" opacity="0.85" rx="2"><title>${new Date(d.day).toLocaleDateString()}: ${amMoney(d.usd_cost)} (${d.events} events)</title></rect>`;
+    if (i % Math.ceil(days.length / 8) === 0 || i === days.length - 1) {
+      html += `<text x="${x + barW/2}" y="${H - 8}" text-anchor="middle" fill="var(--am-text-dim)" font-size="10">${new Date(d.day).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</text>`;
+    }
+  });
+  c.innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${html}</svg>`;
+}
+
+async function loadPricing() {
+  try {
+    const r = await fetch('/api/cost/pricing');
+    if (!r.ok) return;
+    const rows = await r.json();
+    document.getElementById('pricingBody').innerHTML = rows.slice(0, 20).map(p => `
+      <tr>
+        <td>${escapeHtml(p.model)}</td>
+        <td><code>${escapeHtml(p.match_kind)}</code></td>
+        <td class="num am-mono">${p.input_per_mtok.toFixed(2)}</td>
+        <td class="num am-mono">${p.output_per_mtok.toFixed(2)}</td>
+        <td class="num am-mono">${p.cached_per_mtok.toFixed(2)}</td>
+        <td class="am-muted" style="font-size:12px">${escapeHtml(p.source)}</td>
+      </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+window.addEventListener('resize', () => lastData && drawChart(lastData.by_day));
+load();
+</script>
+</body>
+</html>

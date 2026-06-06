@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Reports · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .report-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:16px; }
+  .report-tile { display:flex; flex-direction:column; gap:10px; padding:18px; background:var(--am-surface); border:1px solid var(--am-border); border-radius:12px; transition:.15s; text-decoration:none; color:inherit; }
+  .report-tile:hover { border-color: var(--am-accent); transform: translateY(-1px); }
+  .report-tile .icon-wrap { width:36px; height:36px; border-radius:8px; display:grid; place-items:center; background:var(--am-accent-soft); color:var(--am-accent); }
+  .report-tile h3 { margin:0; font-size:15px; font-weight:600; }
+  .report-tile p { margin:0; font-size:13px; color:var(--am-text-muted); line-height:1.5; }
+  .report-tile .arrow { margin-top:auto; color:var(--am-accent); font-size:12px; display:flex; align-items:center; gap:4px; font-weight:500; }
+  .endpoint-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--am-border); }
+  .endpoint-row:last-child { border-bottom:none; }
+  .endpoint-row .method { padding:2px 8px; border-radius:4px; font-family:var(--am-font-mono); font-size:10px; font-weight:700; background:var(--am-success-soft); color:var(--am-success); }
+  .endpoint-row .path { flex:1; font-family:var(--am-font-mono); font-size:13px; }
+  .endpoint-row .desc { color:var(--am-text-muted); font-size:12px; }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="am-page-header">
+      <h1 class="am-page-title">Reports</h1>
+      <p class="am-page-subtitle">Query-able views over your agent activity. Each tile is also a JSON endpoint for export.</p>
+    </div>
+
+    <div class="report-grid" style="margin-bottom:24px">
+      <a class="report-tile" href="/cost">
+        <div class="icon-wrap"><svg class="am-icon"><use href="/_static/icons.svg#i-dollar"/></svg></div>
+        <h3>Cost attribution</h3>
+        <p>Spend by model, by day, burn rate, tokens. Live pricing reference for 20+ models.</p>
+        <span class="arrow">Open <svg class="am-icon-sm"><use href="/_static/icons.svg#i-arrow-up-right"/></svg></span>
+      </a>
+      <a class="report-tile" href="/">
+        <div class="icon-wrap" style="background:color-mix(in srgb, var(--am-chart-1) 15%, transparent);color:var(--am-chart-1)"><svg class="am-icon"><use href="/_static/icons.svg#i-dashboard"/></svg></div>
+        <h3>Live dashboard</h3>
+        <p>Tool calls over time, top tools/MCP servers/tasks, recent events. Auto-refresh 30s.</p>
+        <span class="arrow">Open <svg class="am-icon-sm"><use href="/_static/icons.svg#i-arrow-up-right"/></svg></span>
+      </a>
+      <a class="report-tile" href="/tasks">
+        <div class="icon-wrap" style="background:color-mix(in srgb, var(--am-chart-3) 15%, transparent);color:var(--am-chart-3)"><svg class="am-icon"><use href="/_static/icons.svg#i-tasks"/></svg></div>
+        <h3>Tasks</h3>
+        <p>Activity grouped by user-defined task ID — perfect for tracking a feature across many calls.</p>
+        <span class="arrow">Open <svg class="am-icon-sm"><use href="/_static/icons.svg#i-arrow-up-right"/></svg></span>
+      </a>
+      <a class="report-tile" href="/alerts">
+        <div class="icon-wrap" style="background:color-mix(in srgb, var(--am-danger) 15%, transparent);color:var(--am-danger)"><svg class="am-icon"><use href="/_static/icons.svg#i-alerts"/></svg></div>
+        <h3>Alerts &amp; budgets</h3>
+        <p>Configure cost-spike, error-rate, latency and tool-failure rules with cooldowns.</p>
+        <span class="arrow">Open <svg class="am-icon-sm"><use href="/_static/icons.svg#i-arrow-up-right"/></svg></span>
+      </a>
+    </div>
+
+    <div class="am-card">
+      <div class="am-card-header">
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-external"/></svg>JSON endpoints</h3>
+        <p class="am-card-subtitle" style="margin:0">All reports are also available as JSON for piping into your tools.</p>
+      </div>
+      <div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/reports/calls-over-time?from=…&amp;bucket=hour</span><span class="desc">Time-series of tool calls.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/reports/top-tools?from=…&amp;limit=10</span><span class="desc">Most-invoked tool functions.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/reports/top-mcp-servers?from=…</span><span class="desc">MCP servers by call volume.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/reports/top-tasks?from=…</span><span class="desc">Tasks ranked by event count.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/reports/events?from=…&amp;limit=50</span><span class="desc">Raw event feed (paginated).</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/cost/summary?from=…&amp;to=…</span><span class="desc">Cost KPIs + by_day + by_model.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/cost/pricing</span><span class="desc">Active pricing rate card.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/tasks?limit=50</span><span class="desc">Recent tasks (any status).</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/alerts/rules</span><span class="desc">Configured alert rules.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/alerts/history?limit=50</span><span class="desc">Recently fired alerts.</span></div>
+      </div>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+<script src="/_static/app.js"></script>
+<script>amShell({active:'reports', breadcrumb:'Reports'});</script>
+</body>
+</html>

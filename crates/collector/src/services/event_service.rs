@@ -54,11 +54,16 @@ pub async fn insert_tool_call(
             ok, error, request_bytes, response_bytes,
             estimated_input_tokens, estimated_output_tokens, estimated_total_tokens,
             request_sha256, response_sha256, metadata,
-            model, cached_tokens, conversation_id, client_ip, user_agent, user_prompt
+            model, cached_tokens, conversation_id, client_ip, user_agent, user_prompt,
+            tool_arguments, tool_result,
+            reasoning_tokens, finish_reason, request_max_tokens, request_temperature,
+            llm_system, trace_id, span_id, parent_span_id, tool_call_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
             $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-            $23, $24, $25, $26, $27, $28
+            $23, $24, $25, $26, $27, $28,
+            $29, $30,
+            $31, $32, $33, $34, $35, $36, $37, $38, $39
         )
         RETURNING *
         "#,
@@ -91,6 +96,17 @@ pub async fn insert_tool_call(
     .bind(&event.client_ip)
     .bind(&event.user_agent)
     .bind(&event.user_prompt)
+    .bind(&event.tool_arguments)
+    .bind(&event.tool_result)
+    .bind(event.reasoning_tokens)
+    .bind(&event.finish_reason)
+    .bind(event.request_max_tokens)
+    .bind(event.request_temperature)
+    .bind(&event.llm_system)
+    .bind(&event.trace_id)
+    .bind(&event.span_id)
+    .bind(&event.parent_span_id)
+    .bind(&event.tool_call_id)
     .fetch_one(pool)
     .await?;
 

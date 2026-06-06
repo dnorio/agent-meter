@@ -1,5 +1,6 @@
 use axum::{
     extract::{Query, State},
+    response::Html,
     routing::get,
     Json, Router,
 };
@@ -9,6 +10,12 @@ use serde_json::{json, Value};
 use crate::app::AppState;
 use crate::errors::AppError;
 use crate::services::report_service::{self, EventQuery, ReportQuery};
+
+const REPORTS_HTML: &str = include_str!("../../ui/reports.html");
+
+async fn page() -> Html<&'static str> {
+    Html(REPORTS_HTML)
+}
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ReportParams {
@@ -104,12 +111,22 @@ async fn calls_over_time(
     Ok(Json(json!(results)))
 }
 
+async fn by_ide(
+    State(state): State<AppState>,
+    Query(params): Query<ReportParams>,
+) -> Result<Json<Value>, AppError> {
+    let results = report_service::by_ide(&state.pool, &params.into_query()).await?;
+    Ok(Json(json!(results)))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/reports", get(page))
         .route("/reports/top-tools", get(top_tools))
         .route("/reports/top-tasks", get(top_tasks))
         .route("/reports/top-mcp-servers", get(top_mcp_servers))
         .route("/reports/calls-over-time", get(calls_over_time))
+        .route("/reports/by-ide", get(by_ide))
         .route("/reports/events", get(events_feed))
 }
 

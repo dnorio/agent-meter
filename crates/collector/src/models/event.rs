@@ -32,17 +32,28 @@ pub struct ToolCallEvent {
     pub client_ip: Option<String>,
     pub user_agent: Option<String>,
     pub user_prompt: Option<String>,
-    // T-332: deep telemetry
+    /// JSON arguments passed to the tool (from mcp-wrapper or OTLP)
     pub tool_arguments: Option<serde_json::Value>,
+    /// Tool output/result content, truncated at 8 KB (from mcp-wrapper)
     pub tool_result: Option<String>,
+    // T-332: deep telemetry
+    /// Reasoning/thinking tokens (o1, o3, Claude extended thinking — billed separately)
     pub reasoning_tokens: Option<i32>,
+    /// Why the LLM stopped: "stop", "length", "tool_calls", "content_filter"
     pub finish_reason: Option<String>,
+    /// gen_ai.request.max_tokens — max completion tokens configured
     pub request_max_tokens: Option<i32>,
+    /// gen_ai.request.temperature
     pub request_temperature: Option<f64>,
+    /// gen_ai.system — "openai", "anthropic", "google_genai", etc.
     pub llm_system: Option<String>,
+    /// OTLP traceId (hex) — groups all spans in one inference round
     pub trace_id: Option<String>,
+    /// OTLP spanId (hex)
     pub span_id: Option<String>,
+    /// OTLP parentSpanId (hex) — links tool call to its LLM parent span
     pub parent_span_id: Option<String>,
+    /// LLM-assigned tool call ID (gen_ai.tool.call.id or JSON-RPC id)
     pub tool_call_id: Option<String>,
 }
 

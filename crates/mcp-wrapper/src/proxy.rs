@@ -115,7 +115,24 @@ async fn proxy_handler(
             method
         };
 
+        // Capture full tool arguments (input) for tools/call
+        let tool_arguments: Option<Value> = if method == "tools/call" {
+            request_body["params"].get("arguments").cloned()
+        } else {
+            None
+        };
+
+        // Capture tool result content (output), truncated at 8 KB
+        let tool_result: Option<String> = if method == "tools/call" {
+            extract_tool_result(&upstream_body)
+        } else {
+            None
+        };
+
         let event_id = Uuid::new_v4();
+
+        // JSON-RPC id — used as tool_call_id for correlation with LLM responses
+        let tool_call_id = request_body.get("id").map(|v| v.to_string());
 
         let event = serde_json::json!({
             "event_id": event_id.to_string(),
@@ -135,6 +152,9 @@ async fn proxy_handler(
             "response_bytes": response_bytes,
             "request_sha256": request_sha256,
             "response_sha256": response_sha256,
+            "tool_arguments": tool_arguments,
+            "tool_result": tool_result,
+            "tool_call_id": tool_call_id,
             "metadata": {
                 "method": method,
                 "http_status": status.as_u16(),
@@ -173,4 +193,54 @@ async fn proxy_handler(
     });
 
     Ok(Json(proxy_response))
+}
+
+/// Extract human-readable content from a tools/call MCP response.
+/// MCP result format: { "result": { "content": [{"type":"text","text":"..."},...], "isError": false } }
+/// Concatenates all text blocks, truncated to 8 KB.
+fn extract_tool_result(body: &Value) -> Option<String> {
+    const MAX_BYTES: usize = 8 * 1024;
+
+    let content = body.pointer("/result/content")?;
+    let blocks = content.as_array()?;
+
+    let mut parts: Vec<String> = Vec::new();
+    for block in blocks {
+        let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        let text = match block_type {
+            "text" => block.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string(),
+            "image" => "[image]".to_string(),
+            "resource" => block
+                .get("resource")
+                .and_then(|r| r.get("text"))
+                .and_then(|t| t.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "[resource]".to_string()),
+            _ => block.to_string(),
+        };
+        if !text.is_empty() {
+            parts.push(text);
+        }
+    }
+
+    if parts.is_empty() {
+        // Fallback: if result has no content array, stringify result directly
+        let raw = body.pointer("/result").map(|v| v.to_string()).unwrap_or_default();
+        if raw.is_empty() || raw == "null" { return None; }
+        let truncated = truncate_utf8(&raw, MAX_BYTES);
+        return Some(truncated);
+    }
+
+    let joined = parts.join("\n");
+    Some(truncate_utf8(&joined, MAX_BYTES))
+}
+
+fn truncate_utf8(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    // Find a valid UTF-8 boundary
+    let mut end = max_bytes;
+    while !s.is_char_boundary(end) { end -= 1; }
+    format!("{}…[truncated]", &s[..end])
 }

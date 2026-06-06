@@ -36,6 +36,19 @@ pub struct AgentToolCall {
     pub client_ip: Option<String>,
     pub user_agent: Option<String>,
     pub user_prompt: Option<String>,
+    // T-331: full agentic payload
+    pub tool_arguments: Option<serde_json::Value>,
+    pub tool_result: Option<String>,
+    // T-332: deep telemetry
+    pub reasoning_tokens: Option<i32>,
+    pub finish_reason: Option<String>,
+    pub request_max_tokens: Option<i32>,
+    pub request_temperature: Option<f64>,
+    pub llm_system: Option<String>,
+    pub trace_id: Option<String>,
+    pub span_id: Option<String>,
+    pub parent_span_id: Option<String>,
+    pub tool_call_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -70,6 +83,8 @@ pub struct EventFeedRow {
     pub conversation_id: Option<String>,
     pub client_ip: Option<String>,
     pub user_prompt: Option<String>,
+    pub tool_arguments: Option<serde_json::Value>,
+    pub tool_result: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

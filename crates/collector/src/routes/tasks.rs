@@ -1,10 +1,16 @@
-use axum::{extract::{Query, State}, routing::get, routing::post, Json, Router};
+use axum::{extract::{Query, State}, response::Html, routing::get, routing::post, Json, Router};
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::app::AppState;
 use crate::errors::AppError;
 use crate::services::task_service;
+
+const TASKS_HTML: &str = include_str!("../../ui/tasks.html");
+
+async fn page() -> Html<&'static str> {
+    Html(TASKS_HTML)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct StartTaskRequest {
@@ -63,5 +69,6 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/tasks/start", post(post_start))
         .route("/tasks/end", post(post_end))
-        .route("/tasks", get(get_tasks))
+        .route("/api/tasks", get(get_tasks))
+        .route("/tasks", get(page))
 }

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Alerts · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .form-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .form-grid label { display: block; font-size: 11px; color: var(--am-text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; font-weight: 600; }
+  .form-grid .span-2 { grid-column: span 2; }
+  .form-grid .span-all { grid-column: 1 / -1; }
+  @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr 1fr; } .form-grid .span-2 { grid-column: span 2; } }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="am-page-header" style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <h1 class="am-page-title">Alerts &amp; Budgets</h1>
+        <p class="am-page-subtitle">Guard rails for AI spend — define thresholds and get notified before bills explode.</p>
+      </div>
+      <button class="am-btn am-btn-secondary" id="btnEvaluate"><svg class="am-icon"><use href="/_static/icons.svg#i-zap"/></svg>Evaluate now</button>
+    </div>
+
+    <!-- New rule -->
+    <div class="am-card" style="margin-bottom:18px">
+      <div class="am-card-header">
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-alerts"/></svg>New rule</h3>
+        <p class="am-card-subtitle" style="margin:0">Create a budget threshold or anomaly trigger.</p>
+      </div>
+      <form id="newRuleForm" class="form-grid">
+        <div class="span-2">
+          <label>Name</label>
+          <input class="am-input" id="f-name" type="text" placeholder="My budget alert" required>
+        </div>
+        <div>
+          <label>Type</label>
+          <select class="am-input" id="f-type">
+            <option value="cost_spike">Cost spike (USD)</option>
+            <option value="error_rate">Error rate (%)</option>
+            <option value="latency_p95">Latency p95 (ms)</option>
+            <option value="token_burn">Tokens burned</option>
+            <option value="tool_failure">Tool failures</option>
+          </select>
+        </div>
+        <div>
+          <label>Window (min)</label>
+          <input class="am-input" id="f-window" type="number" value="60" min="1">
+        </div>
+        <div>
+          <label>Threshold</label>
+          <input class="am-input" id="f-threshold" type="number" step="0.01" placeholder="10" required>
+        </div>
+        <div>
+          <label>Cooldown (min)</label>
+          <input class="am-input" id="f-cooldown" type="number" value="60" min="0">
+        </div>
+        <div class="span-all" style="text-align:right">
+          <button class="am-btn am-btn-primary" type="submit"><svg class="am-icon"><use href="/_static/icons.svg#i-check"/></svg>Create rule</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Active rules -->
+    <div class="am-card" style="margin-bottom:18px">
+      <div class="am-card-header">
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-tool"/></svg>Active rules</h3>
+      </div>
+      <table class="am-table">
+        <thead><tr><th>Name</th><th>Type</th><th>Window</th><th class="num">Threshold</th><th>Cooldown</th><th>Created</th><th></th></tr></thead>
+        <tbody id="rulesBody"><tr><td colspan="7" class="am-muted" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- History -->
+    <div class="am-card">
+      <div class="am-card-header">
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-clock"/></svg>Recent fires</h3>
+      </div>
+      <table class="am-table">
+        <thead><tr><th>Fired at</th><th>Severity</th><th>Rule</th><th class="num">Observed</th><th class="num">Threshold</th><th>Notified</th></tr></thead>
+        <tbody id="historyBody"><tr><td colspan="6" class="am-muted" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+
+<script src="/_static/app.js"></script>
+<script>
+amShell({active:'alerts', breadcrumb:'Alerts'});
+
+const TYPE_LABELS = {cost_spike:'Cost spike',error_rate:'Error rate',latency_p95:'Latency p95',token_burn:'Token burn',tool_failure:'Tool failure'};
+const SEVERITY_BADGES = {critical:'danger',warning:'warning',info:'info'};
+
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+async function loadRules() {
+  const tbody = document.getElementById('rulesBody');
+  try {
+    const r = await fetch('/api/alerts/rules');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rules = await r.json();
+    if (!rules.length) { tbody.innerHTML = `<tr><td colspan="7" class="am-muted" style="padding:20px;text-align:center">No rules yet — create one above.</td></tr>`; return; }
+    tbody.innerHTML = rules.map(r => `
+      <tr>
+        <td><strong>${escapeHtml(r.name)}</strong></td>
+        <td><span class="am-badge">${TYPE_LABELS[r.rule_type]||r.rule_type}</span></td>
+        <td class="am-mono">${r.window_minutes}m</td>
+        <td class="num am-mono">${r.threshold}</td>
+        <td class="am-mono">${r.cooldown_minutes}m</td>
+        <td class="am-muted am-mono" style="font-size:12px">${new Date(r.created_at).toLocaleDateString()}</td>
+        <td><button class="am-btn am-btn-ghost am-btn-sm am-btn-danger" data-del="${r.id}"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-x"/></svg></button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Delete rule?')) return;
+      await fetch(`/api/alerts/rules/${b.dataset.del}`, {method:'DELETE'});
+      loadRules();
+    }));
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="am-muted" style="padding:20px;text-align:center">Error: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function loadHistory() {
+  const tbody = document.getElementById('historyBody');
+  try {
+    const r = await fetch('/api/alerts/history?limit=50');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    if (!rows.length) { tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:20px;text-align:center">No fires yet.</td></tr>`; return; }
+    tbody.innerHTML = rows.map(h => {
+      const sev = SEVERITY_BADGES[h.severity] || 'info';
+      return `<tr>
+        <td class="am-mono" style="font-size:12px">${new Date(h.fired_at).toLocaleString()}</td>
+        <td><span class="am-badge am-badge-${sev}">${escapeHtml(h.severity)}</span></td>
+        <td>${escapeHtml(h.rule_name||'')}</td>
+        <td class="num am-mono">${h.observed}</td>
+        <td class="num am-mono">${h.threshold}</td>
+        <td class="am-muted" style="font-size:12px">${escapeHtml(h.notified_via||'—')}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:20px;text-align:center">Error: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+document.getElementById('newRuleForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = {
+    name: document.getElementById('f-name').value,
+    rule_type: document.getElementById('f-type').value,
+    window_minutes: parseInt(document.getElementById('f-window').value, 10),
+    threshold: parseFloat(document.getElementById('f-threshold').value),
+    cooldown_minutes: parseInt(document.getElementById('f-cooldown').value, 10),
+  };
+  const r = await fetch('/api/alerts/rules', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (r.ok) { e.target.reset(); loadRules(); }
+  else alert('Failed: HTTP ' + r.status);
+});
+
+document.getElementById('btnEvaluate').addEventListener('click', async () => {
+  const r = await fetch('/api/alerts/evaluate', {method:'POST'});
+  if (r.ok) loadHistory(); else alert('Failed: HTTP ' + r.status);
+});
+
+loadRules();
+loadHistory();
+setInterval(loadHistory, 30000);
+</script>
+</body>
+</html>
