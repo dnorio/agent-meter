@@ -267,16 +267,7 @@ fn map_tool_call_json(
         .or_else(|| json_attr_str(attrs_slice, "tool.output"))
         .map(|s| truncate_str(s, 8 * 1024));
 
-    // User prompt: VS Code Copilot sends it as copilot_chat.user_request;
-    // fall back to GenAI semantic-convention keys if other IDEs are used.
-    // Filter out tool_result payloads (Anthropic agentic loop sends "[{\"type\":\"tool_result\"...}]"
-    // as the "user turn" for subsequent LLM calls — we only want the actual human text).
-    let user_prompt = json_attr_str(attrs_slice, "copilot_chat.user_request")
-        .filter(|s| !s.trim_start().starts_with("[{"))
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt"))
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt.0.content"))
-        .or_else(|| json_user_message_content(attrs_slice))
-        .or_else(|| extract_first_human_text(attrs_slice));
+    let user_prompt = extract_clean_user_prompt_json(attrs_slice);
 
     let mut metadata = serde_json::json!({});
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
@@ -405,16 +396,7 @@ fn map_chat_span_json(
     let agent_name = json_attr_str(attrs_slice, "gen_ai.agent.name")
         .or_else(|| service_name.map(|s| s.to_string()));
 
-    // User prompt: VS Code Copilot sends it as copilot_chat.user_request;
-    // fall back to GenAI semantic-convention keys if other IDEs are used.
-    // Filter out tool_result payloads (Anthropic agentic loop sends "[{\"type\":\"tool_result\"...}]"
-    // as the "user turn" for subsequent LLM calls — we only want the actual human text).
-    let user_prompt = json_attr_str(attrs_slice, "copilot_chat.user_request")
-        .filter(|s| !s.trim_start().starts_with("[{"))
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt"))
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.prompt.0.content"))
-        .or_else(|| json_user_message_content(attrs_slice))
-        .or_else(|| extract_first_human_text(attrs_slice));
+    let user_prompt = extract_clean_user_prompt_json(attrs_slice);
 
     let mut metadata = serde_json::json!({ "span_type": "chat" });
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
@@ -537,21 +519,6 @@ fn json_attr_str(attrs: &[serde_json::Value], key: &str) -> Option<String> {
 
 /// Finds the first message with role="user" among indexed prompt attributes
 /// (gen_ai.prompt.{N}.role / gen_ai.prompt.{N}.content convention).
-fn json_user_message_content(attrs: &[serde_json::Value]) -> Option<String> {
-    // Collect all (index, role/content) pairs
-    for i in 0..16usize {
-        let role_key = format!("gen_ai.prompt.{i}.role");
-        let content_key = format!("gen_ai.prompt.{i}.content");
-        let role = json_attr_str(attrs, &role_key);
-        if role.as_deref() == Some("user") {
-            if let Some(content) = json_attr_str(attrs, &content_key) {
-                return Some(content);
-            }
-        }
-    }
-    None
-}
-
 /// Parses the first human text message from a gen_ai.input.messages JSON string.
 /// Handles multiple content formats sent by VS Code Copilot:
 ///
@@ -585,26 +552,32 @@ fn parse_first_human_text(raw: &str) -> Option<String> {
                 if part.get("type").and_then(|t| t.as_str()) == Some("text") {
                     if let Some(content) = part.get("content").and_then(|c| c.as_str()) {
                         let trimmed = content.trim();
-                        // Context blocks start with '<' — skip them
-                        if trimmed.starts_with('<') { continue; }
+                        // Context blocks start with '<' — but check for <userRequest> tag first
+                        if trimmed.starts_with('<') {
+                            if let Some(extracted) = extract_user_request_tag(trimmed) {
+                                return Some(extracted);
+                            }
+                            continue;
+                        }
                         if !trimmed.is_empty() {
                             return Some(trimmed.to_string());
                         }
                     }
                 }
             }
-            // Pass 2 removed: text_after_last_close_tag produced false positives for claude
-            // agentic spans (found inner tags like </workspaceFolder> and returned workspace
-            // context text as user_prompt). When all parts are XML context blocks (as in claude
-            // agentic mode), pass 1 yields None — which is correct; user_prompt stays NULL.
-            // extract_user_request_tag kept only via extract_first_human_text below.
             continue; // tried "parts", skip "content" variants
         }
 
         // Format 2: plain string content
         if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
             let trimmed = text.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with("[{") && !trimmed.starts_with('<') {
+            if trimmed.starts_with('<') || trimmed.starts_with("[{") {
+                if let Some(extracted) = extract_user_request_tag(trimmed) {
+                    return Some(extracted);
+                }
+                continue;
+            }
+            if !trimmed.is_empty() {
                 return Some(trimmed.to_string());
             }
             continue;
@@ -634,21 +607,145 @@ fn parse_first_human_text(raw: &str) -> Option<String> {
     None
 }
 
+/// Returns true if raw prompt text looks like noise/context rather than a real user message.
+fn is_noise_prompt(s: &str) -> bool {
+    let t = s.trim();
+    t.starts_with('[')
+        || t.starts_with('{')
+        || t.starts_with('<')
+        || t.starts_with("The current date")
+        || t.starts_with("Terminals:")
+        || t.starts_with("[Terminal")
+        || t.starts_with("You are ")
+        || t.len() > 2000
+        || t.to_ascii_lowercase().starts_with("summarize the following")
+        || t.to_ascii_lowercase().starts_with("please write a brief title")
+}
+
+/// Clean extraction of the actual user-typed prompt from OTLP attributes.
+/// Priority: copilot_chat.user_request → <userRequest> inside gen_ai.prompt →
+/// clean gen_ai.prompt → gen_ai.prompt.0.content → message arrays → input.messages.
+fn extract_clean_user_prompt_json(attrs: &[serde_json::Value]) -> Option<String> {
+    // 1. VS Code explicit attribute (best source)
+    if let Some(s) = json_attr_str(attrs, "copilot_chat.user_request") {
+        let trimmed = s.trim();
+        if trimmed.starts_with("[{") || trimmed.starts_with("{") {
+            // JSON array/object — parse as messages and extract user text
+            if let Some(extracted) = parse_first_human_text(trimmed) {
+                if !is_noise_prompt(&extracted) {
+                    return Some(extracted);
+                }
+            }
+        } else if !is_noise_prompt(&s) {
+            return Some(s);
+        }
+    }
+
+    // 2. gen_ai.input.messages — primary source for VS Code Copilot chat spans
+    if let Some(raw) = json_attr_str(attrs, "gen_ai.input.messages") {
+        if let Some(extracted) = parse_first_human_text(&raw) {
+            if !is_noise_prompt(&extracted) {
+                return Some(extracted);
+            }
+        }
+    }
+
+    // 3. gen_ai.prompt — try to extract <userRequest> tag first
+    if let Some(raw) = json_attr_str(attrs, "gen_ai.prompt") {
+        if let Some(extracted) = extract_user_request_tag(&raw) {
+            return Some(extracted);
+        }
+        if !is_noise_prompt(&raw) {
+            return Some(raw);
+        }
+    }
+
+    // 4. gen_ai.prompt.N.content (indexed messages) — scan for user role
+    for i in 0..20 {
+        let role_key = format!("gen_ai.prompt.{i}.role");
+        let content_key = format!("gen_ai.prompt.{i}.content");
+        if let Some(role) = json_attr_str(attrs, &role_key) {
+            if role == "user" {
+                if let Some(content) = json_attr_str(attrs, &content_key) {
+                    if let Some(extracted) = extract_user_request_tag(&content) {
+                        return Some(extracted);
+                    }
+                    if !is_noise_prompt(&content) {
+                        return Some(content);
+                    }
+                }
+            }
+        } else {
+            break;
+        }
+    }
+
+    None
+}
+
+/// Same as extract_clean_user_prompt_json but for proto-decoded spans with get_attr_str.
+fn extract_clean_user_prompt_proto(attrs: &[KeyValue]) -> Option<String> {
+    if let Some(s) = get_attr_str(attrs, "copilot_chat.user_request") {
+        let trimmed = s.trim();
+        if trimmed.starts_with("[{") || trimmed.starts_with("{") {
+            if let Some(extracted) = parse_first_human_text(trimmed) {
+                if !is_noise_prompt(&extracted) {
+                    return Some(extracted);
+                }
+            }
+        } else if !is_noise_prompt(&s) {
+            return Some(s);
+        }
+    }
+
+    if let Some(raw) = get_attr_str(attrs, "gen_ai.input.messages") {
+        if let Some(extracted) = parse_first_human_text(&raw) {
+            if !is_noise_prompt(&extracted) {
+                return Some(extracted);
+            }
+        }
+    }
+
+    if let Some(raw) = get_attr_str(attrs, "gen_ai.prompt") {
+        if let Some(extracted) = extract_user_request_tag(&raw) {
+            return Some(extracted);
+        }
+        if !is_noise_prompt(&raw) {
+            return Some(raw);
+        }
+    }
+
+    if let Some(s) = get_attr_str(attrs, "gen_ai.prompt.0.content") {
+        if !is_noise_prompt(&s) {
+            return Some(s);
+        }
+    }
+
+    None
+}
+
 /// Extracts content between <userRequest>…</userRequest> tags, if present.
+/// Only matches when the tag appears at the top level — skips occurrences
+/// inside <conversation-summary> which may mention the tag as documentation.
 fn extract_user_request_tag(content: &str) -> Option<String> {
     const START: &str = "<userRequest>";
     const END: &str = "</userRequest>";
     let start_idx = content.find(START)?;
+
+    // Skip if the <userRequest> is inside a <conversation-summary> block
+    // (it would be a documentation mention, not an actual tag)
+    if let Some(cs_start) = content.find("<conversation-summary>") {
+        if let Some(cs_end) = content.find("</conversation-summary>") {
+            if start_idx > cs_start && start_idx < cs_end {
+                return None;
+            }
+        }
+    }
+
     let after_start = start_idx + START.len();
     let end_idx = content[after_start..].find(END)?;
     let text = content[after_start..after_start + end_idx].trim();
-    if !text.is_empty() { Some(text.to_string()) } else { None }
-}
-
-/// Extracts the first human text from gen_ai.input.messages attribute (JSON variant).
-fn extract_first_human_text(attrs: &[serde_json::Value]) -> Option<String> {
-    let raw = json_attr_str(attrs, "gen_ai.input.messages")?;
-    parse_first_human_text(&raw)
+    if text.is_empty() || is_noise_prompt(text) { None } else { Some(text.to_string()) }
 }
 
 /// Extracts LLM response text from output/completion attributes.
@@ -934,14 +1031,7 @@ fn map_tool_call(
         .or_else(|| get_attr_str(&span.attributes, "mcp.session.id"))  // MCP OTel semconv
         .or_else(|| session_id.map(|s| s.to_string()));
 
-    let user_prompt = get_attr_str(&span.attributes, "copilot_chat.user_request")
-        .filter(|s| !s.trim_start().starts_with("[{"))
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt"))
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt.0.content"))
-        .or_else(|| {
-            let raw = get_attr_str(&span.attributes, "gen_ai.input.messages")?;
-            parse_first_human_text(&raw)
-        });
+    let user_prompt = extract_clean_user_prompt_proto(&span.attributes);
 
     let mut metadata = serde_json::json!({});
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
@@ -1058,14 +1148,7 @@ fn map_chat_span_proto(
             else { "unknown".to_string() }
         })
     });
-    let user_prompt = get_attr_str(&span.attributes, "copilot_chat.user_request")
-        .filter(|s| !s.trim_start().starts_with("[{"))
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt"))
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.prompt.0.content"))
-        .or_else(|| {
-            let raw = get_attr_str(&span.attributes, "gen_ai.input.messages")?;
-            parse_first_human_text(&raw)
-        });
+    let user_prompt = extract_clean_user_prompt_proto(&span.attributes);
     let mut metadata = serde_json::json!({ "span_type": "chat" });
     if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
     if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }

@@ -36,27 +36,16 @@ pub async fn list_conversations(
         r#"
         SELECT
             conversation_id,
-            MIN(user_prompt) FILTER (
-                WHERE user_prompt IS NOT NULL
-                  AND LENGTH(user_prompt) BETWEEN 4 AND 500
-                  AND user_prompt NOT ILIKE 'Summarize the following%'
-                  AND user_prompt NOT ILIKE 'Please write a brief title%'
-                  AND user_prompt NOT LIKE '<%'
-                  AND user_prompt NOT LIKE '{%'
-                  AND user_prompt NOT LIKE 'The current date%'
-                  AND user_prompt NOT LIKE 'Terminals:%'
-                  AND user_prompt NOT LIKE '[{%'
-            )                                                                         AS title,
-            LEFT(MIN(user_prompt) FILTER (
-                WHERE user_prompt IS NOT NULL
-                  AND LENGTH(user_prompt) BETWEEN 4 AND 500
-                  AND user_prompt NOT ILIKE 'Summarize the following%'
-                  AND user_prompt NOT ILIKE 'Please write a brief title%'
-                  AND user_prompt NOT LIKE '<%'
-                  AND user_prompt NOT LIKE '{%'
-                  AND user_prompt NOT LIKE 'The current date%'
-                  AND user_prompt NOT LIKE '[{%'
-            ), 300)                                                                   AS initial_prompt,
+            (SELECT up.user_prompt FROM agent_tool_calls up
+             WHERE up.conversation_id = atc.conversation_id
+               AND up.user_prompt IS NOT NULL
+               AND LENGTH(up.user_prompt) BETWEEN 3 AND 2000
+             ORDER BY up.started_at ASC LIMIT 1)                                      AS title,
+            LEFT((SELECT up.user_prompt FROM agent_tool_calls up
+             WHERE up.conversation_id = atc.conversation_id
+               AND up.user_prompt IS NOT NULL
+               AND LENGTH(up.user_prompt) BETWEEN 3 AND 2000
+             ORDER BY up.started_at ASC LIMIT 1), 300)                                AS initial_prompt,
             LEFT(MAX(tool_result) FILTER (
                 WHERE tool_result IS NOT NULL
                   AND LENGTH(tool_result) >= 10
@@ -74,7 +63,7 @@ pub async fn list_conversations(
             MODE() WITHIN GROUP (ORDER BY model)                                      AS model,
             SUM(estimated_input_tokens)::bigint                                       AS total_tokens_in,
             SUM(estimated_output_tokens)::bigint                                      AS total_tokens_out
-        FROM agent_tool_calls
+        FROM agent_tool_calls atc
         WHERE conversation_id IS NOT NULL AND conversation_id <> ''
           AND ($3::text IS NULL OR ide = $3)
         GROUP BY conversation_id
@@ -154,8 +143,7 @@ pub async fn get_conversation_timeline(
             (SELECT user_prompt FROM agent_tool_calls
              WHERE conversation_id = $1
                AND user_prompt IS NOT NULL
-               AND LENGTH(user_prompt) BETWEEN 4 AND 500
-               AND user_prompt NOT ILIKE 'Summarize the following%'
+               AND LENGTH(user_prompt) >= 3
              ORDER BY started_at ASC LIMIT 1) AS user_prompt,
             MIN(started_at) AS started_at,
             MAX(ended_at) AS ended_at,
