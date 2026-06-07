@@ -84,7 +84,7 @@ fn infer_ua_from_fixture(fixture: &str) -> &'static str {
 // 1. VS Code Copilot
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_vscode_copilot_execute_tool() {
     let (base_url, client) = setup().await;
     let events = post_otlp(&base_url, &client, "vscode_copilot_execute_tool.json").await;
@@ -93,7 +93,7 @@ async fn test_otlp_vscode_copilot_execute_tool() {
     assert_eq!(e["tool_name"], "run_in_terminal", "tool_name mismatch");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_vscode_copilot_chat() {
     let (base_url, client) = setup().await;
     let events = post_otlp(&base_url, &client, "vscode_copilot_chat.json").await;
@@ -102,7 +102,7 @@ async fn test_otlp_vscode_copilot_chat() {
     assert_eq!(e["tool_name"], "llm_chat", "chat spans should produce tool_name=llm_chat");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_eclipse_copilot_execute_tool_and_chat() {
     let (base_url, client) = setup().await;
     // fixture has 1 execute_tool + 1 chat span
@@ -120,7 +120,7 @@ async fn test_otlp_eclipse_copilot_execute_tool_and_chat() {
 // 2. Cursor
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_cursor_execute_tool_and_chat() {
     let (base_url, client) = setup().await;
     // fixture has 1 execute_tool + 1 chat span
@@ -138,7 +138,7 @@ async fn test_otlp_cursor_execute_tool_and_chat() {
 // 4. Claude Code (Anthropic CLI)
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_claude_code_execute_tool_and_chat() {
     let (base_url, client) = setup().await;
     // fixture has 1 execute_tool (bash) + 1 chat span
@@ -154,7 +154,7 @@ async fn test_otlp_claude_code_execute_tool_and_chat() {
 // 5. Codex CLI (OpenAI)
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_codex_cli_execute_tool() {
     let (base_url, client) = setup().await;
     let events = post_otlp(&base_url, &client, "codex_cli_execute_tool.json").await;
@@ -167,7 +167,7 @@ async fn test_otlp_codex_cli_execute_tool() {
 // 6. MCP OTel semconv — tools/call <tool>
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_mcp_semconv_tools_call() {
     let (base_url, client) = setup().await;
     // fixture has 2 tools/call spans (get-weather, read_file)
@@ -184,7 +184,7 @@ async fn test_otlp_mcp_semconv_tools_call() {
 // Edge cases
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_empty_body_returns_empty() {
     let (base_url, client) = setup().await;
     let resp = client
@@ -199,7 +199,7 @@ async fn test_otlp_empty_body_returns_empty() {
     assert!(events.is_empty(), "empty resourceSpans should produce 0 events");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_unknown_span_name_produces_no_panic() {
     let (base_url, client) = setup().await;
     let body = r#"{
