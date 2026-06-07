@@ -256,3 +256,46 @@ async fn test_tasks_end_non_existent() {
         .unwrap();
     assert_eq!(resp.status(), 404, "end non-existent should 404");
 }
+
+#[tokio::test]
+async fn test_billing_plans() {
+    let (base_url, client) = setup().await;
+    let resp = client
+        .get(format!("{}/api/billing/plans", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "plans endpoint");
+    let plans: serde_json::Value = resp.json().await.unwrap();
+    let arr = plans.as_array().expect("plans is an array");
+    // Free, Pro, Team, Enterprise.
+    assert_eq!(arr.len(), 4, "should have 4 tiers");
+    let ids: Vec<&str> = arr.iter().map(|p| p["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, vec!["free", "pro", "team", "enterprise"]);
+    // Pricing comes from the API, not hardcoded HTML.
+    let pro = arr.iter().find(|p| p["id"] == "pro").unwrap();
+    assert_eq!(pro["price"], 19);
+    assert_eq!(pro["featured"], true);
+    assert!(pro["features"].as_array().unwrap().len() >= 3);
+    // Enterprise has no fixed price.
+    let ent = arr.iter().find(|p| p["id"] == "enterprise").unwrap();
+    assert!(ent["price"].is_null(), "enterprise price is Custom (null)");
+}
+
+#[tokio::test]
+async fn test_billing_stub_redirects() {
+    let (base_url, _client) = setup().await;
+    // Use a non-following client to observe the redirect.
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let resp = client
+        .get(format!("{}/billing/stub", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert!(resp.status().is_redirection(), "stub should redirect");
+    let loc = resp.headers().get("location").unwrap().to_str().unwrap();
+    assert_eq!(loc, "/pricing?mode=stub");
+}

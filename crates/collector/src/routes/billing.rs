@@ -1,10 +1,10 @@
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -14,7 +14,8 @@ use crate::services::stripe_service;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/pricing", get(pricing_page))
-        .route("/billing/stub", get(stub_page))
+        .route("/billing/stub", get(stub_redirect))
+        .route("/api/billing/plans", get(plans))
         .route("/api/billing/checkout", post(checkout))
         .route("/api/billing/portal", post(portal))
         .route("/api/billing/webhook", post(webhook))
@@ -24,14 +25,129 @@ async fn pricing_page() -> impl IntoResponse {
     HtmlResp(include_str!("../../ui/pricing.html"))
 }
 
-async fn stub_page() -> impl IntoResponse {
-    HtmlResp(
-        r#"<!doctype html><html><body style="background:#0a0a0f;color:#e4e4ed;font-family:sans-serif;padding:40px;text-align:center">
-        <h1>Stripe stub</h1>
-        <p>This is a development placeholder. Configure <code>STRIPE_SECRET_KEY</code> for real checkout.</p>
-        <p><a href="/" style="color:#6366f1">← back</a></p>
-        </body></html>"#,
-    )
+/// Legacy Stripe stub placeholder — now a redirect to the pricing page in
+/// stub mode, where the UI explains that real checkout needs configuration.
+async fn stub_redirect() -> impl IntoResponse {
+    Redirect::to("/pricing?mode=stub")
+}
+
+/// A billing plan/tier definition surfaced to the marketing pricing page.
+/// `price` is the monthly base price in USD; `None` means "Custom"
+/// (Enterprise). The frontend applies the annual discount when
+/// `annual_discount` is true.
+#[derive(Serialize)]
+struct PlanDef {
+    /// Stable id used for checkout (`data-plan`) and price targeting.
+    id: &'static str,
+    name: &'static str,
+    /// Monthly base price in USD. `None` renders as "Custom".
+    price: Option<u32>,
+    price_suffix: &'static str,
+    desc: &'static str,
+    featured: bool,
+    annual_discount: bool,
+    features: Vec<&'static str>,
+    cta_label: &'static str,
+    /// When set, the CTA triggers Stripe checkout for this plan.
+    cta_plan: Option<&'static str>,
+    /// When set, the CTA is a plain link (sign-up, mailto, …).
+    cta_href: Option<&'static str>,
+    cta_primary: bool,
+    /// Resolved Stripe price id (from config), if any.
+    stripe_price_id: Option<String>,
+}
+
+/// `GET /api/billing/plans` — returns the Free/Pro/Team/Enterprise tiers
+/// with prices and features so the pricing page can render dynamically
+/// instead of hardcoding values in HTML.
+async fn plans(State(state): State<AppState>) -> Json<Vec<PlanDef>> {
+    Json(vec![
+        PlanDef {
+            id: "free",
+            name: "Free",
+            price: Some(0),
+            price_suffix: "/forever",
+            desc: "Get started in 60 seconds. No credit card.",
+            featured: false,
+            annual_discount: false,
+            features: vec![
+                "50K events/month",
+                "7-day retention",
+                "Waterfall timeline",
+                "Cost dashboard",
+                "1 user, 1 project",
+            ],
+            cta_label: "Sign up free",
+            cta_plan: None,
+            cta_href: Some("/login"),
+            cta_primary: false,
+            stripe_price_id: None,
+        },
+        PlanDef {
+            id: "pro",
+            name: "Pro",
+            price: Some(19),
+            price_suffix: "/seat/month",
+            desc: "For solo devs and small AI teams shipping production agents.",
+            featured: true,
+            annual_discount: true,
+            features: vec![
+                "1M events/month",
+                "30-day retention",
+                "Smart alerts (cost/error/p95)",
+                "Slack & email channels",
+                "Multi-project",
+                "Email support",
+            ],
+            cta_label: "Start 14-day free trial",
+            cta_plan: Some("pro"),
+            cta_href: None,
+            cta_primary: true,
+            stripe_price_id: state.config.stripe_price_pro.clone(),
+        },
+        PlanDef {
+            id: "team",
+            name: "Team",
+            price: Some(99),
+            price_suffix: "/month flat",
+            desc: "Up to 10 seats. Perfect for AI startups.",
+            featured: false,
+            annual_discount: true,
+            features: vec![
+                "10M events/month",
+                "90-day retention",
+                "Webhooks + PagerDuty",
+                "RBAC & audit log",
+                "Priority support",
+            ],
+            cta_label: "Start trial",
+            cta_plan: Some("team"),
+            cta_href: None,
+            cta_primary: false,
+            stripe_price_id: state.config.stripe_price_team.clone(),
+        },
+        PlanDef {
+            id: "enterprise",
+            name: "Enterprise",
+            price: None,
+            price_suffix: "",
+            desc: "Self-hosted, SSO, SLA. For regulated AI deployments.",
+            featured: false,
+            annual_discount: false,
+            features: vec![
+                "Unlimited events",
+                "1y+ retention",
+                "SSO (SAML/OIDC)",
+                "SOC 2 / DPA",
+                "Dedicated SLA",
+            ],
+            cta_label: "Talk to us",
+            cta_plan: None,
+            cta_href: Some("mailto:security@example.com?subject=Enterprise%20inquiry"),
+            cta_primary: false,
+            stripe_price_id: None,
+        },
+    ])
 }
 
 #[derive(Deserialize)]

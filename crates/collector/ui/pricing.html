@@ -74,8 +74,12 @@
   .billing-toggle button.active { background: var(--am-accent-soft); color: var(--am-accent); }
   .billing-toggle .save { font-size: 10px; background: var(--am-success-soft); color: var(--am-success); padding: 2px 6px; border-radius: 999px; margin-left: 6px; }
 
-  /* dashboard preview svg-only mock */
-  .preview-mock { width: 100%; height: auto; background: var(--am-bg); border-radius: 10px; }
+  /* stub-mode banner */
+  .stub-banner { display: none; max-width: 1200px; margin: 0 auto 24px; padding: 12px 18px; background: var(--am-accent-soft); border: 1px solid rgba(124,92,255,0.4); border-radius: 12px; color: var(--am-text); font-size: 13px; text-align: center; }
+  .stub-banner code { background: var(--am-bg); padding: 1px 6px; border-radius: 6px; }
+
+  /* dynamic tier grid loading state */
+  .tier-grid.loading { min-height: 360px; opacity: 0.5; }
 </style>
 </head>
 <body class="am-marketing">
@@ -114,6 +118,11 @@
 </section>
 
 <section class="am-section" style="padding-top:30px;">
+  <div id="stubBanner" class="stub-banner">
+    <strong>Stub mode</strong> — Stripe is not configured, so checkout is simulated.
+    Set <code>STRIPE_SECRET_KEY</code> to enable real billing.
+  </div>
+
   <div style="text-align:center;">
     <div class="billing-toggle">
       <button class="active" id="bt-month" onclick="setBilling('month')">Monthly</button>
@@ -121,77 +130,8 @@
     </div>
   </div>
 
-  <div class="tier-grid">
-    <!-- FREE -->
-    <div class="tier">
-      <div class="tier-name">Free</div>
-      <div class="tier-price">$0<small>/forever</small></div>
-      <p class="tier-desc">Get started in 60 seconds. No credit card.</p>
-      <ul class="tier-features">
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>50K events/month</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>7-day retention</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Waterfall timeline</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Cost dashboard</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>1 user, 1 project</li>
-      </ul>
-      <div class="tier-cta">
-        <a class="am-btn am-btn-secondary" href="/login">Sign up free</a>
-      </div>
-    </div>
-
-    <!-- PRO (featured) -->
-    <div class="tier featured">
-      <div class="tier-pop">Most popular</div>
-      <div class="tier-name">Pro</div>
-      <div class="tier-price"><span class="tier-strike" data-strike-pro style="display:none">$19</span><span data-price-pro>$19</span><small>/seat/month</small></div>
-      <p class="tier-desc">For solo devs and small AI teams shipping production agents.</p>
-      <ul class="tier-features">
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>1M events/month</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>30-day retention</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Smart alerts (cost/error/p95)</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Slack &amp; email channels</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Multi-project</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Email support</li>
-      </ul>
-      <div class="tier-cta">
-        <button class="am-btn am-btn-primary" data-plan="pro">Start 14-day free trial</button>
-      </div>
-    </div>
-
-    <!-- TEAM -->
-    <div class="tier">
-      <div class="tier-name">Team</div>
-      <div class="tier-price"><span class="tier-strike" data-strike-team style="display:none">$99</span><span data-price-team>$99</span><small>/month flat</small></div>
-      <p class="tier-desc">Up to 10 seats. Perfect for AI startups.</p>
-      <ul class="tier-features">
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>10M events/month</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>90-day retention</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Webhooks + PagerDuty</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>RBAC &amp; audit log</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Priority support</li>
-      </ul>
-      <div class="tier-cta">
-        <button class="am-btn am-btn-secondary" data-plan="team">Start trial</button>
-      </div>
-    </div>
-
-    <!-- ENTERPRISE -->
-    <div class="tier">
-      <div class="tier-name">Enterprise</div>
-      <div class="tier-price">Custom</div>
-      <p class="tier-desc">Self-hosted, SSO, SLA. For regulated AI deployments.</p>
-      <ul class="tier-features">
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Unlimited events</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>1y+ retention</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>SSO (SAML/OIDC)</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>SOC 2 / DPA</li>
-        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Dedicated SLA</li>
-      </ul>
-      <div class="tier-cta">
-        <a class="am-btn am-btn-secondary" href="mailto:security@example.com?subject=Enterprise%20inquiry">Talk to us</a>
-      </div>
-    </div>
-  </div>
+  <!-- Tier cards are rendered from GET /api/billing/plans (no hardcoded prices). -->
+  <div class="tier-grid loading" id="tierGrid"></div>
 </section>
 
 <!-- ROI calculator -->
@@ -296,23 +236,75 @@
 
 <script>
   let billing = 'month';
+  let PLANS = [];
+
+  const CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // Monthly price for a plan, with the 20% annual discount applied when active.
+  function planPrice(plan) {
+    if (plan.price === null || plan.price === undefined) return null;
+    const mult = (billing === 'year' && plan.annual_discount) ? 0.8 : 1;
+    return Math.round(plan.price * mult);
+  }
+
+  function priceHtml(plan) {
+    const shown = planPrice(plan);
+    if (shown === null) return 'Custom';
+    const discounted = billing === 'year' && plan.annual_discount;
+    const strike = discounted ? `<span class="tier-strike">$${plan.price}</span>` : '';
+    return `${strike}<span data-price="${plan.id}">$${shown}</span><small>${esc(plan.price_suffix)}</small>`;
+  }
+
+  function ctaHtml(plan) {
+    const cls = plan.cta_primary ? 'am-btn am-btn-primary' : 'am-btn am-btn-secondary';
+    if (plan.cta_plan) {
+      return `<button class="${cls}" data-plan="${esc(plan.cta_plan)}">${esc(plan.cta_label)}</button>`;
+    }
+    return `<a class="${cls}" href="${esc(plan.cta_href || '#')}">${esc(plan.cta_label)}</a>`;
+  }
+
+  function renderPlans() {
+    const grid = document.getElementById('tierGrid');
+    if (!PLANS.length) {
+      grid.innerHTML = '<p class="am-muted" style="grid-column:1/-1;text-align:center">Could not load plans. <a href="/login">Sign up</a> to get started.</p>';
+      grid.classList.remove('loading');
+      return;
+    }
+    grid.innerHTML = PLANS.map((plan) => `
+      <div class="tier${plan.featured ? ' featured' : ''}">
+        ${plan.featured ? '<div class="tier-pop">Most popular</div>' : ''}
+        <div class="tier-name">${esc(plan.name)}</div>
+        <div class="tier-price">${priceHtml(plan)}</div>
+        <p class="tier-desc">${esc(plan.desc)}</p>
+        <ul class="tier-features">
+          ${plan.features.map((f) => `<li>${CHECK}${esc(f)}</li>`).join('')}
+        </ul>
+        <div class="tier-cta">${ctaHtml(plan)}</div>
+      </div>`).join('');
+    grid.classList.remove('loading');
+  }
+
   function setBilling(b) {
     billing = b;
     document.getElementById('bt-month').classList.toggle('active', b==='month');
     document.getElementById('bt-year').classList.toggle('active', b==='year');
-    const mult = b === 'year' ? 0.8 : 1;
-    document.querySelector('[data-price-pro]').textContent = '$' + Math.round(19 * mult);
-    document.querySelector('[data-price-team]').textContent = '$' + Math.round(99 * mult);
-    document.querySelectorAll('[data-strike-pro]').forEach(e => e.style.display = b==='year' ? 'inline' : 'none');
-    document.querySelectorAll('[data-strike-team]').forEach(e => e.style.display = b==='year' ? 'inline' : 'none');
+    renderPlans();
     updateRoi();
+  }
+
+  // ROI uses the Pro plan's price (falls back to 19 before plans load).
+  function proPrice() {
+    const pro = PLANS.find((p) => p.id === 'pro');
+    return pro && pro.price ? pro.price : 19;
   }
 
   function updateRoi() {
     const spend = parseFloat(document.getElementById('roiSpend').value) || 0;
     const team = parseInt(document.getElementById('roiTeam').value) || 1;
     const save = spend * 0.18;
-    const cost = team * (billing === 'year' ? 19 * 0.8 : 19);
+    const cost = team * (billing === 'year' ? proPrice() * 0.8 : proPrice());
     const net = save - cost;
     document.getElementById('roiSave').textContent = '$' + Math.round(save) + '/mo';
     document.getElementById('roiCost').textContent = '$' + Math.round(cost) + '/mo';
@@ -320,22 +312,40 @@
     const days = net > 0 ? Math.ceil(cost / (save / 30)) : 999;
     document.getElementById('roiPay').textContent = days < 7 ? '< 1 week' : days < 30 ? days + ' days' : days < 90 ? Math.ceil(days/30) + ' months' : 'N/A';
   }
-  updateRoi();
 
-  document.querySelectorAll('[data-plan]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const plan = btn.getAttribute('data-plan');
-      try {
-        const r = await fetch('/api/billing/checkout', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({plan, billing_period: billing})
-        });
-        const data = await r.json();
-        if (data.url) window.location.href = data.url;
-      } catch (err) { alert('Checkout error: ' + err.message); }
-    });
+  // Delegated checkout — works for both the hero button and dynamically
+  // rendered tier CTAs.
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-plan]');
+    if (!btn) return;
+    e.preventDefault();
+    const plan = btn.getAttribute('data-plan');
+    try {
+      const r = await fetch('/api/billing/checkout', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({plan, billing_period: billing})
+      });
+      const data = await r.json();
+      if (data.url) window.location.href = data.url;
+    } catch (err) { alert('Checkout error: ' + err.message); }
   });
+
+  async function loadPlans() {
+    try {
+      const r = await fetch('/api/billing/plans');
+      if (r.ok) PLANS = await r.json();
+    } catch (err) { /* fall back to empty state */ }
+    renderPlans();
+    updateRoi();
+  }
+
+  // Surface stub mode (?mode=stub) coming from the Stripe stub redirect.
+  if (new URLSearchParams(location.search).get('mode') === 'stub') {
+    document.getElementById('stubBanner').style.display = 'block';
+  }
+
+  updateRoi();
+  loadPlans();
 </script>
 <script src="/_static/app.js"></script>
 </body>
