@@ -2,6 +2,20 @@
 //!
 //! Calcula custo em USD via JOIN com `model_pricing` (função SQL `compute_event_usd`).
 //! Casts NUMERIC para float8 no SQL para evitar dependência de bigdecimal.
+//!
+//! ## Billing Models (June 2026+)
+//!
+//! ALL chat/agent interactions are token-billed. No "free subscription" exists.
+//!
+//! - `copilot_credit`: GitHub Copilot AI Credits (1 credit = $0.01 USD).
+//!   Plans: Pro ($15/mo = 1500 credits), Pro+ ($70), Max ($200).
+//!   Tab completions are free/unlimited; chat/agent/CLI billed per token.
+//!
+//! - `cursor_usage`: Cursor usage-based (per-token, two pools: Auto+Composer & API).
+//!   Plans: Pro ($20/mo includes $20 usage), Pro+ ($70/$70), Ultra ($400/$400).
+//!   Tab completions are free/unlimited; chat/agent billed per token.
+//!
+//! - `token`: Direct API (Anthropic, OpenAI, etc.) — standard per-token pricing.
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -75,8 +89,8 @@ pub async fn cost_summary(
     let kpi: KpiRow = sqlx::query_as(
         r#"
         SELECT
-            COALESCE(SUM(CASE WHEN billing_model = 'token' THEN usd_cost ELSE 0 END), 0)::float8 AS total_usd,
-            COALESCE(COUNT(*) FILTER (WHERE billing_model != 'token'), 0)::float8 AS total_credits,
+            COALESCE(SUM(usd_cost), 0)::float8 AS total_usd,
+            COALESCE(SUM(CASE WHEN billing_model = 'copilot_credit' THEN usd_cost * 100 ELSE 0 END), 0)::float8 AS total_credits,
             COUNT(*)::bigint AS total_events,
             SUM(estimated_input_tokens)::bigint AS total_tokens_in,
             SUM(estimated_output_tokens)::bigint AS total_tokens_out,
@@ -186,7 +200,7 @@ pub async fn cost_summary(
             billing_model,
             COUNT(*)::bigint AS events,
             COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost,
-            COALESCE(COUNT(*) FILTER (WHERE billing_model != 'token'), 0)::float8 AS credits
+            COALESCE(SUM(CASE WHEN billing_model = 'copilot_credit' THEN usd_cost * 100 ELSE 0 END), 0)::float8 AS credits
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2
         GROUP BY billing_model

@@ -66,7 +66,9 @@ pub async fn insert_tool_call(
             $29, $30,
             $31, $32, $33, $34, $35, $36, $37, $38, $39,
             compute_event_usd($23, $17, $18, $24),
-            CASE WHEN $5 ILIKE '%vscode%' OR $5 ILIKE '%cursor%' OR $5 ILIKE '%copilot%' THEN 'subscription' ELSE 'token' END
+            CASE WHEN $5 ILIKE '%copilot%' OR $5 ILIKE '%vscode%' THEN 'copilot_credit'
+                 WHEN $5 ILIKE '%cursor%' THEN 'cursor_usage'
+                 ELSE 'token' END
         )
         RETURNING id, event_id, task_id, repo, branch, ide, agent, skill,
             mcp_server, tool_name, started_at, ended_at, duration_ms,
