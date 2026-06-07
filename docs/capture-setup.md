@@ -5,6 +5,80 @@
 
 ---
 
+## 🆕 agent-meter-proxy — Binário Único (Recomendado)
+
+> Substitui todos os scripts Python/shell (mitmproxy, cursor-metered, copilot-cli-metered, start_proxy.sh).
+> Um único executável nativo, cross-platform, sem dependências — instala via `curl | sh`.
+
+### Instalação
+
+```bash
+# Linux / macOS / WSL / Git Bash
+curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter-worktree/main/apps/agent-meter/install.sh | sh
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/dnorio/agent-meter-worktree/main/apps/agent-meter/install.ps1 | iex
+```
+
+### Uso
+
+```bash
+# 1. Gerar e instalar CA no sistema (primeira vez)
+agent-meter-proxy setup
+
+# 2. Iniciar o proxy
+agent-meter-proxy start
+
+# 3. Abrir qualquer IDE/CLI com captura automática
+agent-meter-proxy wrap cursor .
+agent-meter-proxy wrap claude "explain this code"
+agent-meter-proxy wrap gh copilot suggest "list pods"
+agent-meter-proxy wrap codex "refactor auth module"
+
+# Comandos de gestão
+agent-meter-proxy status
+agent-meter-proxy stop
+agent-meter-proxy ca-info
+```
+
+### Como funciona
+
+```
+IDE / CLI Tool
+    ↓ HTTPS (roteado via HTTPS_PROXY env var)
+agent-meter-proxy :8898
+    │  intercepta AI hosts (Anthropic, OpenAI, Copilot, Cursor)
+    ↓ OTLP spans
+agent-meter collector /v1/traces
+    ↓
+PostgreSQL → Dashboard
+```
+
+O comando `wrap` automaticamente:
+- Inicia o proxy em background (daemon) se não estiver rodando
+- Injeta `HTTPS_PROXY`, `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` no processo filho
+- Captura todas as chamadas LLM (tokens, model, tool calls, streaming SSE)
+- Agrupa conversas por sessão (janela de 30 min)
+
+### Hosts e paths monitorados
+
+| Host | Serviço detectado |
+|------|------------------|
+| `api.anthropic.com` | `claude-code` |
+| `api.openai.com` | `copilot` |
+| `api.githubcopilot.com` / `*.githubcopilot.com` | `copilot` |
+| `copilot-proxy.githubusercontent.com` | `copilot` |
+| `cursor.sh` / `api2.cursor.sh` / `proxy.cursor.sh` | `cursor` |
+
+---
+
+## Métodos Legados (Scripts Python)
+
+> ⚠️ Os métodos abaixo usam scripts Python/shell e mitmproxy. Para novos setups,
+> prefira o **agent-meter-proxy** acima.
+
+---
+
 ## Matriz de Compatibilidade
 
 | IDE | Método | Setup | Dados capturados | Latência | Qualidade |
