@@ -1,0 +1,37 @@
+[package]
+name = "agent-meter-proxy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Single-binary HTTPS proxy for agent-meter — captures AI IDE/CLI traffic"
+
+[[bin]]
+name = "agent-meter-proxy"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+anyhow.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+hudsucker = { version = "0.22", features = ["rcgen-ca"] }
+rcgen = "0.13"
+http-body-util = "0.1"
+rustls-pemfile = "2"
+http = "1"
+hyper = "1"
+bytes = "1"
+dirs = "6"
+time = "0.3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
