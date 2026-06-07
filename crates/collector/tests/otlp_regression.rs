@@ -27,11 +27,15 @@ async fn setup() -> (String, Client) {
     });
     let pool = db::connect(&database_url).await.unwrap();
     let config = Config::from_env();
-    let app = app::build(config, pool);
+    let app = app::build_otlp(config, pool);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let base_url = format!("http://{}", addr);
-    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    tokio::spawn(async move {
+        axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+            .await
+            .unwrap()
+    });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     (base_url, Client::new())
 }
