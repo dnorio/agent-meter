@@ -12,6 +12,7 @@ use crate::errors::AppError;
 #[derive(Debug, Serialize)]
 pub struct CostKpis {
     pub total_usd: f64,
+    pub total_credits: f64,
     pub total_events: i64,
     pub total_tokens_in: i64,
     pub total_tokens_out: i64,
@@ -40,10 +41,19 @@ pub struct CostByDay {
 }
 
 #[derive(Debug, Serialize)]
+pub struct BillingModelBreakdown {
+    pub billing_model: String,
+    pub events: i64,
+    pub usd_cost: f64,
+    pub credits: f64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct CostSummary {
     pub kpis: CostKpis,
     pub by_model: Vec<ModelCost>,
     pub by_day: Vec<CostByDay>,
+    pub by_billing_model: Vec<BillingModelBreakdown>,
 }
 
 pub async fn cost_summary(
@@ -54,6 +64,7 @@ pub async fn cost_summary(
     #[derive(sqlx::FromRow)]
     struct KpiRow {
         total_usd: Option<f64>,
+        total_credits: Option<f64>,
         total_events: Option<i64>,
         total_tokens_in: Option<i64>,
         total_tokens_out: Option<i64>,
@@ -64,7 +75,8 @@ pub async fn cost_summary(
     let kpi: KpiRow = sqlx::query_as(
         r#"
         SELECT
-            COALESCE(SUM(usd_cost), 0)::float8 AS total_usd,
+            COALESCE(SUM(CASE WHEN billing_model = 'token' THEN usd_cost ELSE 0 END), 0)::float8 AS total_usd,
+            COALESCE(COUNT(*) FILTER (WHERE billing_model != 'token'), 0)::float8 AS total_credits,
             COUNT(*)::bigint AS total_events,
             SUM(estimated_input_tokens)::bigint AS total_tokens_in,
             SUM(estimated_output_tokens)::bigint AS total_tokens_out,
@@ -80,6 +92,7 @@ pub async fn cost_summary(
     .await?;
 
     let total_usd = kpi.total_usd.unwrap_or(0.0);
+    let total_credits = kpi.total_credits.unwrap_or(0.0);
     let total_events = kpi.total_events.unwrap_or(0);
 
     #[derive(sqlx::FromRow)]
@@ -159,9 +172,46 @@ pub async fn cost_summary(
     let burn_rate = total_usd / hours;
     let avg = if total_events > 0 { total_usd / total_events as f64 } else { 0.0 };
 
+    #[derive(sqlx::FromRow)]
+    struct BillingRow {
+        billing_model: String,
+        events: i64,
+        usd_cost: Option<f64>,
+        credits: Option<f64>,
+    }
+
+    let by_billing_raw: Vec<BillingRow> = sqlx::query_as(
+        r#"
+        SELECT
+            billing_model,
+            COUNT(*)::bigint AS events,
+            COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost,
+            COALESCE(COUNT(*) FILTER (WHERE billing_model != 'token'), 0)::float8 AS credits
+        FROM agent_tool_calls
+        WHERE started_at >= $1 AND started_at < $2
+        GROUP BY billing_model
+        ORDER BY events DESC
+        "#,
+    )
+    .bind(from)
+    .bind(to)
+    .fetch_all(pool)
+    .await?;
+
+    let by_billing_model = by_billing_raw
+        .into_iter()
+        .map(|r| BillingModelBreakdown {
+            billing_model: r.billing_model,
+            events: r.events,
+            usd_cost: r.usd_cost.unwrap_or(0.0),
+            credits: r.credits.unwrap_or(0.0),
+        })
+        .collect();
+
     Ok(CostSummary {
         kpis: CostKpis {
             total_usd,
+            total_credits,
             total_events,
             total_tokens_in: kpi.total_tokens_in.unwrap_or(0),
             total_tokens_out: kpi.total_tokens_out.unwrap_or(0),
@@ -174,6 +224,7 @@ pub async fn cost_summary(
         },
         by_model,
         by_day,
+        by_billing_model,
     })
 }
 

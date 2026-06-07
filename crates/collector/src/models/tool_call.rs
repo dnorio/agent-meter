@@ -51,6 +51,8 @@ pub struct AgentToolCall {
     pub tool_call_id: Option<String>,
     // T-355: pre-computed cost
     pub usd_cost: Option<f64>,
+    // T-357: billing model (token/credit/subscription)
+    pub billing_model: String,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
