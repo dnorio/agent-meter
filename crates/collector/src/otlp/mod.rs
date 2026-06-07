@@ -610,9 +610,11 @@ fn parse_first_human_text(raw: &str) -> Option<String> {
 /// Returns true if raw prompt text looks like noise/context rather than a real user message.
 fn is_noise_prompt(s: &str) -> bool {
     let t = s.trim();
+    // Reject JSON blobs
     t.starts_with('[')
         || t.starts_with('{')
-        || t.starts_with('<')
+        // Reject XML system prompts (but not short XML tags like <current_datetime>)
+        || (t.starts_with('<') && !t.starts_with("<current_datetime>") && t.len() > 500)
         || t.starts_with("The current date")
         || t.starts_with("Terminals:")
         || t.starts_with("[Terminal")

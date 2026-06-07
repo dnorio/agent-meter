@@ -99,21 +99,27 @@ impl InterceptorState {
         if let Ok(body_json) = serde_json::from_slice::<Value>(&body_bytes) {
             model = body_json.get("model").and_then(|v| v.as_str()).map(|s| s.to_string());
 
-            // Extract last user message
+            // Extract user prompt — try messages (Chat/Messages API), then input (Responses API)
             if let Some(messages) = body_json.get("messages").and_then(|v| v.as_array()) {
-                for msg in messages.iter().rev() {
-                    if msg.get("role").and_then(|r| r.as_str()) == Some("user") {
-                        if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
-                            user_prompt = Some(clean_prompt(content));
-                        }
-                        break;
+                user_prompt = extract_user_prompt_from_messages(messages);
+            }
+
+            // Responses API: "input" can be a string or array of messages
+            if user_prompt.is_none() {
+                if let Some(input_str) = body_json.get("input").and_then(|v| v.as_str()) {
+                    let cleaned = clean_prompt(input_str);
+                    if !cleaned.is_empty() && !is_noise_content(&cleaned) {
+                        user_prompt = Some(cleaned);
                     }
+                } else if let Some(input_arr) = body_json.get("input").and_then(|v| v.as_array()) {
+                    user_prompt = extract_user_prompt_from_messages(input_arr);
                 }
             }
         }
 
         let req_id = format!("{}:{}", parts.method, parts.uri);
-        debug!("[proxy] → {} {} model={:?}", parts.method, parts.uri, model);
+        debug!("[proxy] → {} {} model={:?} prompt={:?}", parts.method, parts.uri, model,
+               user_prompt.as_deref().map(|s| s.chars().take(80).collect::<String>()));
 
         {
             let mut pending = self.pending.lock().unwrap();
@@ -343,20 +349,119 @@ fn clean_prompt(content: &str) -> String {
     let mut s = content.to_string();
 
     // Strip common XML wrappers
-    for tag in &["attachments", "workspace_info", "environment_info", "skill-context", "context"] {
-        let open = format!("<{tag}>");
-        let close = format!("</{tag}>");
-        if let (Some(start), Some(end)) = (s.find(&open), s.find(&close)) {
-            s = format!("{}{}", &s[..start], &s[end + close.len()..]);
+    for tag in &["attachments", "workspace_info", "environment_info", "skill-context", "context",
+                 "repoMemory", "sessionMemory", "userMemory", "securityRequirements",
+                 "operationalSafety", "implementationDiscipline", "communicationStyle",
+                 "toolUseInstructions", "outputFormatting", "memoryInstructions",
+                 "reminderInstructions", "editorContext", "notebookInstructions",
+                 "instructions", "conversation-summary", "workspace_info",
+                 "availableDeferredTools", "parallelizationStrategy", "taskTracking",
+                 "current_datetime", "copilot_instructions", "copilotInstructions",
+                 "fileLinkification", "communicationExamples", "toolSearchInstructions",
+                 "memoryScopes", "memoryGuidelines", "system_reminder", "sql_tables",
+                 "active_selection", "file_context", "reference_data"] {
+        let open = format!("<{tag}");
+        // Match both <tag> and <tag ...attrs>
+        if let Some(start) = s.find(&open) {
+            let close = format!("</{tag}>");
+            if let Some(end) = s.find(&close) {
+                s = format!("{}{}", &s[..start], &s[end + close.len()..]);
+            }
         }
     }
 
-    // Extract <userRequest> if present
-    if let (Some(start), Some(end)) = (s.find("<userRequest>"), s.find("</userRequest>")) {
-        s = s[start + 13..end].to_string();
+    // Extract <userRequest> if present (but not if mentioned in docs)
+    if let Some(start) = s.find("<userRequest>") {
+        if let Some(end) = s.find("</userRequest>") {
+            let extracted = &s[start + 13..end];
+            if !extracted.trim().is_empty() {
+                return extracted.trim().chars().take(500).collect();
+            }
+        }
     }
 
-    s.trim().chars().take(500).collect()
+    let trimmed = s.trim();
+    if trimmed.is_empty() || trimmed.len() > 2000 {
+        return String::new();
+    }
+    trimmed.chars().take(500).collect()
+}
+
+/// Extracts the actual user-typed prompt from a messages array.
+/// Handles OpenAI Chat, Anthropic Messages, and Responses API formats.
+/// Searches forward for the first user message with real content (not tool_result, not context-only).
+fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
+    for msg in messages.iter() {
+        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
+
+        // Responses API: input items may have type="message" wrapping role+content
+        let msg_type = msg.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        if msg_type == "message" && role != "user" { continue; }
+        if msg_type != "message" && role != "user" { continue; }
+
+        // Format 1: content is a plain string (OpenAI style)
+        if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
+            let cleaned = clean_prompt(text);
+            if !cleaned.is_empty() && !is_noise_content(&cleaned) {
+                return Some(cleaned);
+            }
+            continue;
+        }
+
+        // Format 2: content is an array of blocks (Anthropic style / Responses API)
+        if let Some(blocks) = msg.get("content").and_then(|c| c.as_array()) {
+            // Skip if first block is tool_result (agentic loop turn)
+            let first_type = blocks.first()
+                .and_then(|b| b.get("type"))
+                .and_then(|t| t.as_str())
+                .unwrap_or("");
+            if first_type == "tool_result" || first_type == "function_call_output" {
+                continue;
+            }
+
+            for block in blocks {
+                let btype = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                if btype == "text" || btype == "input_text" {
+                    let text_field = block.get("text")
+                        .or_else(|| block.get("content"))
+                        .and_then(|t| t.as_str());
+                    if let Some(text) = text_field {
+                        let cleaned = clean_prompt(text);
+                        if !cleaned.is_empty() && !is_noise_content(&cleaned) {
+                            return Some(cleaned);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Format 3: parts array (Copilot/Gemini format)
+        if let Some(parts) = msg.get("parts").and_then(|p| p.as_array()) {
+            // Iterate in reverse — last non-XML part is typically the user prompt
+            for part in parts.iter().rev() {
+                if part.get("type").and_then(|t| t.as_str()) != Some("text") { continue; }
+                if let Some(content) = part.get("content").and_then(|c| c.as_str()) {
+                    let cleaned = clean_prompt(content);
+                    if !cleaned.is_empty() && !is_noise_content(&cleaned) {
+                        return Some(cleaned);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn is_noise_content(s: &str) -> bool {
+    let t = s.trim();
+    t.starts_with('[')
+        || t.starts_with('{')
+        || t.starts_with("The current date")
+        || t.starts_with("Terminals:")
+        || t.starts_with("[Terminal")
+        || t.starts_with("You are ")
+        || t.to_ascii_lowercase().starts_with("summarize the following")
+        || t.to_ascii_lowercase().starts_with("please write a brief title")
 }
 
 fn extract_json_usage(
