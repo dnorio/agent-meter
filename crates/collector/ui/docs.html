@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Documentation · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .docs-grid { display: grid; grid-template-columns: 240px 1fr; gap: 0; min-height: calc(100vh - var(--am-topbar-h) - 48px); }
+  .docs-toc { position: sticky; top: calc(var(--am-topbar-h) + 24px); align-self: start; padding: 24px 16px; border-right: 1px solid var(--am-border); max-height: calc(100vh - var(--am-topbar-h) - 48px); overflow-y: auto; }
+  .docs-toc a { display: block; padding: 6px 12px; border-radius: var(--am-radius-sm); color: var(--am-text-muted); font-size: var(--am-fs-sm); text-decoration: none; transition: all .15s var(--am-ease); }
+  .docs-toc a:hover { color: var(--am-text); background: var(--am-surface); }
+  .docs-toc a.active { color: var(--am-accent); background: var(--am-accent-soft); font-weight: 500; }
+  .docs-toc .toc-section { font-size: var(--am-fs-xs); color: var(--am-text-dim); text-transform: uppercase; letter-spacing: .05em; margin: 16px 12px 6px; font-weight: 600; }
+  .docs-toc .toc-section:first-child { margin-top: 0; }
+  .docs-content { padding: 32px 48px; max-width: 880px; }
+  .docs-content h2 { font-size: var(--am-fs-2xl); font-weight: 700; margin: 48px 0 16px; padding-top: 24px; border-top: 1px solid var(--am-border); color: var(--am-text); }
+  .docs-content h2:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+  .docs-content h3 { font-size: var(--am-fs-lg); font-weight: 600; margin: 32px 0 12px; color: var(--am-text); }
+  .docs-content h4 { font-size: var(--am-fs-md); font-weight: 600; margin: 24px 0 8px; color: var(--am-text-muted); }
+  .docs-content p { color: var(--am-text-muted); line-height: var(--am-lh-relaxed); margin: 0 0 16px; }
+  .docs-content ul, .docs-content ol { color: var(--am-text-muted); line-height: var(--am-lh-relaxed); margin: 0 0 16px; padding-left: 24px; }
+  .docs-content li { margin-bottom: 6px; }
+  .docs-content code { font-family: var(--am-font-mono); font-size: var(--am-fs-sm); background: var(--am-surface-2); padding: 2px 6px; border-radius: var(--am-radius-sm); color: var(--am-accent); }
+  .docs-content pre { background: var(--am-surface); border: 1px solid var(--am-border); border-radius: var(--am-radius); padding: 16px 20px; overflow-x: auto; margin: 0 0 20px; }
+  .docs-content pre code { background: none; padding: 0; color: var(--am-text); font-size: var(--am-fs-sm); line-height: 1.6; }
+  .docs-content table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: var(--am-fs-sm); }
+  .docs-content th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--am-border-strong); color: var(--am-text); font-weight: 600; }
+  .docs-content td { padding: 10px 12px; border-bottom: 1px solid var(--am-border); color: var(--am-text-muted); }
+  .docs-content .callout { background: var(--am-surface); border: 1px solid var(--am-border); border-left: 3px solid var(--am-accent); border-radius: var(--am-radius); padding: 16px 20px; margin: 0 0 20px; }
+  .docs-content .callout-info { border-left-color: var(--am-info); }
+  .docs-content .callout-warning { border-left-color: var(--am-warning); }
+  .docs-content .callout-success { border-left-color: var(--am-success); }
+  .docs-content .callout strong { color: var(--am-text); }
+  .docs-hero { margin-bottom: 40px; }
+  .docs-hero h1 { font-size: var(--am-fs-3xl); font-weight: 800; margin: 0 0 12px; }
+  .docs-hero p { font-size: var(--am-fs-lg); color: var(--am-text-muted); margin: 0; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: var(--am-fs-xs); font-weight: 500; }
+  .badge-native { background: var(--am-success-soft); color: var(--am-success); }
+  .badge-proxy { background: var(--am-info-soft); color: var(--am-info); }
+  .badge-rest { background: var(--am-warning-soft); color: var(--am-warning); }
+  .ide-card { background: var(--am-surface); border: 1px solid var(--am-border); border-radius: var(--am-radius-lg); padding: 20px 24px; margin: 12px 0; transition: border-color .15s var(--am-ease); }
+  .ide-card:hover { border-color: var(--am-border-strong); }
+  .ide-card h4 { margin: 0 0 8px; color: var(--am-text); }
+  .ide-card p { margin: 0; font-size: var(--am-fs-sm); }
+  .arch-diagram { background: var(--am-bg-elev); border: 1px solid var(--am-border); border-radius: var(--am-radius-lg); padding: 24px; margin: 20px 0; font-family: var(--am-font-mono); font-size: var(--am-fs-sm); line-height: 1.7; white-space: pre; overflow-x: auto; color: var(--am-text-muted); }
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin: 20px 0; }
+  .feature-item { background: var(--am-surface); border: 1px solid var(--am-border); border-radius: var(--am-radius); padding: 16px; }
+  .feature-item strong { display: block; color: var(--am-text); margin-bottom: 4px; }
+  .feature-item span { font-size: var(--am-fs-sm); color: var(--am-text-muted); }
+  @media (max-width: 768px) {
+    .docs-grid { grid-template-columns: 1fr; }
+    .docs-toc { display: none; }
+    .docs-content { padding: 24px 16px; }
+  }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <!-- SIDEBAR -->
+  <aside class="am-sidebar">
+    <a href="/" class="am-sidebar-brand">
+      <span class="logo-mark">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M5 21V13M12 21v-5M19 21v-9"/><circle cx="5" cy="11" r="1.5" fill="white"/><circle cx="12" cy="14" r="1.5" fill="white"/><circle cx="19" cy="10" r="1.5" fill="white"/></svg>
+      </span>
+      <span class="logo-text">agent-meter</span>
+    </a>
+    <nav class="am-sidebar-nav">
+      <div class="am-nav-section">Observability</div>
+      <a class="am-nav-link" href="/"><svg class="am-icon"><use href="/_static/icons.svg#i-dashboard"/></svg><span>Dashboard</span></a>
+      <a class="am-nav-link" href="/conversations"><svg class="am-icon"><use href="/_static/icons.svg#i-conversations"/></svg><span>Conversations</span></a>
+      <a class="am-nav-link" href="/cost"><svg class="am-icon"><use href="/_static/icons.svg#i-cost"/></svg><span>Cost</span></a>
+      <a class="am-nav-link" href="/alerts"><svg class="am-icon"><use href="/_static/icons.svg#i-alerts"/></svg><span>Alerts</span></a>
+      <a class="am-nav-link" href="/tasks"><svg class="am-icon"><use href="/_static/icons.svg#i-tasks"/></svg><span>Tasks</span></a>
+      <a class="am-nav-link" href="/reports"><svg class="am-icon"><use href="/_static/icons.svg#i-reports"/></svg><span>Reports</span></a>
+      <div class="am-nav-section">Resources</div>
+      <a class="am-nav-link active" href="/docs"><svg class="am-icon"><use href="/_static/icons.svg#i-docs"/></svg><span>Documentation</span></a>
+      <a class="am-nav-link" href="/pricing"><svg class="am-icon"><use href="/_static/icons.svg#i-pricing"/></svg><span>Pricing</span></a>
+      <a class="am-nav-link" href="https://github.com/dnorio/agent-meter"><svg class="am-icon"><use href="/_static/icons.svg#i-github"/></svg><span>GitHub</span></a>
+    </nav>
+    <div class="am-sidebar-footer">
+      <button class="am-btn am-btn-ghost am-btn-icon" onclick="amToggleTheme()" title="Toggle theme">
+        <svg class="am-icon"><use href="/_static/icons.svg#i-sun"/></svg>
+      </button>
+      <span class="am-status-pill" id="healthPill">Live</span>
+    </div>
+  </aside>
+
+  <!-- TOPBAR -->
+  <header class="am-topbar">
+    <div class="am-breadcrumbs">
+      <span class="crumb">agent-meter</span>
+      <span class="sep">›</span>
+      <span class="crumb current">Documentation</span>
+    </div>
+    <div class="am-search">
+      <svg class="am-icon"><use href="/_static/icons.svg#i-search"/></svg>
+      <input placeholder="Search documentation…" id="docsSearch">
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="am-topbar-actions" id="amUserSlot">
+      <a class="am-btn am-btn-secondary am-btn-sm" href="/login">Sign in</a>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="am-main" style="padding:0">
+    <div class="docs-grid">
+      <!-- TABLE OF CONTENTS -->
+      <nav class="docs-toc" id="docsToc">
+        <div class="toc-section">Getting Started</div>
+        <a href="#overview" class="active">Overview</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#quickstart">Quick Start</a>
+        <div class="toc-section">IDE Setup</div>
+        <a href="#vscode">VS Code (Copilot)</a>
+        <a href="#cursor">Cursor</a>
+        <a href="#eclipse">Eclipse</a>
+        <a href="#opencode">OpenCode / Others</a>
+        <div class="toc-section">CLI Support</div>
+        <a href="#copilot-cli">Copilot CLI</a>
+        <a href="#claude-code">Claude Code</a>
+        <a href="#codex-cli">Codex CLI</a>
+        <div class="toc-section">Reference</div>
+        <a href="#api">REST API</a>
+        <a href="#otlp">OTLP Protocol</a>
+        <a href="#security">Security</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <!-- CONTENT -->
+      <div class="docs-content">
+        <!-- OVERVIEW -->
+        <section id="overview">
+          <div class="docs-hero">
+            <h1>agent-meter Documentation</h1>
+            <p>Observability and FinOps for AI-powered development workflows. Track every LLM call, tool invocation, and token across all your IDEs and agents — in one place.</p>
+          </div>
+
+          <div class="feature-grid">
+            <div class="feature-item">
+              <strong>Multi-IDE Support</strong>
+              <span>VS Code, Cursor, Eclipse, OpenCode, Antigravity, and any OTLP-compatible agent.</span>
+            </div>
+            <div class="feature-item">
+              <strong>Token & Cost Tracking</strong>
+              <span>Real-time token counting with model-specific pricing. Daily, weekly, monthly breakdowns.</span>
+            </div>
+            <div class="feature-item">
+              <strong>Conversation Timeline</strong>
+              <span>Waterfall view of LLM spans with tool calls, duration, and model attribution.</span>
+            </div>
+            <div class="feature-item">
+              <strong>Budget Alerts</strong>
+              <span>Set spend thresholds per team, project, or model. Get notified before you overspend.</span>
+            </div>
+            <div class="feature-item">
+              <strong>CLI Agnostic</strong>
+              <span>Works with Copilot CLI, Claude Code, Codex CLI — same proxy captures all HTTP traffic.</span>
+            </div>
+            <div class="feature-item">
+              <strong>Self-Hosted & Private</strong>
+              <span>Runs on your own infrastructure. No prompts or responses leave your network.</span>
+            </div>
+          </div>
+
+          <h3>Supported IDEs & Tools</h3>
+          <table>
+            <thead>
+              <tr><th>IDE / Tool</th><th>Method</th><th>Setup Effort</th><th>Data Quality</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>VS Code</strong> (GitHub Copilot)</td>
+                <td><span class="badge badge-native">OTLP Native</span></td>
+                <td>2 lines in settings.json</td>
+                <td>★★★★★</td>
+              </tr>
+              <tr>
+                <td><strong>Cursor</strong></td>
+                <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
+                <td>One-time setup script</td>
+                <td>★★★★☆</td>
+              </tr>
+              <tr>
+                <td><strong>Eclipse</strong> (GitHub Copilot)</td>
+                <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
+                <td>One-time setup script</td>
+                <td>★★★★☆</td>
+              </tr>
+              <tr>
+                <td><strong>Copilot CLI</strong> (<code>gh copilot</code>)</td>
+                <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
+                <td>Wrapper script</td>
+                <td>★★★★☆</td>
+              </tr>
+              <tr>
+                <td><strong>Claude Code</strong> (CLI)</td>
+                <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
+                <td>Env vars + proxy</td>
+                <td>★★★★☆</td>
+              </tr>
+              <tr>
+                <td><strong>Codex CLI</strong> (OpenAI)</td>
+                <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
+                <td>Env vars + proxy</td>
+                <td>★★★★☆</td>
+              </tr>
+              <tr>
+                <td><strong>OpenCode</strong></td>
+                <td><span class="badge badge-rest">REST Direct</span></td>
+                <td>Env vars</td>
+                <td>★★★★★</td>
+              </tr>
+              <tr>
+                <td><strong>Antigravity</strong></td>
+                <td><span class="badge badge-rest">REST Direct</span></td>
+                <td>Env vars</td>
+                <td>★★★★★</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- ARCHITECTURE -->
+        <section id="architecture">
+          <h2>Architecture</h2>
+          <p>agent-meter uses a lightweight collector that ingests telemetry from multiple sources and stores it in PostgreSQL. The architecture supports three capture methods:</p>
+
+          <div class="arch-diagram">
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           DATA SOURCES                                    │
+├──────────────┬──────────────────┬──────────────────┬─────────────────────┤
+│  VS Code     │  Cursor / Eclipse│  CLI Tools       │  Custom Agents      │
+│  (OTLP)      │  (mitmproxy)     │  (mitmproxy)     │  (REST API)         │
+│              │                  │                  │                     │
+│  Port 4318   │  Port 8898/8899  │  Port 8898/8899  │  Port 3000          │
+└──────┬───────┴────────┬─────────┴────────┬─────────┴──────────┬──────────┘
+       │                │                  │                    │
+       │  OTLP/HTTP     │  OTLP/HTTP       │  OTLP/HTTP         │  REST JSON
+       │  (protobuf)    │  (JSON)          │  (JSON)            │
+       ▼                ▼                  ▼                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      agent-meter collector                                │
+│                                                                          │
+│  ┌────────────┐  ┌────────────────┐  ┌──────────────┐  ┌─────────────┐  │
+│  │ OTLP       │  │ IDE Detection  │  │ Conversation │  │ Cost        │  │
+│  │ Receiver   │  │ (user-agent,   │  │ Grouping     │  │ Calculator  │  │
+│  │ :4318      │  │  service.name) │  │ (trace_id)   │  │ (per-model) │  │
+│  └─────┬──────┘  └───────┬────────┘  └──────┬───────┘  └──────┬──────┘  │
+│        └──────────────────┴──────────────────┴─────────────────┘         │
+│                                    │                                      │
+│                            ┌───────▼────────┐                            │
+│                            │  PostgreSQL    │                            │
+│                            │  (events,      │                            │
+│                            │   conversations,│                            │
+│                            │   cost_daily)  │                            │
+│                            └───────┬────────┘                            │
+│                                    │                                      │
+│  ┌─────────────────────────────────▼──────────────────────────────────┐  │
+│  │                    Web UI (Dashboard, Conversations, Cost, ...)     │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘</div>
+
+          <h3>Capture Methods Explained</h3>
+
+          <div class="ide-card">
+            <h4>1. OTLP Native (VS Code)</h4>
+            <p>VS Code Copilot has built-in OpenTelemetry support. It sends spans following the <a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/" style="color:var(--am-accent)">GenAI Semantic Conventions</a> directly to the collector on port 4318. Zero overhead, zero proxy — the gold standard.</p>
+          </div>
+
+          <div class="ide-card">
+            <h4>2. HTTPS Proxy (Cursor, Eclipse, CLIs)</h4>
+            <p>For IDEs and tools that don't support OTLP natively, a local <code>mitmproxy</code> instance intercepts HTTPS traffic to AI API endpoints (Anthropic, OpenAI, GitHub Copilot). A Python addon converts each request/response pair into an OTLP span and forwards it to the collector. The proxy runs on <code>127.0.0.1</code> only — traffic never leaves your machine.</p>
+          </div>
+
+          <div class="ide-card">
+            <h4>3. REST Direct (Custom Agents)</h4>
+            <p>Agents with env-var access (OpenCode, Antigravity, custom scripts) post events directly to the <code>/events/tool-call</code> REST endpoint. Simplest integration — just <code>curl</code>.</p>
+          </div>
+
+          <h3>Key Design Decisions</h3>
+          <ul>
+            <li><strong>Conversation grouping</strong>: Uses <code>COALESCE(trace_id, conversation_id)</code> to unify spans that belong to the same interaction, even across different capture methods.</li>
+            <li><strong>IDE detection</strong>: Pattern-matched from user-agent headers and <code>service.name</code> attributes — no manual tagging required.</li>
+            <li><strong>Token estimation</strong>: Extracted from <code>usage.prompt_tokens</code> / <code>usage.completion_tokens</code> in API responses, or from OTLP <code>gen_ai.usage.*</code> attributes.</li>
+            <li><strong>Privacy-first</strong>: Only metadata (model, tokens, duration, tool names) is stored by default. Full prompt capture is opt-in.</li>
+          </ul>
+        </section>
+
+        <!-- QUICKSTART -->
+        <section id="quickstart">
+          <h2>Quick Start</h2>
+
+          <h3>Self-Hosted (Docker Compose)</h3>
+          <pre><code># Clone the repository
+git clone https://github.com/nic權/agent-meter
+cd agent-meter
+
+# Start PostgreSQL + collector
+docker compose up -d
+
+# Collector is now listening:
+#   :3000  — REST API + Web UI
+#   :4318  — OTLP receiver</code></pre>
+
+          <h3>From Source (Development)</h3>
+          <pre><code># Prerequisites: Rust 1.75+, PostgreSQL 15+
+cargo install sqlx-cli
+
+# Create database and run migrations
+export DATABASE_URL="postgres://localhost/agent_meter"
+sqlx database create
+sqlx migrate run
+
+# Start the collector
+cargo run -p collector
+
+# Open http://localhost:3000</code></pre>
+
+          <h3>Kubernetes (Helm)</h3>
+          <pre><code># Using the deploy script (ARM64 cluster)
+cd apps/agent-meter
+./deploy.sh
+
+# Or apply manifests directly
+kubectl apply -f k8s/</code></pre>
+
+          <div class="callout callout-info">
+            <strong>First telemetry in 60 seconds:</strong> After starting the collector, configure VS Code with 2 lines in <code>settings.json</code> (see <a href="#vscode" style="color:var(--am-accent)">VS Code setup</a>), start a Copilot chat, and see data appear on the dashboard immediately.
+          </div>
+        </section>
+
+        <!-- VS CODE -->
+        <section id="vscode">
+          <h2>VS Code (GitHub Copilot)</h2>
+
+          <div class="callout callout-success">
+            <strong>Recommended method.</strong> Native OTLP support — zero proxy, zero overhead, maximum data quality.
+          </div>
+
+          <h3>Configuration</h3>
+          <p>Add to your VS Code <code>settings.json</code>:</p>
+          <pre><code>{
+  "github.copilot.chat.otel.enabled": true,
+  "github.copilot.chat.otel.otlpEndpoint": "https://your-agent-meter.example.com",
+  "github.copilot.chat.otel.captureContent": false
+}</code></pre>
+
+          <table>
+            <thead><tr><th>Setting</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>otel.enabled</code></td><td>Enables OpenTelemetry span export from Copilot Chat</td></tr>
+              <tr><td><code>otel.otlpEndpoint</code></td><td>Your collector URL (port 4318 for OTLP, or ingress)</td></tr>
+              <tr><td><code>otel.captureContent</code></td><td><code>true</code> = sends prompt text; <code>false</code> = metadata only</td></tr>
+            </tbody>
+          </table>
+
+          <h3>What Gets Captured</h3>
+          <table>
+            <thead><tr><th>Span Type</th><th>Description</th><th>Data Extracted</th></tr></thead>
+            <tbody>
+              <tr><td><code>execute_tool</code></td><td>Tool invocation (file read, terminal, etc.)</td><td>tool name, duration, success/error</td></tr>
+              <tr><td><code>chat</code></td><td>LLM API call</td><td>model, input/output tokens, response time</td></tr>
+              <tr><td><code>invoke_agent</code></td><td>Agent session lifecycle</td><td>agent name, total duration</td></tr>
+              <tr><td><code>tools/call</code></td><td>MCP tool call</td><td>MCP server, tool name, duration</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Verification</h3>
+          <pre><code># Start a Copilot chat, then check:
+curl -s https://your-agent-meter.example.com/api/conversations | \
+  jq '.[0:3] | .[] | {id: .conversation_id[0:12], events: .event_count, ide}'</code></pre>
+
+          <h4>WSL / Remote Development</h4>
+          <p>If VS Code runs in WSL or a remote container, use <code>http://localhost:4318</code> with a port-forward:</p>
+          <pre><code>kubectl port-forward svc/agent-meter 4318:4318</code></pre>
+        </section>
+
+        <!-- CURSOR -->
+        <section id="cursor">
+          <h2>Cursor</h2>
+
+          <p>Cursor uses direct HTTPS connections to Anthropic, OpenAI, and GitHub Copilot APIs. A local mitmproxy intercepts these calls transparently.</p>
+
+          <h3>One-Time Setup</h3>
+          <pre><code>cd agent-meter/cursor-proxy
+
+# Generates CA, installs system-wide, creates systemd service
+./start_proxy.sh --setup</code></pre>
+
+          <h3>Daily Usage</h3>
+          <pre><code># Instead of "cursor .", use:
+cursor-metered .
+
+# Operations:
+cursor-metered --status   # proxy status + recent logs
+cursor-metered --logs     # live interceptor output
+cursor-metered --stop     # stop the proxy</code></pre>
+
+          <div class="callout callout-info">
+            <strong>Zero friction:</strong> <code>cursor-metered</code> auto-starts the proxy if it's not running, sets the required env vars, and launches Cursor. One command replaces your normal workflow.
+          </div>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li><code>cursor-metered</code> checks if mitmproxy is already running on port 8898</li>
+            <li>If not, starts <code>mitmdump</code> with <code>cursor_interceptor.py</code> in background</li>
+            <li>Launches Cursor with <code>HTTPS_PROXY=http://127.0.0.1:8898</code> and <code>NODE_EXTRA_CA_CERTS</code></li>
+            <li>The interceptor captures all requests to AI API hosts and converts them to OTLP spans</li>
+          </ol>
+
+          <h3>Monitored Endpoints</h3>
+          <table>
+            <thead><tr><th>Host</th><th>API</th><th>Models</th></tr></thead>
+            <tbody>
+              <tr><td><code>api.anthropic.com</code></td><td>/v1/messages</td><td>Claude Sonnet, Opus</td></tr>
+              <tr><td><code>api.openai.com</code></td><td>/v1/chat/completions</td><td>GPT-4o, GPT-4.1</td></tr>
+              <tr><td><code>api.githubcopilot.com</code></td><td>/chat/completions</td><td>GPT-4o (Copilot plan)</td></tr>
+              <tr><td><code>api2.cursor.sh</code></td><td>/v1/chat/completions</td><td>Any via Cursor proxy</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Conversation Grouping</h3>
+          <p>Cursor doesn't expose a stable session ID. The collector uses a multi-strategy approach:</p>
+          <ol>
+            <li><code>x-session-id</code> or <code>x-cursor-session</code> headers (when available)</li>
+            <li>Bearer token prefix (first 16 chars — stable per login)</li>
+            <li>30-minute idle window — requests within 30 min are grouped together</li>
+          </ol>
+        </section>
+
+        <!-- ECLIPSE -->
+        <section id="eclipse">
+          <h2>Eclipse (GitHub Copilot)</h2>
+
+          <p>Same mitmproxy technique as Cursor, configured for Eclipse's JVM-based copilot-language-server.</p>
+
+          <h3>Setup</h3>
+          <pre><code>cd agent-meter/eclipse-proxy
+
+# Generates CA, imports to Windows cert store, patches eclipse.ini
+./start_proxy.sh --setup</code></pre>
+
+          <h3>Start Proxy</h3>
+          <pre><code>./start_proxy.sh
+# Then open Eclipse normally — traffic is intercepted automatically</code></pre>
+
+          <h3>Configuration Details</h3>
+          <p>The setup script adds JVM proxy args to <code>eclipse.ini</code>:</p>
+          <pre><code>-Dhttps.proxyHost=127.0.0.1
+-Dhttps.proxyPort=8899</code></pre>
+
+          <div class="callout callout-warning">
+            <strong>Windows + WSL:</strong> The mitmproxy CA must be imported into the <strong>Windows</strong> certificate store (not WSL's). The setup script handles this automatically via PowerShell.
+          </div>
+        </section>
+
+        <!-- OPENCODE -->
+        <section id="opencode">
+          <h2>OpenCode / Antigravity / Custom Agents</h2>
+
+          <p>Agents with direct env-var access use the REST API. No proxy needed.</p>
+
+          <h3>Environment Variables</h3>
+          <pre><code>export AGENT_METER_COLLECTOR_URL="https://your-agent-meter.example.com"
+export AGENT_METER_IDE="opencode"
+export AGENT_METER_AGENT="my-agent"
+export AGENT_METER_REPO="my-project"
+export AGENT_METER_TASK_ID="TASK-42"</code></pre>
+
+          <h3>Sending Events</h3>
+          <pre><code>curl -X POST "$AGENT_METER_COLLECTOR_URL/events/tool-call" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool_name": "read_file",
+    "mcp_server": "filesystem",
+    "started_at": "2026-01-15T10:00:00Z",
+    "ended_at": "2026-01-15T10:00:01Z",
+    "ok": true,
+    "request_bytes": 1200,
+    "response_bytes": 30000
+  }'</code></pre>
+        </section>
+
+        <!-- COPILOT CLI -->
+        <section id="copilot-cli">
+          <h2>Copilot CLI (<code>gh copilot</code>)</h2>
+
+          <p>The GitHub Copilot CLI (<code>gh copilot suggest</code>, <code>gh copilot explain</code>) makes HTTPS calls to GitHub's API. The same mitmproxy technique captures them transparently.</p>
+
+          <h3>Setup</h3>
+          <pre><code># Requires: mitmproxy running on :8899 (from eclipse-proxy setup)
+# The same proxy serves both Eclipse and Copilot CLI
+
+cd agent-meter/eclipse-proxy
+./start_proxy.sh</code></pre>
+
+          <h3>Usage</h3>
+          <pre><code># Instead of "gh copilot suggest", use the metered wrapper:
+./copilot-cli-metered.sh suggest "list all pods in kubernetes"
+
+# Or explain:
+./copilot-cli-metered.sh explain "kubectl get pods -A"</code></pre>
+
+          <h3>How It Works</h3>
+          <p>The wrapper script injects <code>HTTPS_PROXY</code> and <code>SSL_CERT_FILE</code> environment variables, then calls <code>gh copilot</code> with your original arguments. All HTTP traffic is routed through the interceptor.</p>
+
+          <div class="callout callout-info">
+            <strong>Agnostic by design:</strong> The mitmproxy intercepts at the HTTP layer. It doesn't matter if the request comes from a GUI IDE or a CLI tool — if it speaks HTTPS to an AI API, it gets captured. This means any new CLI tool that uses standard HTTP libraries will work automatically.
+          </div>
+        </section>
+
+        <!-- CLAUDE CODE -->
+        <section id="claude-code">
+          <h2>Claude Code (CLI)</h2>
+
+          <p>Anthropic's <code>claude</code> CLI makes direct HTTPS calls to <code>api.anthropic.com</code>. The mitmproxy technique captures these identically to Cursor.</p>
+
+          <h3>Setup</h3>
+          <pre><code># Use the cursor-proxy (same Anthropic endpoint interception)
+cd agent-meter/cursor-proxy
+./start_proxy.sh --setup</code></pre>
+
+          <h3>Usage</h3>
+          <pre><code># Option A: Set env vars in your shell profile
+export HTTPS_PROXY="http://127.0.0.1:8898"
+export SSL_CERT_FILE="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
+export NODE_EXTRA_CA_CERTS="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
+
+# Then use claude normally:
+claude "explain this code"
+
+# Option B: One-liner wrapper
+HTTPS_PROXY=http://127.0.0.1:8898 \
+SSL_CERT_FILE=~/.mitmproxy/mitmproxy-ca-cert.pem \
+claude "explain this code"</code></pre>
+
+          <h3>Detection</h3>
+          <p>The collector detects Claude Code via user-agent patterns (<code>claude-code</code>, <code>claude_code</code>) and assigns the <code>claude-code</code> IDE badge in the dashboard.</p>
+
+          <div class="callout callout-success">
+            <strong>Same proxy, different tool.</strong> Since Claude Code talks to the same <code>api.anthropic.com</code> endpoint as Cursor's Claude integration, the <code>cursor_interceptor.py</code> captures both seamlessly. The IDE is distinguished by user-agent analysis.
+          </div>
+        </section>
+
+        <!-- CODEX CLI -->
+        <section id="codex-cli">
+          <h2>Codex CLI (OpenAI)</h2>
+
+          <p>OpenAI's Codex CLI uses <code>api.openai.com</code> — already intercepted by the cursor-proxy.</p>
+
+          <h3>Usage</h3>
+          <pre><code># Set proxy env vars (same as Claude Code)
+export HTTPS_PROXY="http://127.0.0.1:8898"
+export SSL_CERT_FILE="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
+
+# Use codex normally:
+codex "refactor this function"</code></pre>
+
+          <h3>Detection</h3>
+          <p>Detected via user-agent pattern <code>codex</code> — appears with the <code>codex</code> IDE badge in the dashboard.</p>
+        </section>
+
+        <!-- REST API -->
+        <section id="api">
+          <h2>REST API Reference</h2>
+
+          <h3>Endpoints</h3>
+          <table>
+            <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>POST</code></td><td><code>/events/tool-call</code></td><td>Ingest a tool call event</td></tr>
+              <tr><td><code>GET</code></td><td><code>/api/conversations</code></td><td>List all conversations (paginated)</td></tr>
+              <tr><td><code>GET</code></td><td><code>/api/conversations/:id</code></td><td>Get conversation timeline</td></tr>
+              <tr><td><code>GET</code></td><td><code>/api/conversations/:id/timeline</code></td><td>Detailed span waterfall</td></tr>
+              <tr><td><code>GET</code></td><td><code>/reports/top-tools</code></td><td>Most used tools (by count)</td></tr>
+              <tr><td><code>GET</code></td><td><code>/reports/top-tasks</code></td><td>Top tasks by activity</td></tr>
+              <tr><td><code>GET</code></td><td><code>/reports/top-mcp-servers</code></td><td>Most active MCP servers</td></tr>
+              <tr><td><code>GET</code></td><td><code>/reports/cost-daily</code></td><td>Daily cost breakdown</td></tr>
+              <tr><td><code>GET</code></td><td><code>/reports/cost-by-model</code></td><td>Cost attribution by model</td></tr>
+              <tr><td><code>GET</code></td><td><code>/health</code></td><td>Health check (200 = OK)</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Event Payload Schema</h3>
+          <pre><code>{
+  "tool_name": "string",        // required — e.g. "read_file"
+  "mcp_server": "string",      // optional — e.g. "filesystem"
+  "started_at": "ISO 8601",    // required
+  "ended_at": "ISO 8601",      // required
+  "ok": true,                   // required — success or error
+  "request_bytes": 1200,        // optional
+  "response_bytes": 30000,      // optional
+  "ide": "string",              // optional — auto-detected if omitted
+  "agent": "string",            // optional
+  "conversation_id": "string",  // optional — for grouping
+  "task_id": "string",          // optional
+  "repo": "string",             // optional
+  "branch": "string"            // optional
+}</code></pre>
+        </section>
+
+        <!-- OTLP PROTOCOL -->
+        <section id="otlp">
+          <h2>OTLP Protocol</h2>
+
+          <h3>Receiver</h3>
+          <p>The collector accepts OTLP/HTTP on port <strong>4318</strong> at <code>/v1/traces</code>. Both protobuf and JSON encodings are supported.</p>
+
+          <h3>Supported Attributes</h3>
+          <table>
+            <thead><tr><th>OTLP Attribute</th><th>Mapped To</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>gen_ai.agent.name</code></td><td>agent</td><td>Agent/extension name</td></tr>
+              <tr><td><code>gen_ai.tool.name</code></td><td>tool_name</td><td>Tool being invoked</td></tr>
+              <tr><td><code>gen_ai.response.model</code></td><td>model</td><td>LLM model used</td></tr>
+              <tr><td><code>gen_ai.usage.input_tokens</code></td><td>input_tokens</td><td>Prompt tokens</td></tr>
+              <tr><td><code>gen_ai.usage.output_tokens</code></td><td>output_tokens</td><td>Completion tokens</td></tr>
+              <tr><td><code>copilot_chat.chat_session_id</code></td><td>conversation_id</td><td>VS Code session</td></tr>
+              <tr><td><code>gen_ai.conversation.id</code></td><td>conversation_id</td><td>Generic session ID</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Conversation ID Resolution Chain</h3>
+          <p>The collector resolves conversation IDs using a fallback chain (first match wins):</p>
+          <ol>
+            <li><code>gen_ai.conversation.id</code></li>
+            <li><code>copilot_chat.chat_session_id</code></li>
+            <li><code>copilot.conversation.id</code></li>
+            <li><code>thread.id</code></li>
+            <li><code>gen_ai.thread.id</code></li>
+            <li><code>mcp.session.id</code></li>
+            <li><code>session_id</code></li>
+            <li><code>trace_id</code> (OTLP trace ID as fallback)</li>
+          </ol>
+        </section>
+
+        <!-- SECURITY -->
+        <section id="security">
+          <h2>Security</h2>
+
+          <h3>Data Privacy</h3>
+          <ul>
+            <li><strong>No prompts stored by default</strong> — only metadata: model name, token counts, tool names, durations</li>
+            <li><strong>Opt-in content capture</strong> — requires explicit <code>captureContent: true</code> in VS Code, or custom interceptor config</li>
+            <li><strong>Bearer tokens never stored</strong> — only a prefix hash is used for session grouping</li>
+            <li><strong>Local-first architecture</strong> — all data stays on your infrastructure</li>
+          </ul>
+
+          <h3>Proxy Security</h3>
+          <ul>
+            <li>mitmproxy listens on <code>127.0.0.1</code> only — never exposed to the network</li>
+            <li>Generated CA certificates are unique per installation</li>
+            <li>CA can be removed at any time to disable interception</li>
+            <li>No data is sent to third parties — all telemetry goes to your own collector</li>
+          </ul>
+
+          <h3>Removing the Proxy CA</h3>
+          <pre><code># Linux
+sudo rm /usr/local/share/ca-certificates/mitmproxy-*.crt
+sudo update-ca-certificates
+
+# macOS
+security delete-certificate -c "mitmproxy" ~/Library/Keychains/login.keychain
+
+# Windows
+certmgr.msc → Trusted Root CAs → delete "mitmproxy"</code></pre>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq">
+          <h2>FAQ</h2>
+
+          <h3>Does the proxy add latency?</h3>
+          <p>Negligible (&lt;1ms). mitmproxy processes requests in-memory on localhost. The interceptor addon is non-blocking — it sends telemetry to the collector asynchronously after the AI API response is forwarded to the IDE.</p>
+
+          <h3>Can I use the proxy for CLI tools and IDEs simultaneously?</h3>
+          <p>Yes. A single mitmproxy instance on port 8898 can serve Cursor, Claude Code, Codex CLI, and any other tool that respects <code>HTTPS_PROXY</code>. The interceptor distinguishes tools by user-agent headers.</p>
+
+          <h3>What if my IDE updates break the interception?</h3>
+          <p>The proxy technique is transport-level (HTTP). IDE updates that change UI or features don't affect it. Only a change in how the IDE makes network requests (e.g., ignoring proxy env vars) would break interception. This is rare and easily detected — you'd see zero new spans in the dashboard.</p>
+
+          <h3>Is this compatible with corporate proxy/VPN setups?</h3>
+          <p>Yes. Configure mitmproxy with an upstream proxy: <code>mitmdump --mode upstream:http://corporate-proxy:8080 -s interceptor.py</code>. The interception still works — it just chains through your corporate proxy.</p>
+
+          <h3>Can I run agent-meter without PostgreSQL?</h3>
+          <p>Not currently. PostgreSQL is the only supported backend. SQLite support is on the roadmap for single-developer setups.</p>
+
+          <h3>How do I export data?</h3>
+          <p>Use the REST API to pull data programmatically, or the Reports page for pre-built views. CSV export is available from the Cost page.</p>
+        </section>
+
+      </div><!-- .docs-content -->
+    </div><!-- .docs-grid -->
+  </main>
+</div>
+
+<script src="/_static/app.js"></script>
+<script>
+// Table of contents highlight on scroll
+(function() {
+  const toc = document.getElementById('docsToc');
+  if (!toc) return;
+  const links = toc.querySelectorAll('a[href^="#"]');
+  const sections = Array.from(links).map(a => document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);
+
+  function onScroll() {
+    let current = sections[0];
+    for (const s of sections) {
+      if (s.getBoundingClientRect().top <= 100) current = s;
+    }
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

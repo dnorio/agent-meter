@@ -5,6 +5,7 @@ pub mod conversation_detail;
 pub mod conversations;
 pub mod cost;
 pub mod dashboard;
+pub mod docs;
 pub mod events;
 pub mod health;
 pub mod orgs;
