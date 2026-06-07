@@ -5,6 +5,7 @@ pub mod cost_service;
 pub mod event_service;
 pub mod org_service;
 pub mod report_service;
+pub mod search_service;
 pub mod stripe_service;
 pub mod task_service;
 pub mod token_estimator;

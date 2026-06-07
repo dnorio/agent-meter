@@ -19,6 +19,13 @@ c<!DOCTYPE html>
   .conv-link { color: var(--am-accent); font-family: var(--am-font-mono); font-size: 11px; }
   .filter-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--am-surface); border: 1px solid var(--am-border); border-radius: 999px; font-size: 12px; color: var(--am-text-muted); }
   .filter-chip select { background: transparent; border: none; color: var(--am-text); font: inherit; outline: none; padding: 0; cursor: pointer; }
+  .am-search-dropdown { position:absolute; top:100%; left:0; right:0; z-index:999; max-height:360px; overflow-y:auto; background:var(--am-surface); border:1px solid var(--am-border); border-radius:8px; margin-top:4px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .am-search-dropdown a { display:flex; flex-direction:column; padding:10px 14px; text-decoration:none; color:var(--am-text); border-bottom:1px solid var(--am-border); gap:2px; }
+  .am-search-dropdown a:last-child { border-bottom:none; }
+  .am-search-dropdown a:hover { background:var(--am-hover); }
+  .am-search-dropdown .sr-prompt { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .am-search-dropdown .sr-meta { font-size:11px; color:var(--am-text-muted); display:flex; gap:8px; }
+  .am-search-dropdown .sr-empty { padding:14px; text-align:center; color:var(--am-text-muted); font-size:13px; }
 </style>
 </head>
 <body>
@@ -61,10 +68,11 @@ c<!DOCTYPE html>
       <span class="sep">›</span>
       <span class="crumb current">Dashboard</span>
     </div>
-    <div class="am-search">
+    <div class="am-search" style="position:relative">
       <svg class="am-icon"><use href="/_static/icons.svg#i-search"/></svg>
-      <input placeholder="Search conversations, models, tools…" disabled>
+      <input id="globalSearch" placeholder="Search conversations, models, tools…" autocomplete="off">
       <span class="kbd">⌘K</span>
+      <div id="searchResults" class="am-search-dropdown" style="display:none"></div>
     </div>
     <div class="am-topbar-actions" id="amUserSlot">
       <a class="am-btn am-btn-secondary am-btn-sm" href="/login">Sign in</a>
@@ -429,6 +437,54 @@ function refresh() {
 loadHealth();
 refresh();
 setInterval(() => { loadHealth(); refresh(); }, 30000);
+
+// --- Global Search ---
+(function() {
+  const input = document.getElementById('globalSearch');
+  const dropdown = document.getElementById('searchResults');
+  let timer = null;
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+    timer = setTimeout(() => doSearch(q), 300);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { dropdown.style.display = 'none'; input.blur(); }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); input.focus(); }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.am-search')) dropdown.style.display = 'none';
+  });
+
+  async function doSearch(q) {
+    try {
+      const r = await fetch('/api/search?q=' + encodeURIComponent(q) + '&limit=15');
+      const data = await r.json();
+      if (!data.length) {
+        dropdown.innerHTML = '<div class="sr-empty">No results for "' + esc(q) + '"</div>';
+      } else {
+        dropdown.innerHTML = data.map(item => {
+          const prompt = item.user_prompt ? item.user_prompt.slice(0, 80) : item.tool_name || item.model || '—';
+          const when = item.started_at ? new Date(item.started_at).toLocaleDateString() : '';
+          return '<a href="/conversations/' + esc(item.conversation_id) + '/timeline">'
+            + '<span class="sr-prompt">' + esc(prompt) + '</span>'
+            + '<span class="sr-meta"><span>' + esc(item.match_field) + '</span><span>' + esc(item.model || '') + '</span><span>' + when + '</span></span>'
+            + '</a>';
+        }).join('');
+      }
+      dropdown.style.display = 'block';
+    } catch(e) { dropdown.style.display = 'none'; }
+  }
+
+  function esc(s) { return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+})();
 </script>
 </body>
 </html>

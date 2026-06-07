@@ -33,6 +33,7 @@ pub fn build(config: Config, pool: PgPool) -> Router {
         .merge(routes::auth::router())
         .merge(routes::billing::router())
         .merge(routes::docs::router())
+        .merge(routes::search::router())
         .merge(routes::static_assets::router())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())

@@ -11,5 +11,6 @@ pub mod health;
 pub mod orgs;
 pub mod otlp;
 pub mod reports;
+pub mod search;
 pub mod static_assets;
 pub mod tasks;
