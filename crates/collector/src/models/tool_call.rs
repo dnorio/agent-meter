@@ -49,6 +49,8 @@ pub struct AgentToolCall {
     pub span_id: Option<String>,
     pub parent_span_id: Option<String>,
     pub tool_call_id: Option<String>,
+    // T-355: pre-computed cost
+    pub usd_cost: Option<f64>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

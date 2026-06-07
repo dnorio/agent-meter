@@ -57,15 +57,26 @@ pub async fn insert_tool_call(
             model, cached_tokens, conversation_id, client_ip, user_agent, user_prompt,
             tool_arguments, tool_result,
             reasoning_tokens, finish_reason, request_max_tokens, request_temperature,
-            llm_system, trace_id, span_id, parent_span_id, tool_call_id
+            llm_system, trace_id, span_id, parent_span_id, tool_call_id,
+            usd_cost
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
             $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
             $23, $24, $25, $26, $27, $28,
             $29, $30,
-            $31, $32, $33, $34, $35, $36, $37, $38, $39
+            $31, $32, $33, $34, $35, $36, $37, $38, $39,
+            compute_event_usd($23, $17, $18, $24)
         )
-        RETURNING *
+        RETURNING id, event_id, task_id, repo, branch, ide, agent, skill,
+            mcp_server, tool_name, started_at, ended_at, duration_ms,
+            ok, error, request_bytes, response_bytes,
+            estimated_input_tokens, estimated_output_tokens, estimated_total_tokens,
+            request_sha256, response_sha256, metadata, created_at,
+            model, cached_tokens, conversation_id, client_ip, user_agent, user_prompt,
+            tool_arguments, tool_result,
+            reasoning_tokens, finish_reason, request_max_tokens, request_temperature,
+            llm_system, trace_id, span_id, parent_span_id, tool_call_id,
+            usd_cost::float8 AS usd_cost
         "#,
     )
     .bind(event_id)

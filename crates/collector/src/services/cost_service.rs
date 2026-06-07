@@ -64,7 +64,7 @@ pub async fn cost_summary(
     let kpi: KpiRow = sqlx::query_as(
         r#"
         SELECT
-            COALESCE(SUM(compute_event_usd(model, estimated_input_tokens, estimated_output_tokens, cached_tokens)), 0)::float8 AS total_usd,
+            COALESCE(SUM(usd_cost), 0)::float8 AS total_usd,
             COUNT(*)::bigint AS total_events,
             SUM(estimated_input_tokens)::bigint AS total_tokens_in,
             SUM(estimated_output_tokens)::bigint AS total_tokens_out,
@@ -98,7 +98,7 @@ pub async fn cost_summary(
             COUNT(*)::bigint AS events,
             SUM(estimated_input_tokens)::bigint AS tokens_in,
             SUM(estimated_output_tokens)::bigint AS tokens_out,
-            COALESCE(SUM(compute_event_usd(model, estimated_input_tokens, estimated_output_tokens, cached_tokens)), 0)::float8 AS usd_cost
+            COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2
         GROUP BY model
@@ -133,7 +133,7 @@ pub async fn cost_summary(
         r#"
         SELECT
             date_trunc('day', started_at) AS day,
-            COALESCE(SUM(compute_event_usd(model, estimated_input_tokens, estimated_output_tokens, cached_tokens)), 0)::float8 AS usd_cost,
+            COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost,
             COUNT(*)::bigint AS events
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2

@@ -217,7 +217,7 @@ pub async fn evaluate(pool: &PgPool) -> Result<EvaluateReport, AppError> {
 
 async fn observe_cost(pool: &PgPool, from: DateTime<Utc>, to: DateTime<Utc>) -> Result<f64, AppError> {
     let v: Option<f64> = sqlx::query_scalar(
-        r#"SELECT COALESCE(SUM(compute_event_usd(model, estimated_input_tokens, estimated_output_tokens, cached_tokens)), 0)::float8
+        r#"SELECT COALESCE(SUM(usd_cost), 0)::float8
            FROM agent_tool_calls WHERE started_at >= $1 AND started_at < $2"#,
     )
     .bind(from)
