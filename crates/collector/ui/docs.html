@@ -45,7 +45,9 @@
   .ide-card:hover { border-color: var(--am-border-strong); }
   .ide-card h4 { margin: 0 0 8px; color: var(--am-text); }
   .ide-card p { margin: 0; font-size: var(--am-fs-sm); }
-  .arch-diagram { background: var(--am-bg-elev); border: 1px solid var(--am-border); border-radius: var(--am-radius-lg); padding: 24px; margin: 20px 0; font-family: var(--am-font-mono); font-size: var(--am-fs-sm); line-height: 1.7; white-space: pre; overflow-x: auto; color: var(--am-text-muted); }
+  .arch-diagram { background: var(--am-bg-elev); border: 1px solid var(--am-border); border-radius: var(--am-radius-lg); padding: 24px; margin: 20px 0; overflow-x: auto; }
+  .arch-diagram .mermaid { width: 100%; }
+  .arch-diagram .mermaid svg { max-width: 100%; height: auto; }
   .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin: 20px 0; }
   .feature-item { background: var(--am-surface); border: 1px solid var(--am-border); border-radius: var(--am-radius); padding: 16px; }
   .feature-item strong { display: block; color: var(--am-text); margin-bottom: 4px; }
@@ -232,39 +234,45 @@
           <p>agent-meter uses a lightweight collector that ingests telemetry from multiple sources and stores it in PostgreSQL. The architecture supports three capture methods:</p>
 
           <div class="arch-diagram">
-┌──────────────────────────────────────────────────────────────────────────┐
-│                           DATA SOURCES                                    │
-├──────────────┬──────────────────┬──────────────────┬─────────────────────┤
-│  VS Code     │  Cursor / Eclipse│  CLI Tools       │  Custom Agents      │
-│  (OTLP)      │  (mitmproxy)     │  (mitmproxy)     │  (REST API)         │
-│              │                  │                  │                     │
-│  Port 4318   │  Port 8898/8899  │  Port 8898/8899  │  Port 3000          │
-└──────┬───────┴────────┬─────────┴────────┬─────────┴──────────┬──────────┘
-       │                │                  │                    │
-       │  OTLP/HTTP     │  OTLP/HTTP       │  OTLP/HTTP         │  REST JSON
-       │  (protobuf)    │  (JSON)          │  (JSON)            │
-       ▼                ▼                  ▼                    ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                      agent-meter collector                                │
-│                                                                          │
-│  ┌────────────┐  ┌────────────────┐  ┌──────────────┐  ┌─────────────┐  │
-│  │ OTLP       │  │ IDE Detection  │  │ Conversation │  │ Cost        │  │
-│  │ Receiver   │  │ (user-agent,   │  │ Grouping     │  │ Calculator  │  │
-│  │ :4318      │  │  service.name) │  │ (trace_id)   │  │ (per-model) │  │
-│  └─────┬──────┘  └───────┬────────┘  └──────┬───────┘  └──────┬──────┘  │
-│        └──────────────────┴──────────────────┴─────────────────┘         │
-│                                    │                                      │
-│                            ┌───────▼────────┐                            │
-│                            │  PostgreSQL    │                            │
-│                            │  (events,      │                            │
-│                            │   conversations,│                            │
-│                            │   cost_daily)  │                            │
-│                            └───────┬────────┘                            │
-│                                    │                                      │
-│  ┌─────────────────────────────────▼──────────────────────────────────┐  │
-│  │                    Web UI (Dashboard, Conversations, Cost, ...)     │  │
-│  └────────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────┘</div>
+            <div class="mermaid">
+graph TD
+  subgraph sources ["DATA SOURCES"]
+    direction LR
+    vscode["VS Code<br/><small>OTLP · Port 4318</small>"]
+    cursor["Cursor / Eclipse<br/><small>Proxy · Port 8898</small>"]
+    cli["CLI Tools<br/><small>Proxy · Port 8898</small>"]
+    custom["Custom Agents<br/><small>REST API · Port 3000</small>"]
+  end
+
+  subgraph collector ["agent-meter collector"]
+    otlp["OTLP Receiver<br/><small>:4318</small>"]
+    detect["IDE Detection<br/><small>user-agent, service.name</small>"]
+    group["Conversation Grouping<br/><small>trace_id</small>"]
+    cost["Cost Calculator<br/><small>per-model pricing</small>"]
+    db[("PostgreSQL<br/><small>events · conversations · cost</small>")]
+    ui["Web UI<br/><small>Dashboard · Conversations · Cost · …</small>"]
+  end
+
+  vscode -- "OTLP/HTTP<br/>protobuf" --> otlp
+  cursor -- "OTLP/HTTP<br/>JSON" --> otlp
+  cli -- "OTLP/HTTP<br/>JSON" --> otlp
+  custom -- "REST JSON" --> otlp
+  otlp --> detect --> group --> cost --> db --> ui
+
+  style sources fill:#1a1a2e,stroke:#7c3aed,color:#e2e8f0
+  style collector fill:#111827,stroke:#374151,color:#e2e8f0
+  style db fill:#1e1b4b,stroke:#7c3aed,color:#e2e8f0
+  style vscode fill:#1e293b,stroke:#60a5fa,color:#93c5fd
+  style cursor fill:#1e293b,stroke:#f59e0b,color:#fbbf24
+  style cli fill:#1e293b,stroke:#f59e0b,color:#fbbf24
+  style custom fill:#1e293b,stroke:#10b981,color:#6ee7b7
+  style otlp fill:#1e293b,stroke:#7c3aed,color:#c4b5fd
+  style detect fill:#1e293b,stroke:#7c3aed,color:#c4b5fd
+  style group fill:#1e293b,stroke:#7c3aed,color:#c4b5fd
+  style cost fill:#1e293b,stroke:#7c3aed,color:#c4b5fd
+  style ui fill:#1e293b,stroke:#7c3aed,color:#c4b5fd
+            </div>
+          </div>
 
           <h3>Capture Methods Explained</h3>
 
@@ -721,6 +729,13 @@ certmgr.msc → Trusted Root CAs → delete "mitmproxy"</code></pre>
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 })();
+</script>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'dark',
+    themeVariables: { primaryColor: '#1e293b', primaryBorderColor: '#7c3aed',
+      lineColor: '#7c3aed', textColor: '#e2e8f0', fontSize: '14px' }
+  });
 </script>
 </body>
 </html>
