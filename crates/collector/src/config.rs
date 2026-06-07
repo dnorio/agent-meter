@@ -16,6 +16,9 @@ pub struct Config {
     pub github_client_id: Option<String>,
     pub github_client_secret: Option<String>,
 
+    // API Key enforcement
+    pub require_api_key: bool,
+
     // Billing (Stripe)
     pub stripe_secret_key: Option<String>,
     pub stripe_webhook_secret: Option<String>,
@@ -51,6 +54,11 @@ impl Config {
             github_client_secret: env::var("GITHUB_CLIENT_SECRET")
                 .ok()
                 .filter(|s| !s.is_empty()),
+
+            require_api_key: env::var("REQUIRE_API_KEY")
+                .ok()
+                .map(|v| v == "1" || v == "true")
+                .unwrap_or(false),
 
             stripe_secret_key: env::var("STRIPE_SECRET_KEY").ok().filter(|s| !s.is_empty()),
             stripe_webhook_secret: env::var("STRIPE_WEBHOOK_SECRET")
