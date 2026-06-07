@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
-use rcgen::{BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, KeyPair};
 use std::path::PathBuf;
+use anyhow::{Context, Result};
+use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair, IsCa, BasicConstraints};
 
 /// Returns the CA directory (~/.agent-meter/)
 pub fn ca_dir() -> PathBuf {
@@ -74,12 +74,8 @@ pub fn install_system_ca(cert_path: &PathBuf) -> Result<()> {
         eprintln!("  Installing CA to macOS Keychain (requires password)");
         let status = std::process::Command::new("security")
             .args([
-                "add-trusted-cert",
-                "-d",
-                "-r",
-                "trustRoot",
-                "-k",
-                "/Library/Keychains/System.keychain",
+                "add-trusted-cert", "-d", "-r", "trustRoot",
+                "-k", "/Library/Keychains/System.keychain",
                 &cert_path.to_string_lossy(),
             ])
             .status()

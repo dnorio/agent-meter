@@ -1,10 +1,5 @@
 [workspace]
-members = [
-  "crates/collector",
-  "crates/cli",
-  "crates/mcp-wrapper",
-  "crates/proxy",
-]
+members = ["crates/collector", "crates/cli", "crates/mcp-wrapper", "crates/proxy"]
 resolver = "2"
 
 [workspace.package]
