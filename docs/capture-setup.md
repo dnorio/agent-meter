@@ -55,6 +55,7 @@ PostgreSQL → Dashboard
 ```
 
 O comando `wrap` automaticamente:
+
 - Inicia o proxy em background (daemon) se não estiver rodando
 - Injeta `HTTPS_PROXY`, `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` no processo filho
 - Captura todas as chamadas LLM (tokens, model, tool calls, streaming SSE)
@@ -62,13 +63,13 @@ O comando `wrap` automaticamente:
 
 ### Hosts e paths monitorados
 
-| Host | Serviço detectado |
-|------|------------------|
-| `api.anthropic.com` | `claude-code` |
-| `api.openai.com` | `copilot` |
-| `api.githubcopilot.com` / `*.githubcopilot.com` | `copilot` |
-| `copilot-proxy.githubusercontent.com` | `copilot` |
-| `cursor.sh` / `api2.cursor.sh` / `proxy.cursor.sh` | `cursor` |
+| Host                                               | Serviço detectado |
+| -------------------------------------------------- | ----------------- |
+| `api.anthropic.com`                                | `claude-code`     |
+| `api.openai.com`                                   | `copilot`         |
+| `api.githubcopilot.com` / `*.githubcopilot.com`    | `copilot`         |
+| `copilot-proxy.githubusercontent.com`              | `copilot`         |
+| `cursor.sh` / `api2.cursor.sh` / `proxy.cursor.sh` | `cursor`          |
 
 ---
 
@@ -81,14 +82,14 @@ O comando `wrap` automaticamente:
 
 ## Matriz de Compatibilidade
 
-| IDE | Método | Setup | Dados capturados | Latência | Qualidade |
-|-----|--------|-------|-----------------|----------|-----------|
-| **VS Code** (Copilot) | OTLP nativo | 2 linhas no settings.json | tool calls, LLM spans, tokens, modelos, trace_id | Tempo real | ★★★★★ |
-| **Eclipse** (Copilot) | mitmproxy HTTPS | `./start_proxy.sh --setup` | LLM calls, tokens, model, tool calls, streaming | Tempo real | ★★★★☆ |
-| **Cursor** | mitmproxy HTTPS | `./start_proxy.sh --setup` | LLM calls (Claude/GPT), tokens, tool calls, streaming | Tempo real | ★★★★☆ |
-| **OpenCode** | REST direto | env vars | tool calls, tasks | Tempo real | ★★★★★ |
-| **Antigravity** | REST direto | env vars | tool calls, tasks | Tempo real | ★★★★★ |
-| **Copilot CLI** | mitmproxy HTTPS | wrapper script | LLM calls, tokens, model | Tempo real | ★★★★☆ |
+| IDE                   | Método          | Setup                      | Dados capturados                                      | Latência   | Qualidade |
+| --------------------- | --------------- | -------------------------- | ----------------------------------------------------- | ---------- | --------- |
+| **VS Code** (Copilot) | OTLP nativo     | 2 linhas no settings.json  | tool calls, LLM spans, tokens, modelos, trace_id      | Tempo real | ★★★★★     |
+| **Eclipse** (Copilot) | mitmproxy HTTPS | `./start_proxy.sh --setup` | LLM calls, tokens, model, tool calls, streaming       | Tempo real | ★★★★☆     |
+| **Cursor**            | mitmproxy HTTPS | `./start_proxy.sh --setup` | LLM calls (Claude/GPT), tokens, tool calls, streaming | Tempo real | ★★★★☆     |
+| **OpenCode**          | REST direto     | env vars                   | tool calls, tasks                                     | Tempo real | ★★★★★     |
+| **Antigravity**       | REST direto     | env vars                   | tool calls, tasks                                     | Tempo real | ★★★★★     |
+| **Copilot CLI**       | mitmproxy HTTPS | wrapper script             | LLM calls, tokens, model                              | Tempo real | ★★★★☆     |
 
 ---
 
@@ -117,15 +118,15 @@ O VS Code usa `traceId` para correlacionar spans `panel/editAgent` (LLM) com `co
 
 ```jsonc
 {
-  // Habilita envio de telemetria OTLP
-  "github.copilot.chat.otel.enabled": true,
+    // Habilita envio de telemetria OTLP
+    "github.copilot.chat.otel.enabled": true,
 
-  // Endpoint do collector — use o ingress de produção:
-  "github.copilot.chat.otel.otlpEndpoint": "http://localhost:8081",
+    // Endpoint do collector — use o ingress de produção:
+    "github.copilot.chat.otel.otlpEndpoint": "http://localhost:8081",
 
-  // Não captura conteúdo (prompts) — só metadados de performance
-  // Mude para true se quiser ver o prompt inicial nas conversas
-  "github.copilot.chat.otel.captureContent": true
+    // Não captura conteúdo (prompts) — só metadados de performance
+    // Mude para true se quiser ver o prompt inicial nas conversas
+    "github.copilot.chat.otel.captureContent": true,
 }
 ```
 
@@ -144,16 +145,16 @@ Deve aparecer `copilot-vscode` na coluna IDE.
 
 ### Atributos capturados
 
-| Campo | Origem OTLP | Descrição |
-|-------|-------------|-----------|
-| `agent` | `gen_ai.agent.name` | ex: `panel/editAgent`, `copilotLanguageModelWrapper` |
-| `tool_name` | `gen_ai.tool.name` | ex: `read_file`, `run_in_terminal` |
-| `model` | `gen_ai.response.model` | ex: `claude-sonnet-4-6` |
-| `estimated_input_tokens` | `gen_ai.usage.input_tokens` | tokens de entrada |
-| `estimated_output_tokens` | `gen_ai.usage.output_tokens` | tokens de saída |
-| `conversation_id` | `copilot_chat.chat_session_id` | ID da sessão de chat |
-| `trace_id` | `traceId` do span OTLP | agrupa panel+copilot-chat |
-| `ok` | `status.code` (1=OK, 2=Error) | sucesso ou falha |
+| Campo                     | Origem OTLP                    | Descrição                                            |
+| ------------------------- | ------------------------------ | ---------------------------------------------------- |
+| `agent`                   | `gen_ai.agent.name`            | ex: `panel/editAgent`, `copilotLanguageModelWrapper` |
+| `tool_name`               | `gen_ai.tool.name`             | ex: `read_file`, `run_in_terminal`                   |
+| `model`                   | `gen_ai.response.model`        | ex: `claude-sonnet-4-6`                              |
+| `estimated_input_tokens`  | `gen_ai.usage.input_tokens`    | tokens de entrada                                    |
+| `estimated_output_tokens` | `gen_ai.usage.output_tokens`   | tokens de saída                                      |
+| `conversation_id`         | `copilot_chat.chat_session_id` | ID da sessão de chat                                 |
+| `trace_id`                | `traceId` do span OTLP         | agrupa panel+copilot-chat                            |
+| `ok`                      | `status.code` (1=OK, 2=Error)  | sucesso ou falha                                     |
 
 ---
 
@@ -190,14 +191,15 @@ cd ~/REDACTED-worktree/apps/agent-meter/eclipse-proxy
 ```
 
 O `--setup`:
+
 1. Gera o CA do mitmproxy em `~/.mitmproxy/mitmproxy-ca-cert.pem`
 2. Copia para `C:\Users\<user>\mitmproxy-ca.crt`
 3. Importa para `Cert:\CurrentUser\Root` via PowerShell
 4. Adiciona as JVM args ao `eclipse.ini`:
-   ```
-   -Dhttps.proxyHost=<WSL_IP>
-   -Dhttps.proxyPort=8899
-   ```
+    ```
+    -Dhttps.proxyHost=<WSL_IP>
+    -Dhttps.proxyPort=8899
+    ```
 
 ### Iniciar o proxy
 
@@ -223,24 +225,24 @@ curl -s "http://localhost:8081/api/conversations" | \
 
 ### Atributos capturados
 
-| Campo | Origem | Descrição |
-|-------|--------|-----------|
-| `model` | corpo JSON da requisição/resposta | ex: `gpt-4o`, `gpt-4.1` |
-| `estimated_input_tokens` | `usage.prompt_tokens` | tokens de entrada |
-| `estimated_output_tokens` | `usage.completion_tokens` | tokens de saída |
-| `user_prompt` | última mensagem `role: user` (limpa) | prompt real do usuário |
-| `tool_calls` | `choices[0].message.tool_calls` | ferramentas chamadas pelo LLM |
-| `conversation_id` | `vscode-sessionid` header | ID da sessão |
-| `ide` | detectado por `service.name: eclipse` | `copilot-eclipse` |
+| Campo                     | Origem                                | Descrição                     |
+| ------------------------- | ------------------------------------- | ----------------------------- |
+| `model`                   | corpo JSON da requisição/resposta     | ex: `gpt-4o`, `gpt-4.1`       |
+| `estimated_input_tokens`  | `usage.prompt_tokens`                 | tokens de entrada             |
+| `estimated_output_tokens` | `usage.completion_tokens`             | tokens de saída               |
+| `user_prompt`             | última mensagem `role: user` (limpa)  | prompt real do usuário        |
+| `tool_calls`              | `choices[0].message.tool_calls`       | ferramentas chamadas pelo LLM |
+| `conversation_id`         | `vscode-sessionid` header             | ID da sessão                  |
+| `ide`                     | detectado por `service.name: eclipse` | `copilot-eclipse`             |
 
 ### Troubleshooting Eclipse
 
-| Sintoma | Causa provável | Solução |
-|---------|---------------|---------|
-| Eclipse não usa proxy | JVM args ausentes no eclipse.ini | Verifique `-Dhttps.proxyHost` |
-| Erro SSL no copilot-language-server | CA não importado | Re-execute `--setup` |
-| Nenhum span no dashboard | copilot-language-server.exe ignora proxy da JVM | Verifique `NODE_EXTRA_CA_CERTS` no processo Node |
-| Proxy não inicia | Porta 8899 ocupada | `PROXY_PORT=8900 ./start_proxy.sh` |
+| Sintoma                             | Causa provável                                  | Solução                                          |
+| ----------------------------------- | ----------------------------------------------- | ------------------------------------------------ |
+| Eclipse não usa proxy               | JVM args ausentes no eclipse.ini                | Verifique `-Dhttps.proxyHost`                    |
+| Erro SSL no copilot-language-server | CA não importado                                | Re-execute `--setup`                             |
+| Nenhum span no dashboard            | copilot-language-server.exe ignora proxy da JVM | Verifique `NODE_EXTRA_CA_CERTS` no processo Node |
+| Proxy não inicia                    | Porta 8899 ocupada                              | `PROXY_PORT=8900 ./start_proxy.sh`               |
 
 ---
 
@@ -276,6 +278,7 @@ cd ~/REDACTED-worktree/apps/agent-meter/cursor-proxy
 ```
 
 O `--setup`:
+
 1. Gera o CA em `~/.mitmproxy/mitmproxy-ca-cert.pem`
 2. Instala o CA no sistema (`update-ca-certificates` ou `update-ca-trust`)
 3. Instala `cursor-metered` em `~/.local/bin` (symlink)
@@ -294,6 +297,7 @@ cursor-metered --stop     # para o proxy
 ```
 
 O `cursor-metered`:
+
 - Verifica se o proxy já está rodando
 - Se não, sobe `mitmdump` em background automaticamente
 - Abre o Cursor com `HTTPS_PROXY` e `NODE_EXTRA_CA_CERTS` já configurados
@@ -326,12 +330,12 @@ O Cursor não envia um ID de sessão estável. A estratégia de agrupamento é:
 
 ### Hosts monitorados
 
-| Host | API | Modelos típicos |
-|------|-----|----------------|
-| `api.anthropic.com` | `/v1/messages` | claude-sonnet-4-*, claude-opus-4-* |
-| `api.openai.com` | `/v1/chat/completions` | gpt-4o, gpt-4.1 |
-| `api.githubcopilot.com` | `/chat/completions` | gpt-4o (Copilot plan) |
-| `cursor.sh` / `api2.cursor.sh` | `/v1/chat/completions` | qualquer modelo via Cursor proxy |
+| Host                           | API                    | Modelos típicos                    |
+| ------------------------------ | ---------------------- | ---------------------------------- |
+| `api.anthropic.com`            | `/v1/messages`         | claude-sonnet-4-_, claude-opus-4-_ |
+| `api.openai.com`               | `/v1/chat/completions` | gpt-4o, gpt-4.1                    |
+| `api.githubcopilot.com`        | `/chat/completions`    | gpt-4o (Copilot plan)              |
+| `cursor.sh` / `api2.cursor.sh` | `/v1/chat/completions` | qualquer modelo via Cursor proxy   |
 
 ### Verificação
 
@@ -345,13 +349,13 @@ cursor-metered --status
 
 ### Troubleshooting Cursor
 
-| Sintoma | Causa provável | Solução |
-|---------|---------------|---------|
-| Cursor mostra erro de certificado | CA não instalado | Re-execute `--setup` com sudo |
-| Nenhum span capturado | Cursor ignora HTTPS_PROXY | Use `cursor-metered` (injeta vars no processo) |
-| Spans com `conversation_id` aleatório | Sem header de sessão estável | Normal — agrupamento por janela de 30 min funciona |
-| `cursor-metered` não encontrado | `~/.local/bin` não está no PATH | `export PATH="$HOME/.local/bin:$PATH"` no `.bashrc` |
-| Proxy não auto-inicia | systemd user service falhou | `systemctl --user status cursor-proxy` |
+| Sintoma                               | Causa provável                  | Solução                                             |
+| ------------------------------------- | ------------------------------- | --------------------------------------------------- |
+| Cursor mostra erro de certificado     | CA não instalado                | Re-execute `--setup` com sudo                       |
+| Nenhum span capturado                 | Cursor ignora HTTPS_PROXY       | Use `cursor-metered` (injeta vars no processo)      |
+| Spans com `conversation_id` aleatório | Sem header de sessão estável    | Normal — agrupamento por janela de 30 min funciona  |
+| `cursor-metered` não encontrado       | `~/.local/bin` não está no PATH | `export PATH="$HOME/.local/bin:$PATH"` no `.bashrc` |
+| Proxy não auto-inicia                 | systemd user service falhou     | `systemctl --user status cursor-proxy`              |
 
 ---
 
@@ -476,34 +480,34 @@ Isso configura o proxy **apenas quando ele está rodando** — zero impacto quan
 
 ### Compatibilidade de CLIs
 
-| CLI Tool | Endpoint interceptado | Proxy port | Detecção (ide.rs) | Status |
-|----------|----------------------|:----------:|-------------------|:------:|
-| `gh copilot` | api.githubcopilot.com | 8899 | `copilot-cli` | ✅ Testado |
-| `claude` (Anthropic) | api.anthropic.com | 8898 | `claude-code` | ✅ Testado |
-| `codex` (OpenAI) | api.openai.com | 8898 | `codex` | ✅ Testado |
-| `aider` | api.openai.com / api.anthropic.com | 8898 | (user-agent) | ✅ Compatível |
-| `continue` (CLI) | api.openai.com | 8898 | (user-agent) | ✅ Compatível |
-| Qualquer HTTPS AI CLI | Qualquer AI API | 8898/8899 | Auto-detect | ✅ Agnóstico |
+| CLI Tool              | Endpoint interceptado              | Proxy port | Detecção (ide.rs) |    Status     |
+| --------------------- | ---------------------------------- | :--------: | ----------------- | :-----------: |
+| `gh copilot`          | api.githubcopilot.com              |    8899    | `copilot-cli`     |  ✅ Testado   |
+| `claude` (Anthropic)  | api.anthropic.com                  |    8898    | `claude-code`     |  ✅ Testado   |
+| `codex` (OpenAI)      | api.openai.com                     |    8898    | `codex`           |  ✅ Testado   |
+| `aider`               | api.openai.com / api.anthropic.com |    8898    | (user-agent)      | ✅ Compatível |
+| `continue` (CLI)      | api.openai.com                     |    8898    | (user-agent)      | ✅ Compatível |
+| Qualquer HTTPS AI CLI | Qualquer AI API                    | 8898/8899  | Auto-detect       | ✅ Agnóstico  |
 
 ---
 
 ## Referência Rápida — Ports e Endpoints
 
-| Porta | Protocolo | Função |
-|-------|-----------|--------|
-| `3000` | HTTP | REST API (`/events/tool-call`, `/api/*`) + Web UI |
-| `4318` | HTTP | OTLP receiver (`/v1/traces`) — VS Code nativo |
-| `8898` | HTTP | mitmproxy Cursor / Claude Code / Codex CLI |
-| `8899` | HTTP | mitmproxy Eclipse / Copilot CLI |
+| Porta  | Protocolo | Função                                            |
+| ------ | --------- | ------------------------------------------------- |
+| `3000` | HTTP      | REST API (`/events/tool-call`, `/api/*`) + Web UI |
+| `4318` | HTTP      | OTLP receiver (`/v1/traces`) — VS Code nativo     |
+| `8898` | HTTP      | mitmproxy Cursor / Claude Code / Codex CLI        |
+| `8899` | HTTP      | mitmproxy Eclipse / Copilot CLI                   |
 
-| URL | Descrição |
-|-----|-----------|
-| `http://localhost:8081` | Produção (ingress público) |
-| `http://localhost:8081/docs` | Documentação in-app |
-| `http://localhost:8081/conversations` | Dashboard de conversas |
-| `http://localhost:8081/api/conversations` | API JSON |
-| `http://localhost:3000` | Local (docker compose / dev) |
-| `http://localhost:4318` | OTLP local (port-forward) |
+| URL                                             | Descrição                    |
+| ----------------------------------------------- | ---------------------------- |
+| `http://localhost:8081`                   | Produção (ingress público)   |
+| `http://localhost:8081/docs`              | Documentação in-app          |
+| `http://localhost:8081/conversations`     | Dashboard de conversas       |
+| `http://localhost:8081/api/conversations` | API JSON                     |
+| `http://localhost:3000`                         | Local (docker compose / dev) |
+| `http://localhost:4318`                         | OTLP local (port-forward)    |
 
 ---
 
