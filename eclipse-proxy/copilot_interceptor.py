@@ -389,7 +389,7 @@ def send_to_agent_meter(event: dict):
 
 def send_otlp_span(req_meta: dict, resp_meta: dict, tool_call: dict = None, parent_span_id: str = None, shared_trace_id: str = None):
     """Send an OTLP-compatible span to agent-meter.
-    
+
     If tool_call is provided, emits a tool span instead of an LLM span.
     Returns the generated span_id (useful for parent linking).
     """

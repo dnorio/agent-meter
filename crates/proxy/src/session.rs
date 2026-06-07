@@ -37,10 +37,13 @@ impl SessionManager {
 
         // New session or expired
         let trace_id = Uuid::new_v4().to_string().replace('-', "");
-        sessions.insert(session_key.to_string(), SessionEntry {
-            trace_id: trace_id.clone(),
-            last_seen: now,
-        });
+        sessions.insert(
+            session_key.to_string(),
+            SessionEntry {
+                trace_id: trace_id.clone(),
+                last_seen: now,
+            },
+        );
 
         // Prune old sessions (> 2h)
         sessions.retain(|_, v| now.duration_since(v.last_seen).as_secs() < 7200);
