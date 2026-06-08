@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>404 · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+    <div style="text-align:center;max-width:420px">
+      <div style="font-size:72px;font-weight:800;letter-spacing:-0.04em;color:var(--am-text-dim);line-height:1">404</div>
+      <h2 style="margin:12px 0 8px;font-size:20px;font-weight:700">Page not found</h2>
+      <p style="color:var(--am-text-muted);margin:0 0 24px">The page you're looking for doesn't exist or has been moved.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <a href="/" class="am-btn am-btn-primary"><svg class="am-icon"><use href="/_static/icons.svg#i-home"/></svg>Dashboard</a>
+        <a href="/conversations" class="am-btn am-btn-secondary"><svg class="am-icon"><use href="/_static/icons.svg#i-message"/></svg>Conversations</a>
+        <a href="/cost" class="am-btn am-btn-secondary"><svg class="am-icon"><use href="/_static/icons.svg#i-dollar"/></svg>Cost</a>
+      </div>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+
+<script src="/_static/app.js"></script>
+<script>amShell({active:'', breadcrumb:'Not found'});</script>
+</body>
+</html>

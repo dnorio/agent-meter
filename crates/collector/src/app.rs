@@ -39,7 +39,8 @@ pub fn build(config: Config, pool: PgPool) -> Router {
         .merge(routes::notifications::router())
         .merge(routes::docs::router())
         .merge(routes::search::router())
-        .merge(routes::static_assets::router());
+        .merge(routes::static_assets::router())
+        .fallback(routes::static_assets::not_found_page);
 
     if require_api_key {
         router = router.layer(axum::middleware::from_fn_with_state(

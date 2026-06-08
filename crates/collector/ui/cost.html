@@ -70,11 +70,16 @@
 
     <!-- Top models -->
     <div class="am-card" style="margin-bottom:18px">
-      <div class="am-card-header">
-        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-zap"/></svg>Top models by cost</h3>
+      <div class="am-card-header" style="display:flex;align-items:center;gap:12px">
+        <h3 class="am-card-title" style="flex:1"><svg class="am-icon"><use href="/_static/icons.svg#i-zap"/></svg>Cost breakdown</h3>
+        <div class="am-segment" id="breakdownSeg">
+          <button data-view="model" class="active">By model</button>
+          <button data-view="agent">By agent</button>
+          <button data-view="ide">By IDE</button>
+        </div>
       </div>
       <table class="am-table">
-        <thead><tr>
+        <thead id="breakdownHead"><tr>
           <th>Model</th>
           <th class="num">Events</th>
           <th class="num">Tokens in</th>
@@ -153,19 +158,7 @@ function renderSummary(data) {
 
   const max = Math.max(0.001, ...data.by_model.map(m => m.usd_cost));
   const tbody = document.getElementById('byModelBody');
-  if (!data.by_model.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:24px;text-align:center">No data</td></tr>`;
-  } else {
-    tbody.innerHTML = data.by_model.map(m => `
-      <tr>
-        <td><strong>${escapeHtml(m.model || '<unknown>')}</strong></td>
-        <td class="num am-mono">${amNum(m.events)}</td>
-        <td class="num am-mono">${amNum(m.tokens_in)}</td>
-        <td class="num am-mono">${amNum(m.tokens_out)}</td>
-        <td class="num am-mono"><strong>${amMoney(m.usd_cost)}</strong></td>
-        <td><div style="width:140px;height:6px;background:var(--am-surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(m.usd_cost/max*100).toFixed(1)}%;background:var(--am-chart-1);opacity:0.75"></div></div></td>
-      </tr>`).join('');
-  }
+  if (currentView === 'model') renderModelTable(data.by_model);
   drawChart(data.by_day);
 }
 
@@ -196,6 +189,26 @@ function drawChart(days) {
       html += `<text x="${x + barW/2}" y="${H - 8}" text-anchor="middle" fill="var(--am-text-dim)" font-size="10">${new Date(d.day).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</text>`;
     }
   });
+  // Forecast line (linear regression projection)
+  if (days.length >= 3) {
+    const n = days.length;
+    const vals = days.map(d => d.usd_cost);
+    const sumX = n * (n - 1) / 2;
+    const sumY = vals.reduce((a, b) => a + b, 0);
+    const sumXY = vals.reduce((a, v, i) => a + i * v, 0);
+    const sumX2 = n * (n - 1) * (2 * n - 1) / 6;
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    const projDays = Math.min(7, Math.ceil(n * 0.3));
+    const x1 = PAD_L + ((n - 1) / n) * innerW + barW / 2;
+    const y1v = Math.max(0, slope * (n - 1) + intercept);
+    const y1 = PAD_T + innerH - (y1v / max) * innerH;
+    const x2 = PAD_L + ((n - 1 + projDays) / n) * innerW + barW / 2;
+    const y2v = Math.max(0, slope * (n - 1 + projDays) + intercept);
+    const y2 = PAD_T + innerH - (Math.min(y2v, max) / max) * innerH;
+    html += `<line x1="${x1}" y1="${y1}" x2="${Math.min(x2, W - PAD_R)}" y2="${Math.max(y2, PAD_T)}" stroke="var(--am-warning)" stroke-width="2" stroke-dasharray="6 4" opacity="0.7"/>`;
+    html += `<text x="${Math.min(x2, W - PAD_R) + 4}" y="${Math.max(y2, PAD_T) + 4}" fill="var(--am-warning)" font-size="10" opacity="0.8">forecast</text>`;
+  }
   c.innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${html}</svg>`;
 }
 
@@ -214,6 +227,75 @@ async function loadPricing() {
         <td class="am-muted" style="font-size:12px">${escapeHtml(p.source)}</td>
       </tr>`).join('');
   } catch(e) { console.error(e); }
+}
+
+// Breakdown tabs (by model / by agent / by IDE)
+let currentView = 'model';
+document.querySelectorAll('#breakdownSeg button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#breakdownSeg button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    currentView = b.dataset.view;
+    renderBreakdown();
+  });
+});
+
+async function renderBreakdown() {
+  const tbody = document.getElementById('byModelBody');
+  const thead = document.getElementById('breakdownHead');
+  tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:20px;text-align:center">Loading…</td></tr>`;
+  const to = new Date();
+  const from = new Date(to.getTime() - CURRENT_DAYS * 86400 * 1000);
+  const params = `from=${from.toISOString()}&to=${to.toISOString()}`;
+  try {
+    if (currentView === 'agent') {
+      thead.innerHTML = `<tr><th>Agent</th><th class="num">Events</th><th class="num">Conversations</th><th class="num">USD</th><th>Share</th></tr>`;
+      const r = await fetch(`/reports/top-agents?${params}&limit=20`);
+      const data = await r.json();
+      if (!data.length) { tbody.innerHTML = `<tr><td colspan="5" class="am-muted" style="padding:24px;text-align:center">No data</td></tr>`; return; }
+      const max = Math.max(0.001, ...data.map(m => m.total_usd_cost || 0));
+      tbody.innerHTML = data.map(m => `<tr>
+        <td><strong>${escapeHtml(m.agent)}</strong></td>
+        <td class="num am-mono">${amNum(m.calls)}</td>
+        <td class="num am-mono">${amNum(m.conversations)}</td>
+        <td class="num am-mono"><strong>${amMoney(m.total_usd_cost||0)}</strong></td>
+        <td><div style="width:140px;height:6px;background:var(--am-surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${((m.total_usd_cost||0)/max*100).toFixed(1)}%;background:var(--am-chart-4);opacity:0.75"></div></div></td>
+      </tr>`).join('');
+    } else if (currentView === 'ide') {
+      thead.innerHTML = `<tr><th>IDE</th><th class="num">Events</th><th class="num">LLM calls</th><th class="num">Tool calls</th><th class="num">Errors</th><th>Share</th></tr>`;
+      const r = await fetch(`/reports/by-ide?${params}`);
+      const data = await r.json();
+      if (!data.length) { tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:24px;text-align:center">No data</td></tr>`; return; }
+      const max = Math.max(1, ...data.map(m => m.calls));
+      tbody.innerHTML = data.map(m => `<tr>
+        <td><strong>${escapeHtml(m.ide)}</strong></td>
+        <td class="num am-mono">${amNum(m.calls)}</td>
+        <td class="num am-mono">${amNum(m.llm_calls)}</td>
+        <td class="num am-mono">${amNum(m.tool_calls_count)}</td>
+        <td class="num am-mono">${amNum(m.errors)}</td>
+        <td><div style="width:140px;height:6px;background:var(--am-surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(m.calls/max*100).toFixed(1)}%;background:var(--am-chart-6);opacity:0.75"></div></div></td>
+      </tr>`).join('');
+    } else {
+      thead.innerHTML = `<tr><th>Model</th><th class="num">Events</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">USD</th><th>Share</th></tr>`;
+      if (lastData) renderModelTable(lastData.by_model);
+    }
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:20px;text-align:center">Error: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+function renderModelTable(byModel) {
+  const tbody = document.getElementById('byModelBody');
+  if (!byModel || !byModel.length) { tbody.innerHTML = `<tr><td colspan="6" class="am-muted" style="padding:24px;text-align:center">No data</td></tr>`; return; }
+  const max = Math.max(0.001, ...byModel.map(m => m.usd_cost));
+  tbody.innerHTML = byModel.map(m => `<tr>
+    <td><strong>${escapeHtml(m.model || '<unknown>')}</strong></td>
+    <td class="num am-mono">${amNum(m.events)}</td>
+    <td class="num am-mono">${amNum(m.tokens_in)}</td>
+    <td class="num am-mono">${amNum(m.tokens_out)}</td>
+    <td class="num am-mono"><strong>${amMoney(m.usd_cost)}</strong></td>
+    <td><div style="width:140px;height:6px;background:var(--am-surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(m.usd_cost/max*100).toFixed(1)}%;background:var(--am-chart-1);opacity:0.75"></div></div></td>
+  </tr>`).join('');
 }
 
 window.addEventListener('resize', () => lastData && drawChart(lastData.by_day));

@@ -30,6 +30,40 @@
       <button class="am-btn am-btn-secondary" id="btnEvaluate"><svg class="am-icon"><use href="/_static/icons.svg#i-zap"/></svg>Evaluate now</button>
     </div>
 
+    <!-- Template Gallery -->
+    <div class="am-card" style="margin-bottom:18px">
+      <div class="am-card-header">
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-sparkles"/></svg>Quick templates</h3>
+        <p class="am-card-subtitle" style="margin:0">One-click alert presets — click to populate the form below.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;padding:16px">
+        <button class="am-btn am-btn-secondary" style="text-align:left;padding:12px;height:auto;flex-direction:column;align-items:flex-start;gap:4px" data-tpl="daily5">
+          <span style="font-weight:700;font-size:13px">💰 Daily $5 budget</span>
+          <span style="font-size:11px;color:var(--am-text-muted);white-space:normal">Alert when daily spend exceeds $5</span>
+        </button>
+        <button class="am-btn am-btn-secondary" style="text-align:left;padding:12px;height:auto;flex-direction:column;align-items:flex-start;gap:4px" data-tpl="errrate">
+          <span style="font-weight:700;font-size:13px">🔴 Error rate &gt;5%</span>
+          <span style="font-size:11px;color:var(--am-text-muted);white-space:normal">Fire when error rate exceeds 5% in 5 min</span>
+        </button>
+        <button class="am-btn am-btn-secondary" style="text-align:left;padding:12px;height:auto;flex-direction:column;align-items:flex-start;gap:4px" data-tpl="latency">
+          <span style="font-weight:700;font-size:13px">⏱️ Latency p95 &gt;2s</span>
+          <span style="font-size:11px;color:var(--am-text-muted);white-space:normal">Detect slow responses above 2000ms p95</span>
+        </button>
+        <button class="am-btn am-btn-secondary" style="text-align:left;padding:12px;height:auto;flex-direction:column;align-items:flex-start;gap:4px" data-tpl="tokenburn">
+          <span style="font-weight:700;font-size:13px">🔥 Token spike 3×</span>
+          <span style="font-size:11px;color:var(--am-text-muted);white-space:normal">Alert on 3× token consumption vs rolling avg</span>
+        </button>
+        <button class="am-btn am-btn-secondary" style="text-align:left;padding:12px;height:auto;flex-direction:column;align-items:flex-start;gap:4px" data-tpl="hardcap">
+          <span style="font-weight:700;font-size:13px">🛑 Hard cap $100/mo</span>
+          <span style="font-size:11px;color:var(--am-text-muted);white-space:normal">Monthly hard ceiling — critical severity</span>
+        </button>
+        <button class="am-btn am-btn-secondary" style="text-align:left;padding:12px;height:auto;flex-direction:column;align-items:flex-start;gap:4px" data-tpl="toolfail">
+          <span style="font-weight:700;font-size:13px">🛠️ Tool failures &gt;10</span>
+          <span style="font-size:11px;color:var(--am-text-muted);white-space:normal">Fire when a tool fails 10+ times in 30 min</span>
+        </button>
+      </div>
+    </div>
+
     <!-- New rule -->
     <div class="am-card" style="margin-bottom:18px">
       <div class="am-card-header">
@@ -175,6 +209,25 @@ document.getElementById('btnEvaluate').addEventListener('click', async () => {
 loadRules();
 loadHistory();
 setInterval(loadHistory, 30000);
+
+// Template gallery
+const TEMPLATES = {
+  daily5:   {name:'Daily $5 budget', rule_type:'cost_spike', window:1440, threshold:5, cooldown:1440},
+  errrate:  {name:'Error rate >5%', rule_type:'error_rate', window:5, threshold:5, cooldown:30},
+  latency:  {name:'Latency p95 >2s', rule_type:'latency_p95', window:10, threshold:2000, cooldown:60},
+  tokenburn:{name:'Token spike 3×', rule_type:'token_burn', window:60, threshold:3, cooldown:120},
+  hardcap:  {name:'Hard cap $100/mo', rule_type:'cost_spike', window:43200, threshold:100, cooldown:43200},
+  toolfail: {name:'Tool failures >10', rule_type:'tool_failure', window:30, threshold:10, cooldown:60},
+};
+document.querySelectorAll('[data-tpl]').forEach(btn => btn.addEventListener('click', () => {
+  const t = TEMPLATES[btn.dataset.tpl]; if (!t) return;
+  document.getElementById('f-name').value = t.name;
+  document.getElementById('f-type').value = t.rule_type;
+  document.getElementById('f-window').value = t.window;
+  document.getElementById('f-threshold').value = t.threshold;
+  document.getElementById('f-cooldown').value = t.cooldown;
+  document.getElementById('newRuleForm').scrollIntoView({behavior:'smooth', block:'center'});
+}));
 </script>
 </body>
 </html>

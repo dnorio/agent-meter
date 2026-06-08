@@ -1,6 +1,6 @@
 use axum::{
     http::header,
-    response::{IntoResponse, Response},
+    response::{Html, IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -10,6 +10,7 @@ const APP_CSS: &str = include_str!("../../ui/_static/app.css");
 const APP_JS: &str = include_str!("../../ui/_static/app.js");
 const ICONS_SVG: &str = include_str!("../../ui/_static/icons.svg");
 const FAVICON_SVG: &str = include_str!("../../ui/_static/favicon.svg");
+const NOT_FOUND_HTML: &str = include_str!("../../ui/404.html");
 
 fn css(body: &'static str) -> Response {
     ([(header::CONTENT_TYPE, "text/css; charset=utf-8"),
@@ -22,6 +23,10 @@ fn js(body: &'static str) -> Response {
 fn svg(body: &'static str) -> Response {
     ([(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8"),
       (header::CACHE_CONTROL, "public, max-age=3600")], body).into_response()
+}
+
+pub async fn not_found_page() -> (axum::http::StatusCode, Html<&'static str>) {
+    (axum::http::StatusCode::NOT_FOUND, Html(NOT_FOUND_HTML))
 }
 
 pub fn router() -> Router<crate::app::AppState> {
