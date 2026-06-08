@@ -184,7 +184,7 @@ function drawChart(days) {
     const x = PAD_L + (i / days.length) * innerW + 2;
     const h = (d.usd_cost / max) * innerH;
     const y = PAD_T + innerH - h;
-    html += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="var(--am-chart-2)" opacity="0.85" rx="2"><title>${new Date(d.day).toLocaleDateString()}: ${amMoney(d.usd_cost)} (${d.events} events)</title></rect>`;
+    html += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="var(--am-chart-2)" opacity="0.85" rx="2" data-idx="${i}"/>`;
     if (i % Math.ceil(days.length / 8) === 0 || i === days.length - 1) {
       html += `<text x="${x + barW/2}" y="${H - 8}" text-anchor="middle" fill="var(--am-text-dim)" font-size="10">${new Date(d.day).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</text>`;
     }
@@ -209,7 +209,48 @@ function drawChart(days) {
     html += `<line x1="${x1}" y1="${y1}" x2="${Math.min(x2, W - PAD_R)}" y2="${Math.max(y2, PAD_T)}" stroke="var(--am-warning)" stroke-width="2" stroke-dasharray="6 4" opacity="0.7"/>`;
     html += `<text x="${Math.min(x2, W - PAD_R) + 4}" y="${Math.max(y2, PAD_T) + 4}" fill="var(--am-warning)" font-size="10" opacity="0.8">forecast</text>`;
   }
-  c.innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${html}</svg>`;
+  // Crosshair elements
+  const xhId = 'cost-xh-' + Date.now();
+  html += `<g id="${xhId}" style="display:none">
+    <line class="xh-line" y1="${PAD_T}" y2="${PAD_T+innerH}" stroke="var(--am-text-dim)" stroke-width="1" opacity="0.4" stroke-dasharray="3 3"/>
+    <rect class="xh-bg" rx="4" height="20" fill="var(--am-surface-2)" stroke="var(--am-border)"/>
+    <text class="xh-txt" font-size="11" fill="var(--am-text)" text-anchor="middle" dominant-baseline="middle"/>
+  </g>`;
+  html += `<rect class="xh-sens" x="${PAD_L}" y="${PAD_T}" width="${innerW}" height="${innerH}" fill="transparent"/>`;
+
+  c.innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="overflow:visible">${html}</svg>`;
+
+  // Crosshair interaction
+  const svg = c.querySelector('svg');
+  const xh = svg.querySelector('#'+xhId);
+  const sens = svg.querySelector('.xh-sens');
+  sens.addEventListener('mousemove', e => {
+    const rect = svg.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width * W;
+    const idx = Math.round(((mx - PAD_L) / innerW) * days.length - 0.5);
+    if (idx < 0 || idx >= days.length) { xh.style.display='none'; return; }
+    const bx = PAD_L + (idx / days.length) * innerW + 2 + barW/2;
+    xh.style.display = '';
+    xh.querySelector('.xh-line').setAttribute('x1', bx);
+    xh.querySelector('.xh-line').setAttribute('x2', bx);
+    const label = `${new Date(days[idx].day).toLocaleDateString(undefined,{month:'short',day:'numeric'})}  ${amMoney(days[idx].usd_cost)}  (${days[idx].events} ev)`;
+    const txt = xh.querySelector('.xh-txt');
+    txt.textContent = label;
+    const tw = label.length * 6 + 14;
+    const tx = Math.min(Math.max(bx, PAD_L + tw/2), W - PAD_R - tw/2);
+    txt.setAttribute('x', tx);
+    txt.setAttribute('y', PAD_T - 12);
+    const bg = xh.querySelector('.xh-bg');
+    bg.setAttribute('x', tx - tw/2);
+    bg.setAttribute('y', PAD_T - 22);
+    bg.setAttribute('width', tw);
+    // highlight bar
+    svg.querySelectorAll('rect[data-idx]').forEach(r => r.setAttribute('opacity', r.dataset.idx == idx ? '1' : '0.5'));
+  });
+  sens.addEventListener('mouseleave', () => {
+    xh.style.display='none';
+    svg.querySelectorAll('rect[data-idx]').forEach(r => r.setAttribute('opacity','0.85'));
+  });
 }
 
 async function loadPricing() {

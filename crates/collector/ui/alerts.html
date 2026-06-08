@@ -114,6 +114,40 @@
       </table>
     </div>
 
+    <!-- Notification Channels -->
+    <div class="am-card" style="margin-bottom:18px">
+      <div class="am-card-header" style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-send"/></svg>Notification Channels</h3>
+          <p class="am-card-subtitle" style="margin:0">Where alerts get delivered — Slack, webhook, or email.</p>
+        </div>
+        <button class="am-btn am-btn-primary am-btn-sm" id="btnAddChannel"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-plus"/></svg>Add channel</button>
+      </div>
+      <table class="am-table">
+        <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Created</th><th></th></tr></thead>
+        <tbody id="channelsBody"><tr><td colspan="5" class="am-muted" style="padding:20px;text-align:center">Loading…</td></tr></tbody>
+      </table>
+      <!-- inline form (hidden by default) -->
+      <div id="channelForm" style="display:none;padding:16px;border-top:1px solid var(--am-border)">
+        <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:10px;align-items:end">
+          <div><label style="display:block;font-size:11px;color:var(--am-text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600">Name</label><input class="am-input" id="ch-name" placeholder="My Slack"></div>
+          <div><label style="display:block;font-size:11px;color:var(--am-text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600">Type</label>
+            <select class="am-input" id="ch-kind"><option value="webhook">Webhook</option><option value="slack">Slack</option><option value="email">Email</option></select>
+          </div>
+          <div><label style="display:block;font-size:11px;color:var(--am-text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;font-weight:600">URL / Address</label><input class="am-input" id="ch-url" placeholder="https://hooks.slack.com/..."></div>
+          <div style="display:flex;gap:6px">
+            <button class="am-btn am-btn-primary am-btn-sm" id="btnSaveChannel"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-check"/></svg></button>
+            <button class="am-btn am-btn-ghost am-btn-sm" id="btnCancelChannel"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-x"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <!-- test dispatch -->
+      <div style="padding:12px 16px;border-top:1px solid var(--am-border);display:flex;align-items:center;gap:10px">
+        <button class="am-btn am-btn-secondary am-btn-sm" id="btnTestNotify"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-zap"/></svg>Send test</button>
+        <span id="testResult" class="am-muted" style="font-size:12px"></span>
+      </div>
+    </div>
+
     <!-- History -->
     <div class="am-card">
       <div class="am-card-header">
@@ -228,6 +262,75 @@ document.querySelectorAll('[data-tpl]').forEach(btn => btn.addEventListener('cli
   document.getElementById('f-cooldown').value = t.cooldown;
   document.getElementById('newRuleForm').scrollIntoView({behavior:'smooth', block:'center'});
 }));
+
+// --- Notification Channels ---
+const KIND_ICONS = {webhook:'🔗',slack:'💬',email:'📧'};
+async function loadChannels() {
+  const tbody = document.getElementById('channelsBody');
+  try {
+    const r = await fetch('/api/notifications/channels');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const chs = await r.json();
+    if (!chs.length) { tbody.innerHTML = `<tr><td colspan="5" class="am-muted" style="padding:20px;text-align:center">No channels configured yet.</td></tr>`; return; }
+    tbody.innerHTML = chs.map(c => `<tr>
+      <td><strong>${escapeHtml(c.name)}</strong></td>
+      <td>${KIND_ICONS[c.kind]||''} ${escapeHtml(c.kind)}</td>
+      <td><span class="am-badge am-badge-${c.enabled?'success':'muted'}">${c.enabled?'Active':'Disabled'}</span></td>
+      <td class="am-muted am-mono" style="font-size:12px">${new Date(c.created_at).toLocaleDateString()}</td>
+      <td style="display:flex;gap:4px">
+        <button class="am-btn am-btn-ghost am-btn-sm" data-toggle="${c.id}" title="${c.enabled?'Disable':'Enable'}">${c.enabled?'⏸':'▶'}</button>
+        <button class="am-btn am-btn-ghost am-btn-sm am-btn-danger" data-delch="${c.id}"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-x"/></svg></button>
+      </td>
+    </tr>`).join('');
+    tbody.querySelectorAll('[data-delch]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Delete channel?')) return;
+      await fetch(`/api/notifications/channels/${b.dataset.delch}`, {method:'DELETE'});
+      loadChannels();
+    }));
+    tbody.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.toggle;
+      const cur = b.textContent.trim() === '⏸';
+      await fetch(`/api/notifications/channels/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:!cur})});
+      loadChannels();
+    }));
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="am-muted" style="padding:20px;text-align:center">Error: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+document.getElementById('btnAddChannel').addEventListener('click', () => {
+  document.getElementById('channelForm').style.display = 'block';
+  document.getElementById('ch-name').focus();
+});
+document.getElementById('btnCancelChannel').addEventListener('click', () => {
+  document.getElementById('channelForm').style.display = 'none';
+});
+document.getElementById('btnSaveChannel').addEventListener('click', async () => {
+  const name = document.getElementById('ch-name').value.trim();
+  const kind = document.getElementById('ch-kind').value;
+  const url = document.getElementById('ch-url').value.trim();
+  if (!name || !url) return alert('Name and URL are required');
+  const config = kind === 'email' ? {address: url} : {url: url};
+  const r = await fetch('/api/notifications/channels', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, kind, config})});
+  if (r.ok) {
+    document.getElementById('channelForm').style.display = 'none';
+    document.getElementById('ch-name').value = '';
+    document.getElementById('ch-url').value = '';
+    loadChannels();
+  } else alert('Failed: HTTP ' + r.status);
+});
+document.getElementById('btnTestNotify').addEventListener('click', async () => {
+  const span = document.getElementById('testResult');
+  span.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/notifications/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
+    const results = await r.json();
+    const ok = results.filter(x => x.success).length;
+    span.textContent = `✓ ${ok}/${results.length} channels delivered`;
+    span.style.color = ok === results.length ? 'var(--am-success)' : 'var(--am-warning)';
+  } catch(e) { span.textContent = '✗ ' + e.message; span.style.color = 'var(--am-danger)'; }
+});
+loadChannels();
 </script>
 </body>
 </html>

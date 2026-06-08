@@ -300,8 +300,24 @@ function renderChart(data) {
   const innerH = H - PAD.top - PAD.bottom;
   const max = Math.max(...data.map(d => d.calls), 1);
   const xStep = innerW / Math.max(data.length - 1, 1);
-  const pts = data.map((d,i) => `${PAD.left + i*xStep},${PAD.top + innerH - (d.calls/max)*innerH}`).join(' ');
-  const area = `M ${PAD.left},${PAD.top + innerH} L ${pts.replace(/,/g, ' ').replace(/  /g,' ')} L ${PAD.left + (data.length-1)*xStep},${PAD.top + innerH} Z`;
+
+  // Catmull-Rom to cubic bezier smooth path
+  function smoothPath(pts) {
+    if (pts.length < 3) return `M ${pts.map(p=>p.join(',')).join(' L ')}`;
+    let d = `M ${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i-1,0)], p1 = pts[i], p2 = pts[i+1], p3 = pts[Math.min(i+2,pts.length-1)];
+      const cp1x = p1[0] + (p2[0]-p0[0])/6, cp1y = p1[1] + (p2[1]-p0[1])/6;
+      const cp2x = p2[0] - (p3[0]-p1[0])/6, cp2y = p2[1] - (p3[1]-p1[1])/6;
+      d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
+    }
+    return d;
+  }
+
+  const points = data.map((d,i) => [PAD.left + i*xStep, PAD.top + innerH - (d.calls/max)*innerH]);
+  const linePath = smoothPath(points);
+  const areaPath = linePath + ` L ${points[points.length-1][0]},${PAD.top+innerH} L ${PAD.left},${PAD.top+innerH} Z`;
+
   // grid lines
   let grid = '';
   for (let i=0;i<=4;i++){
@@ -310,30 +326,67 @@ function renderChart(data) {
     grid += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+innerW}" y2="${y}" stroke="var(--am-border)" stroke-dasharray="2 4"/>`;
     grid += `<text x="${PAD.left-8}" y="${y+4}" text-anchor="end" fill="var(--am-text-dim)" font-size="10">${v}</text>`;
   }
-  // x labels (first, mid, last)
+  // x labels (5 evenly spaced)
+  const labelCount = Math.min(5, data.length);
   const fmt = ts => {
     const d = new Date(ts);
     return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
   };
-  const xLabels = [0, Math.floor(data.length/2), data.length-1].map(i => `<text x="${PAD.left + i*xStep}" y="${H-12}" text-anchor="middle" fill="var(--am-text-dim)" font-size="10">${fmt(data[i].bucket)}</text>`).join('');
-  // points + invisible hover
-  const points = data.map((d,i) => {
-    const x = PAD.left + i*xStep;
-    const y = PAD.top + innerH - (d.calls/max)*innerH;
-    return `<g><title>${fmt(d.bucket)}: ${d.calls} calls</title><circle cx="${x}" cy="${y}" r="3" fill="var(--am-chart-1)" opacity="0"/><rect x="${x-xStep/2}" y="${PAD.top}" width="${xStep}" height="${innerH}" fill="transparent" onmouseover="this.previousElementSibling.setAttribute('opacity','1')" onmouseout="this.previousElementSibling.setAttribute('opacity','0')"/></g>`;
-  }).join('');
+  let xLabels = '';
+  for (let i=0; i<labelCount; i++) {
+    const idx = Math.round(i * (data.length-1) / (labelCount-1));
+    xLabels += `<text x="${PAD.left + idx*xStep}" y="${H-12}" text-anchor="middle" fill="var(--am-text-dim)" font-size="10">${fmt(data[idx].bucket)}</text>`;
+  }
 
-  c.innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+  // Tooltip overlay (crosshair)
+  const crosshairId = 'ch-xhair-' + Date.now();
+
+  c.innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="overflow:visible">
     <defs><linearGradient id="grad" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0" stop-color="var(--am-chart-1)" stop-opacity="0.35"/>
       <stop offset="1" stop-color="var(--am-chart-1)" stop-opacity="0"/>
     </linearGradient></defs>
     ${grid}
-    <path d="${area}" fill="url(#grad)"/>
-    <polyline points="${pts}" fill="none" stroke="var(--am-chart-1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    ${points}
+    <path d="${areaPath}" fill="url(#grad)"/>
+    <path d="${linePath}" fill="none" stroke="var(--am-chart-1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     ${xLabels}
+    <g id="${crosshairId}" style="display:none">
+      <line class="xh-line" y1="${PAD.top}" y2="${PAD.top+innerH}" stroke="var(--am-text-dim)" stroke-width="1" opacity="0.4" stroke-dasharray="3 3"/>
+      <circle class="xh-dot" r="4.5" fill="var(--am-chart-1)" stroke="var(--am-bg)" stroke-width="2"/>
+      <rect class="xh-bg" rx="4" height="22" fill="var(--am-surface-2)" stroke="var(--am-border)"/>
+      <text class="xh-txt" font-size="11" fill="var(--am-text)" text-anchor="middle" dominant-baseline="middle"/>
+    </g>
+    <rect class="xh-sens" x="${PAD.left}" y="${PAD.top}" width="${innerW}" height="${innerH}" fill="transparent"/>
   </svg>`;
+
+  // Crosshair interaction
+  const svg = c.querySelector('svg');
+  const xh = svg.querySelector('#'+crosshairId);
+  const sens = svg.querySelector('.xh-sens');
+  sens.addEventListener('mousemove', e => {
+    const rect = svg.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width * W;
+    const idx = Math.round((mx - PAD.left) / xStep);
+    if (idx < 0 || idx >= data.length) { xh.style.display='none'; return; }
+    const px = points[idx][0], py = points[idx][1];
+    xh.style.display = '';
+    xh.querySelector('.xh-line').setAttribute('x1', px);
+    xh.querySelector('.xh-line').setAttribute('x2', px);
+    xh.querySelector('.xh-dot').setAttribute('cx', px);
+    xh.querySelector('.xh-dot').setAttribute('cy', py);
+    const label = `${fmt(data[idx].bucket)}  ${data[idx].calls} calls`;
+    const txt = xh.querySelector('.xh-txt');
+    txt.textContent = label;
+    const tw = label.length * 6.5 + 12;
+    const tx = Math.min(Math.max(px, PAD.left + tw/2), W - PAD.right - tw/2);
+    txt.setAttribute('x', tx);
+    txt.setAttribute('y', PAD.top - 14);
+    const bg = xh.querySelector('.xh-bg');
+    bg.setAttribute('x', tx - tw/2);
+    bg.setAttribute('y', PAD.top - 25);
+    bg.setAttribute('width', tw);
+  });
+  sens.addEventListener('mouseleave', () => { xh.style.display='none'; });
 }
 
 function renderBarTable(elId, rows, nameKey, countKey) {

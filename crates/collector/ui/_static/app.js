@@ -97,6 +97,19 @@
   window.amShell = function(opts){
     opts = opts || {};
     const active = opts.active || '';
+
+    // Skip-to-content link (a11y T-324.16)
+    if (!document.querySelector('.am-skip-link')) {
+      const skip = document.createElement('a');
+      skip.className = 'am-skip-link';
+      skip.href = '#am-main-content';
+      skip.textContent = 'Skip to main content';
+      document.body.insertBefore(skip, document.body.firstChild);
+    }
+    // Add id to main element for skip-link target
+    const mainEl = document.querySelector('.am-main');
+    if (mainEl) { mainEl.id = 'am-main-content'; mainEl.setAttribute('role', 'main'); }
+
     const navItems = [
       ['dashboard', '/', 'i-dashboard', 'Dashboard'],
       ['conversations', '/conversations', 'i-conversations', 'Conversations'],
@@ -117,6 +130,8 @@
     ).join('');
     const sidebar = document.getElementById('amSidebar');
     if (sidebar) {
+      sidebar.setAttribute('role', 'navigation');
+      sidebar.setAttribute('aria-label', 'Main navigation');
       sidebar.innerHTML = `
         <a href="/" class="am-sidebar-brand">
           <span class="logo-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M5 21V13M12 21v-5M19 21v-9"/><circle cx="5" cy="11" r="1.5" fill="white"/><circle cx="12" cy="14" r="1.5" fill="white"/><circle cx="19" cy="10" r="1.5" fill="white"/></svg></span>
@@ -135,6 +150,7 @@
     }
     const topbar = document.getElementById('amTopbar');
     if (topbar) {
+      topbar.setAttribute('role', 'banner');
       topbar.innerHTML = `
         <div class="am-breadcrumbs">
           <span class="crumb">agent-meter</span>
@@ -160,6 +176,7 @@
     }
     const footer = document.getElementById('amFooter');
     if (footer) {
+      footer.setAttribute('role', 'contentinfo');
       footer.innerHTML = `<span>© 2026 agent-meter</span><a href="/pricing">Pricing</a><a href="https://github.com/dnorio/agent-meter">GitHub</a><span class="am-spacer" style="flex:1"></span><span id="amHealthFoot" class="am-mono am-muted" style="font-size:11px">checking…</span>`;
       fetch('/health').then(r=>r.json()).then(r=>{
         const p = document.getElementById('amHealthPill');
