@@ -611,10 +611,24 @@ function renderMinimap() {
 window.addEventListener('mouseup', () => minimapDrag = null);
 
 const ROW_H = 22, LEFT_PAD = 280, RIGHT_PAD = 16, TOP_PAD = 28;
+
+// T-326: Compute nesting depth from parent_span_id
+function computeDepths(events) {
+  const spanMap = new Map(); // span_id → event
+  for (const e of events) { if (e.span_id) spanMap.set(e.span_id, e); }
+  for (const e of events) {
+    let depth = 0, cur = e;
+    while (cur.parent_span_id && spanMap.has(cur.parent_span_id) && depth < 6) {
+      depth++; cur = spanMap.get(cur.parent_span_id);
+    }
+    e._depth = depth;
+  }
+}
 function renderWaterfall() {
   const svg = document.getElementById('wfSvg');
   const wrap = document.getElementById('waterfall');
   if (!state.events.length) { svg.innerHTML='<text x="20" y="40" fill="var(--am-text-dim)">No events</text>'; return; }
+  computeDepths(state.events);
   const W = wrap.clientWidth;
   const t0all = Math.min(...state.events.map(e=>e.startMs));
   const t1all = Math.max(...state.events.map(e=>e.endMs));
@@ -689,14 +703,17 @@ function renderRow(e, xOf, y) {
   const isCritical = state.showCritical && state.criticalPath.has(e.idx);
   const color = e.ok ? categoryColor[e.category] : 'var(--am-danger)';
   const isSel = state.selected && state.selected.idx === e.idx;
-  const label = (e.tool_name||'').slice(0, 30);
+  const depth = e._depth || 0;
+  const indent = depth * 12;
+  const nestChar = depth > 0 ? '└ ' : '';
+  const label = nestChar + (e.tool_name||'').slice(0, 30 - depth*2);
   const meta = (e.model || e.mcp_server || '').slice(0, 22);
   const dur = fmtDuration(e.duration_ms);
   const cost = e.usd_cost > 0 ? fmtUsd(e.usd_cost) : '';
   let row = '';
   row += `<rect class="row-bg ${isSel?'selected':''}" data-idx="${e.idx}" x="0" y="${y}" width="100%" height="${ROW_H}"/>`;
-  row += `<text class="row-label ${e.ok?'':'error'}" x="12" y="${y + ROW_H/2 + 4}">${e.ok?'':'⚠ '}${escapeHtml(label)}</text>`;
-  if (meta) row += `<text class="row-meta" x="160" y="${y + ROW_H/2 + 4}">${escapeHtml(meta)}</text>`;
+  row += `<text class="row-label ${e.ok?'':'error'}" x="${12 + indent}" y="${y + ROW_H/2 + 4}" opacity="${1 - depth*0.1}">${e.ok?'':'⚠ '}${escapeHtml(label)}</text>`;
+  if (meta) row += `<text class="row-meta" x="${160 + indent}" y="${y + ROW_H/2 + 4}">${escapeHtml(meta)}</text>`;
   const barClass = isCritical ? 'bar critical-bar' : 'bar';
   row += `<rect class="${barClass}" data-idx="${e.idx}" x="${x1}" y="${y+4}" width="${w}" height="${ROW_H-8}" fill="${color}" opacity="${e.ok?0.85:0.95}"/>`;
   if (isCritical) row += `<text class="critical-label" x="${x1+w+3}" y="${y + ROW_H/2 + 4}">●</text>`;

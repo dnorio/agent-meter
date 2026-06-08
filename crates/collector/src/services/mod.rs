@@ -1,8 +1,10 @@
 pub mod alert_service;
 pub mod auth_service;
+pub mod budget_service;
 pub mod conversation_service;
 pub mod cost_service;
 pub mod event_service;
+pub mod notification_service;
 pub mod org_service;
 pub mod report_service;
 pub mod search_service;

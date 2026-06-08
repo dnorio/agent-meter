@@ -30,10 +30,13 @@ pub fn build(config: Config, pool: PgPool) -> Router {
         .merge(routes::conversations::router())
         .merge(routes::conversation_detail::router())
         .merge(routes::cost::router())
+        .merge(routes::export::router())
         .merge(routes::orgs::router())
         .merge(routes::alerts::router())
         .merge(routes::auth::router())
         .merge(routes::billing::router())
+        .merge(routes::budgets::router())
+        .merge(routes::notifications::router())
         .merge(routes::docs::router())
         .merge(routes::search::router())
         .merge(routes::static_assets::router());
