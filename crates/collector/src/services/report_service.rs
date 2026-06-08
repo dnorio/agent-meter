@@ -472,3 +472,20 @@ pub async fn cost_over_time(
 
     Ok(rows)
 }
+
+/// Returns distinct model names used in the last 90 days (for filter dropdowns).
+pub async fn distinct_models(pool: &PgPool) -> Result<Vec<String>, AppError> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        r#"
+        SELECT DISTINCT model
+        FROM agent_tool_calls
+        WHERE model IS NOT NULL
+          AND started_at >= NOW() - INTERVAL '90 days'
+        ORDER BY model
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().map(|r| r.0).collect())
+}

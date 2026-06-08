@@ -23,6 +23,7 @@ const COST_HTML: &str = include_str!("../../ui/cost.html");
 pub struct CostParams {
     from: Option<String>,
     to: Option<String>,
+    model: Option<String>,
 }
 
 async fn summary_handler(
@@ -42,7 +43,7 @@ async fn summary_handler(
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|| to - Duration::days(30));
 
-    let summary = cost_service::cost_summary(&state.pool, from, to).await?;
+    let summary = cost_service::cost_summary(&state.pool, from, to, p.model.as_deref()).await?;
     Ok(Json(summary))
 }
 

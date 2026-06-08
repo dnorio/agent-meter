@@ -155,6 +155,13 @@ async fn cost_over_time(
     Ok(Json(json!(results)))
 }
 
+async fn distinct_models(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<String>>, AppError> {
+    let models = report_service::distinct_models(&state.pool).await?;
+    Ok(Json(models))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/reports", get(page))
@@ -166,6 +173,7 @@ pub fn router() -> Router<AppState> {
         .route("/reports/top-agents", get(top_agents))
         .route("/reports/error-patterns", get(error_patterns))
         .route("/reports/cost-over-time", get(cost_over_time))
+        .route("/reports/models", get(distinct_models))
         .route("/reports/events", get(events_feed))
 }
 

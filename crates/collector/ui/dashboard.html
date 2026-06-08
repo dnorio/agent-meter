@@ -26,6 +26,8 @@ c<!DOCTYPE html>
   .am-search-dropdown .sr-prompt { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .am-search-dropdown .sr-meta { font-size:11px; color:var(--am-text-muted); display:flex; gap:8px; }
   .am-search-dropdown .sr-empty { padding:14px; text-align:center; color:var(--am-text-muted); font-size:13px; }
+  .sortable { cursor:pointer; user-select:none; }
+  .sortable:hover { color: var(--am-accent); }
 </style>
 </head>
 <body>
@@ -92,6 +94,12 @@ c<!DOCTYPE html>
         <button data-period="24h" class="active">24h</button>
         <button data-period="7d">7d</button>
         <button data-period="30d">30d</button>
+      </div>
+      <div class="filter-chip">
+        <svg class="am-icon-sm"><use href="/_static/icons.svg#i-filter"/></svg>
+        <select id="modelFilter">
+          <option value="">All models</option>
+        </select>
       </div>
     </div>
 
@@ -196,6 +204,7 @@ c<!DOCTYPE html>
 <script>
 const BASE = '';
 let CURRENT_PERIOD = '24h';
+let CURRENT_MODEL = '';
 
 function periodBucket(p) {
   return ({'1h':'minute','6h':'minute','24h':'hour','7d':'hour','30d':'day'})[p] || 'hour';
@@ -208,6 +217,7 @@ function periodSincePrev(p) {
   const ms = ({'1h':3600e3,'6h':6*3600e3,'24h':24*3600e3,'7d':7*24*3600e3,'30d':30*24*3600e3})[p];
   return [new Date(Date.now() - 2*ms).toISOString(), new Date(Date.now() - ms).toISOString()];
 }
+function modelParam() { return CURRENT_MODEL ? `&model=${encodeURIComponent(CURRENT_MODEL)}` : ''; }
 
 document.querySelectorAll('#periodSeg button').forEach(b => {
   b.addEventListener('click', () => {
@@ -239,10 +249,11 @@ async function loadHealth() {
 async function loadKPIs() {
   const since = periodSince(CURRENT_PERIOD);
   const [prevFrom, prevTo] = periodSincePrev(CURRENT_PERIOD);
+  const mp = modelParam();
   try {
     const [cur, prev] = await Promise.all([
-      fetchJSON(`/api/cost/summary?from=${since}`).catch(() => null),
-      fetchJSON(`/api/cost/summary?from=${prevFrom}&to=${prevTo}`).catch(() => null),
+      fetchJSON(`/api/cost/summary?from=${since}${mp}`).catch(() => null),
+      fetchJSON(`/api/cost/summary?from=${prevFrom}&to=${prevTo}${mp}`).catch(() => null),
     ]);
     if (cur && cur.kpis) {
       const k = cur.kpis;
@@ -277,7 +288,7 @@ async function loadChart() {
   const since = periodSince(CURRENT_PERIOD);
   const bucket = periodBucket(CURRENT_PERIOD);
   try {
-    const data = await fetchJSON(`/reports/calls-over-time?from=${since}&bucket=${bucket}`);
+    const data = await fetchJSON(`/reports/calls-over-time?from=${since}&bucket=${bucket}${modelParam()}`);
     renderChart(data);
     // also feed sparkline
     if (data.length) {
@@ -389,11 +400,30 @@ function renderChart(data) {
   sens.addEventListener('mouseleave', () => { xh.style.display='none'; });
 }
 
-function renderBarTable(elId, rows, nameKey, countKey) {
+function renderBarTable(elId, rows, nameKey, countKey, opts) {
   const el = document.getElementById(elId);
   if (!rows || rows.length === 0) { el.innerHTML = `<div class="am-empty am-muted" style="padding:20px">No data</div>`; return; }
-  const max = Math.max(...rows.map(r => r[countKey] || 0), 1);
-  const html = rows.slice(0, 8).map(r => {
+  // Store data for sorting
+  el._sortData = { rows, nameKey, countKey, opts };
+  el._sortKey = el._sortKey || countKey;
+  el._sortDir = el._sortDir || 'desc';
+
+  const sorted = [...rows].sort((a, b) => {
+    const av = el._sortKey === nameKey ? (a[nameKey]||'').toLowerCase() : (a[el._sortKey]||0);
+    const bv = el._sortKey === nameKey ? (b[nameKey]||'').toLowerCase() : (b[el._sortKey]||0);
+    if (av < bv) return el._sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return el._sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const max = Math.max(...sorted.map(r => r[countKey] || 0), 1);
+  const arrow = (k) => el._sortKey === k ? (el._sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+  const hdr = `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--am-border);font-size:11px;color:var(--am-text-muted);cursor:pointer;user-select:none">
+    <div style="flex:1" data-sort="${nameKey}">Name${arrow(nameKey)}</div>
+    <div style="width:140px"></div>
+    <div style="width:60px;text-align:right" data-sort="${countKey}">Count${arrow(countKey)}</div>
+  </div>`;
+  const html = sorted.slice(0, 8).map(r => {
     const name = r[nameKey] || r.name || r.tool_name || '—';
     const c = r[countKey] || r.count || 0;
     const pct = (c/max)*100;
@@ -403,7 +433,17 @@ function renderBarTable(elId, rows, nameKey, countKey) {
       <div style="width:60px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600">${amNum(c)}</div>
     </div>`;
   }).join('');
-  el.innerHTML = html;
+  el.innerHTML = hdr + html;
+
+  // Attach sort click listeners
+  el.querySelectorAll('[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (el._sortKey === key) { el._sortDir = el._sortDir === 'asc' ? 'desc' : 'asc'; }
+      else { el._sortKey = key; el._sortDir = key === nameKey ? 'asc' : 'desc'; }
+      renderBarTable(elId, rows, nameKey, countKey, opts);
+    });
+  });
 }
 
 function renderIdeBreakdown(elId, rows) {
@@ -435,7 +475,7 @@ function renderIdeBreakdown(elId, rows) {
 }
 
 async function loadTops() {
-  const q = `?from=${periodSince(CURRENT_PERIOD)}`;
+  const q = `?from=${periodSince(CURRENT_PERIOD)}${modelParam()}`;
   try {
     const [tools, mcp, tasks, ideBreakdown] = await Promise.all([
       fetchJSON('/reports/top-tools'+q),
@@ -464,20 +504,56 @@ async function loadTops() {
 
 async function loadEvents() {
   try {
-    const data = await fetchJSON(`/reports/events?from=${periodSince(CURRENT_PERIOD)}&limit=10`);
+    const data = await fetchJSON(`/reports/events?from=${periodSince(CURRENT_PERIOD)}&limit=10${modelParam()}`);
     const rows = data.events || data;
     if (!rows || !rows.length) { document.getElementById('eventsFeed').innerHTML = `<div class="am-empty am-muted" style="padding:20px">No recent events</div>`; return; }
-    const html = `<table class="am-table"><thead><tr><th>Time</th><th>Tool</th><th>Model</th><th class="num">ms</th><th>Conv</th></tr></thead><tbody>` +
-      rows.map(e => {
-        const t = new Date(e.started_at || e.created_at);
-        const tt = t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0');
-        const cid = e.conversation_id ? e.conversation_id.slice(0,8) : '';
-        return `<tr><td class="am-mono">${tt}</td><td>${e.tool_name || '—'}</td><td class="am-muted">${e.model || ''}</td><td class="num am-mono">${e.duration_ms || 0}</td><td>${cid ? `<a class="conv-link" href="/conversations/${e.conversation_id}/timeline">${cid}</a>` : ''}</td></tr>`;
-      }).join('') + `</tbody></table>`;
-    document.getElementById('eventsFeed').innerHTML = html;
+    renderEventsTable(rows);
   } catch(e) {
     document.getElementById('eventsFeed').innerHTML = `<div class="am-empty am-muted">Couldn't load events</div>`;
   }
+}
+
+function renderEventsTable(rows, sortKey, sortDir) {
+  const el = document.getElementById('eventsFeed');
+  el._evtRows = rows;
+  sortKey = sortKey || el._evtSortKey || 'started_at';
+  sortDir = sortDir || el._evtSortDir || 'desc';
+  el._evtSortKey = sortKey;
+  el._evtSortDir = sortDir;
+
+  const sorted = [...rows].sort((a, b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (sortKey === 'duration_ms') { av = av||0; bv = bv||0; }
+    else { av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase(); }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const arrow = (k) => el._evtSortKey === k ? (el._evtSortDir === 'asc' ? ' ↑' : ' ↓') : '';
+  const html = `<table class="am-table"><thead><tr>
+    <th class="sortable" data-evsort="started_at">Time${arrow('started_at')}</th>
+    <th class="sortable" data-evsort="tool_name">Tool${arrow('tool_name')}</th>
+    <th class="sortable" data-evsort="model">Model${arrow('model')}</th>
+    <th class="num sortable" data-evsort="duration_ms">ms${arrow('duration_ms')}</th>
+    <th>Conv</th></tr></thead><tbody>` +
+    sorted.map(e => {
+      const t = new Date(e.started_at || e.created_at);
+      const tt = t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0');
+      const cid = e.conversation_id ? e.conversation_id.slice(0,8) : '';
+      return `<tr><td class="am-mono">${tt}</td><td>${e.tool_name || '—'}</td><td class="am-muted">${e.model || ''}</td><td class="num am-mono">${e.duration_ms || 0}</td><td>${cid ? `<a class="conv-link" href="/conversations/${e.conversation_id}/timeline">${cid}</a>` : ''}</td></tr>`;
+    }).join('') + `</tbody></table>`;
+  el.innerHTML = html;
+
+  el.querySelectorAll('.sortable').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    th.addEventListener('click', () => {
+      const k = th.dataset.evsort;
+      const newDir = (el._evtSortKey === k && el._evtSortDir === 'desc') ? 'asc' : 'desc';
+      renderEventsTable(el._evtRows, k, newDir);
+    });
+  });
 }
 
 function refresh() {
@@ -487,6 +563,26 @@ function refresh() {
   loadEvents();
 }
 
+// Model filter
+const modelSelect = document.getElementById('modelFilter');
+modelSelect.addEventListener('change', () => {
+  CURRENT_MODEL = modelSelect.value;
+  refresh();
+});
+
+async function loadModels() {
+  try {
+    const models = await fetchJSON('/reports/models');
+    models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      modelSelect.appendChild(opt);
+    });
+  } catch(e) { /* ignore */ }
+}
+
+loadModels();
 loadHealth();
 refresh();
 setInterval(() => { loadHealth(); refresh(); }, 30000);

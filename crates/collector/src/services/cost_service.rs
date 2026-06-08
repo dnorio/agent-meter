@@ -74,6 +74,7 @@ pub async fn cost_summary(
     pool: &PgPool,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
+    model: Option<&str>,
 ) -> Result<CostSummary, AppError> {
     #[derive(sqlx::FromRow)]
     struct KpiRow {
@@ -98,10 +99,12 @@ pub async fn cost_summary(
             (COUNT(*) FILTER (WHERE NOT ok))::float8 / NULLIF(COUNT(*)::float8, 0) AS error_rate
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2
+          AND ($3::text IS NULL OR model = $3)
         "#,
     )
     .bind(from)
     .bind(to)
+    .bind(model)
     .fetch_one(pool)
     .await?;
 
@@ -128,6 +131,7 @@ pub async fn cost_summary(
             COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2
+          AND ($3::text IS NULL OR model = $3)
         GROUP BY model
         ORDER BY usd_cost DESC NULLS LAST
         LIMIT 50
@@ -135,6 +139,7 @@ pub async fn cost_summary(
     )
     .bind(from)
     .bind(to)
+    .bind(model)
     .fetch_all(pool)
     .await?;
 
@@ -164,12 +169,14 @@ pub async fn cost_summary(
             COUNT(*)::bigint AS events
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2
+          AND ($3::text IS NULL OR model = $3)
         GROUP BY 1
         ORDER BY 1 ASC
         "#,
     )
     .bind(from)
     .bind(to)
+    .bind(model)
     .fetch_all(pool)
     .await?;
 
@@ -203,12 +210,14 @@ pub async fn cost_summary(
             COALESCE(SUM(CASE WHEN billing_model = 'copilot_credit' THEN usd_cost * 100 ELSE 0 END), 0)::float8 AS credits
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2
+          AND ($3::text IS NULL OR model = $3)
         GROUP BY billing_model
         ORDER BY events DESC
         "#,
     )
     .bind(from)
     .bind(to)
+    .bind(model)
     .fetch_all(pool)
     .await?;
 
