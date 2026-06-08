@@ -984,6 +984,7 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
     Ok(results)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn map_tool_call(
     span: &Span,
     _resource_attrs: &[KeyValue],
@@ -1108,6 +1109,7 @@ fn map_tool_call(
     Ok(event)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn map_chat_span_proto(
     span: &Span,
     _resource_attrs: &[KeyValue],
@@ -1199,7 +1201,7 @@ fn map_chat_span_proto(
     })
 }
 
-fn get_attr_str<'a>(attrs: &'a [KeyValue], key: &str) -> Option<String> {
+fn get_attr_str(attrs: &[KeyValue], key: &str) -> Option<String> {
     attrs.iter()
         .find(|kv| kv.key == key)
         .and_then(|kv| kv.value.as_ref())

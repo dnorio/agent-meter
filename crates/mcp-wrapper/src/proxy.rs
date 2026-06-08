@@ -134,12 +134,20 @@ async fn proxy_handler(
         // JSON-RPC id — used as tool_call_id for correlation with LLM responses
         let tool_call_id = request_body.get("id").map(|v| v.to_string());
 
+        // T-340: IDE identification — env var takes priority, then X-Agent-IDE header
+        let ide_value = env::var("AGENT_METER_IDE").ok().or_else(|| {
+            headers
+                .get("x-agent-ide")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        });
+
         let event = serde_json::json!({
             "event_id": event_id.to_string(),
             "task_id": env::var("AGENT_METER_TASK_ID").ok(),
             "repo": env::var("AGENT_METER_REPO").ok(),
             "branch": env::var("AGENT_METER_BRANCH").ok(),
-            "ide": env::var("AGENT_METER_IDE").ok(),
+            "ide": ide_value,
             "agent": env::var("AGENT_METER_AGENT").ok(),
             "skill": env::var("AGENT_METER_SKILL").ok(),
             "mcp_server": env::var("MCP_SERVER_NAME").unwrap_or_else(|_| "upstream".into()),
