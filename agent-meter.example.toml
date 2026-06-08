@@ -1,0 +1,34 @@
+# agent-meter configuration
+# All values can be overridden by environment variables.
+# Env vars take precedence over this file.
+
+[server]
+host = "0.0.0.0"
+port = 8081
+otlp_port = 4318
+
+[database]
+# PostgreSQL (recommended for production):
+# url = "postgres://agent_meter:agent_meter@localhost:5432/agent_meter"
+#
+# SQLite (single-user / self-hosted):
+# url = "sqlite:///var/lib/agent-meter/data.db"
+url = "postgres://agent_meter:agent_meter@localhost:5432/agent_meter"
+
+[auth]
+# session_secret = "generate-a-random-32-byte-string"
+# public_url = "https://agent-meter.example.com"
+# github_client_id = ""
+# github_client_secret = ""
+require_api_key = false
+
+[telemetry]
+log_level = "info"
+# otel_endpoint = "http://localhost:4317"
+service_name = "agent-meter"
+
+[billing]
+# stripe_secret_key = "sk_..."
+# stripe_webhook_secret = "whsec_..."
+# stripe_price_pro = "price_..."
+# stripe_price_team = "price_..."

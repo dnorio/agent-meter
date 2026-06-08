@@ -10,6 +10,7 @@ RUN rm -rf crates
 # ARG BUILD_HASH invalida o cache do COPY quando o conteúdo muda
 ARG BUILD_HASH=unknown
 COPY apps/agent-meter/crates ./crates
+COPY apps/agent-meter/migrations ./migrations
 RUN touch crates/collector/src/main.rs crates/mcp-wrapper/src/main.rs \
     crates/collector/src/routes/conversation_detail.rs \
     crates/collector/src/routes/dashboard.rs \
