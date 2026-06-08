@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
+use agent_meter_db::Database;
 use crate::config::Config;
 use crate::middleware::api_key_auth;
 use crate::routes;
@@ -11,13 +12,17 @@ use crate::routes;
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
+    pub db: Arc<dyn Database>,
+    /// Escape hatch: direct pool access during migration period.
+    /// Services should migrate to use `db` trait methods.
     pub pool: PgPool,
 }
 
-pub fn build(config: Config, pool: PgPool) -> Router {
+pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>) -> Router {
     let require_api_key = config.require_api_key;
     let state = AppState {
         config: Arc::new(config),
+        db,
         pool,
     };
 
@@ -57,9 +62,10 @@ pub fn build(config: Config, pool: PgPool) -> Router {
         .with_state(state)
 }
 
-pub fn build_otlp(config: Config, pool: PgPool) -> Router {
+pub fn build_otlp(config: Config, pool: PgPool, db: Arc<dyn Database>) -> Router {
     let state = AppState {
         config: Arc::new(config),
+        db,
         pool,
     };
 

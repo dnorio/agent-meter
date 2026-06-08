@@ -10,17 +10,22 @@ pub mod services;
 pub mod telemetry;
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use axum::serve;
 use sqlx::PgPool;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
+use agent_meter_db::PostgresDb;
+
 pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
     let _otel_provider = telemetry::init_telemetry(&config);
 
-    let main_app = app::build(config.clone(), pool.clone());
-    let otlp_app = app::build_otlp(config.clone(), pool.clone());
+    let db: Arc<dyn agent_meter_db::Database> = Arc::new(PostgresDb::from_pool(pool.clone()));
+
+    let main_app = app::build(config.clone(), pool.clone(), db.clone());
+    let otlp_app = app::build_otlp(config.clone(), pool.clone(), db.clone());
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
     let otlp_addr: SocketAddr = format!("{}:{}", config.host, config.otlp_port).parse()?;
