@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Leaderboard · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .lb-hero { text-align:center; padding:32px 16px 24px; }
+  .lb-hero h1 { font-size:28px; font-weight:800; margin:0 0 8px; }
+  .lb-hero p { color:var(--am-text-muted); font-size:14px; margin:0; }
+  .lb-tabs { display:flex; justify-content:center; gap:0; margin-bottom:24px; border-bottom:1px solid var(--am-border); }
+  .lb-tab { padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--am-text-muted); background:none; border-left:none; border-right:none; border-top:none; }
+  .lb-tab.active { color:var(--am-accent); border-bottom-color:var(--am-accent); }
+  .lb-panel { display:none; }
+  .lb-panel.active { display:block; }
+  .lb-table { width:100%; border-collapse:collapse; }
+  .lb-table th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--am-text-muted); padding:10px 14px; border-bottom:1px solid var(--am-border); font-weight:600; }
+  .lb-table td { padding:12px 14px; border-bottom:1px solid var(--am-border); font-size:13px; }
+  .lb-table tr:hover td { background:var(--am-surface-hover); }
+  .lb-rank { font-weight:800; font-size:16px; font-variant-numeric:tabular-nums; width:40px; text-align:center; }
+  .lb-rank.gold { color:#fbbf24; }
+  .lb-rank.silver { color:#9ca3af; }
+  .lb-rank.bronze { color:#d97706; }
+  .lb-bar { height:6px; background:var(--am-surface-2); border-radius:3px; overflow:hidden; min-width:100px; }
+  .lb-bar-fill { height:100%; border-radius:3px; }
+  .lb-name { font-weight:600; }
+  .lb-mono { font-family:var(--am-font-mono); font-variant-numeric:tabular-nums; }
+  .lb-empty { text-align:center; padding:40px; color:var(--am-text-muted); }
+  .lb-updated { text-align:center; font-size:11px; color:var(--am-text-muted); margin-top:16px; }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="lb-hero">
+      <h1>🏆 Leaderboard</h1>
+      <p>Who's burning the most tokens? Real-time ranking across all connected agents and IDEs.</p>
+    </div>
+
+    <div class="lb-tabs" role="tablist">
+      <button class="lb-tab active" data-lb="agents" role="tab">By Agent</button>
+      <button class="lb-tab" data-lb="ides" role="tab">By IDE</button>
+      <button class="lb-tab" data-lb="models" role="tab">By Model</button>
+    </div>
+
+    <div class="am-card">
+      <div class="lb-panel active" data-lbpanel="agents">
+        <table class="lb-table">
+          <thead><tr><th>#</th><th>Agent</th><th>Events</th><th>Cost (USD)</th><th>Activity</th></tr></thead>
+          <tbody id="lbAgents"><tr><td colspan="5" class="lb-empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="lb-panel" data-lbpanel="ides">
+        <table class="lb-table">
+          <thead><tr><th>#</th><th>IDE</th><th>Events</th><th>Cost (USD)</th><th>Activity</th></tr></thead>
+          <tbody id="lbIdes"><tr><td colspan="5" class="lb-empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="lb-panel" data-lbpanel="models">
+        <table class="lb-table">
+          <thead><tr><th>#</th><th>Model</th><th>Events</th><th>Cost (USD)</th><th>Activity</th></tr></thead>
+          <tbody id="lbModels"><tr><td colspan="5" class="lb-empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="lb-updated" id="lbUpdated"></div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+
+<script src="/_static/app.js"></script>
+<script>
+amShell({active:'', breadcrumb:'Leaderboard'});
+
+const RANK_CLS = ['gold','silver','bronze'];
+const IDE_COLORS = {'copilot-vscode':'#0078d4','cursor':'#a855f7','antigravity':'#f97316','claude-code':'#d97706','codex':'#10b981','copilot-cli':'#3b82f6','opencode':'#06b6d4','rust-rover':'#ef4444','unknown':'#6b7280'};
+
+function renderTable(tbodyId, rows, nameKey) {
+  const tbody = document.getElementById(tbodyId);
+  if (!rows || !rows.length) { tbody.innerHTML = `<tr><td colspan="5" class="lb-empty">No data yet — connect an agent to appear on the board.</td></tr>`; return; }
+  const maxEvents = Math.max(...rows.map(r => r.events || r.calls || 0), 1);
+  tbody.innerHTML = rows.slice(0, 20).map((r, i) => {
+    const rank = i + 1;
+    const cls = i < 3 ? RANK_CLS[i] : '';
+    const name = r[nameKey] || r.name || '—';
+    const events = r.events || r.calls || 0;
+    const cost = r.usd_cost || r.total_usd || 0;
+    const pct = (events / maxEvents) * 100;
+    const color = IDE_COLORS[name] || 'var(--am-chart-1)';
+    return `<tr>
+      <td class="lb-rank ${cls}">${rank}</td>
+      <td class="lb-name">${name}</td>
+      <td class="lb-mono">${amNum(events)}</td>
+      <td class="lb-mono">${amMoney(cost)}</td>
+      <td><div class="lb-bar"><div class="lb-bar-fill" style="width:${pct}%;background:${color}"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadLeaderboard() {
+  const from = new Date(Date.now() - 30*86400000).toISOString();
+  try {
+    const [agents, ides, models] = await Promise.all([
+      fetch(`/api/leaderboard/agents?from=${from}`).then(r=>r.json()),
+      fetch(`/api/leaderboard/ides?from=${from}`).then(r=>r.json()),
+      fetch(`/api/leaderboard/models?from=${from}`).then(r=>r.json()),
+    ]);
+    renderTable('lbAgents', agents, 'agent');
+    renderTable('lbIdes', ides, 'ide');
+    renderTable('lbModels', models, 'model');
+    document.getElementById('lbUpdated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+  } catch(e) {
+    document.getElementById('lbAgents').innerHTML = `<tr><td colspan="5" class="lb-empty">Error: ${e.message}</td></tr>`;
+  }
+}
+
+document.querySelectorAll('.lb-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.lb-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelector(`[data-lbpanel="${tab.dataset.lb}"]`).classList.add('active');
+  });
+});
+
+loadLeaderboard();
+setInterval(loadLeaderboard, 60000);
+</script>
+</body>
+</html>

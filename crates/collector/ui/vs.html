@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Compare · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .vs-hero { text-align:center; padding:32px 16px 16px; max-width:640px; margin:0 auto; }
+  .vs-hero h1 { font-size:26px; font-weight:800; margin:0 0 8px; }
+  .vs-hero p { color:var(--am-text-muted); font-size:14px; margin:0 0 24px; }
+  .vs-grid { display:grid; grid-template-columns:200px repeat(4,1fr); gap:0; border:1px solid var(--am-border); border-radius:12px; overflow:hidden; margin-bottom:24px; }
+  .vs-cell { padding:14px 16px; font-size:13px; border-bottom:1px solid var(--am-border); border-right:1px solid var(--am-border); display:flex; align-items:center; }
+  .vs-cell:last-child { border-right:none; }
+  .vs-header { font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--am-text-muted); background:var(--am-surface); }
+  .vs-product { font-weight:700; font-size:14px; background:var(--am-surface); }
+  .vs-product.highlight { background:color-mix(in srgb, var(--am-accent) 8%, var(--am-surface)); border-left:3px solid var(--am-accent); }
+  .vs-check { color:var(--am-success); font-weight:700; }
+  .vs-x { color:var(--am-text-muted); }
+  .vs-partial { color:var(--am-warning); }
+  .vs-price { font-family:var(--am-font-mono); font-weight:600; }
+  .vs-badge { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; background:var(--am-accent); color:#fff; margin-left:6px; }
+  .vs-cta { text-align:center; padding:24px; }
+  .vs-section { margin-bottom:32px; }
+  .vs-section h2 { font-size:18px; font-weight:700; margin:0 0 16px; }
+  @media (max-width:768px) { .vs-grid { grid-template-columns:140px repeat(4,1fr); font-size:11px; } .vs-cell { padding:10px 8px; } }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="vs-hero">
+      <h1>agent-meter vs alternatives</h1>
+      <p>See how agent-meter stacks up against other AI observability and FinOps tools.</p>
+    </div>
+
+    <div class="vs-section">
+      <h2>Feature comparison</h2>
+      <div class="vs-grid">
+        <!-- Header row -->
+        <div class="vs-cell vs-header">Feature</div>
+        <div class="vs-cell vs-header vs-product highlight">agent-meter<span class="vs-badge">You</span></div>
+        <div class="vs-cell vs-header vs-product">Helicone</div>
+        <div class="vs-cell vs-header vs-product">Datadog LLM</div>
+        <div class="vs-cell vs-header vs-product">Langfuse</div>
+
+        <!-- Zero-code setup -->
+        <div class="vs-cell">Zero-code setup</div>
+        <div class="vs-cell vs-check">✓ MCP + Proxy</div>
+        <div class="vs-cell vs-x">✗ SDK only</div>
+        <div class="vs-cell vs-x">✗ SDK only</div>
+        <div class="vs-cell vs-x">✗ SDK only</div>
+
+        <!-- IDE native -->
+        <div class="vs-cell">IDE-native (Cursor/Copilot/Claude)</div>
+        <div class="vs-cell vs-check">✓ All major IDEs</div>
+        <div class="vs-cell vs-x">✗</div>
+        <div class="vs-cell vs-x">✗</div>
+        <div class="vs-cell vs-x">✗</div>
+
+        <!-- Cost attribution -->
+        <div class="vs-cell">USD cost per call</div>
+        <div class="vs-cell vs-check">✓ Auto (30+ models)</div>
+        <div class="vs-cell vs-check">✓</div>
+        <div class="vs-cell vs-partial">◐ Manual</div>
+        <div class="vs-cell vs-check">✓</div>
+
+        <!-- Self-hosted -->
+        <div class="vs-cell">Self-hosted option</div>
+        <div class="vs-cell vs-check">✓ Single binary</div>
+        <div class="vs-cell vs-x">✗ Cloud only</div>
+        <div class="vs-cell vs-x">✗ Cloud only</div>
+        <div class="vs-cell vs-check">✓ Docker</div>
+
+        <!-- OTLP native -->
+        <div class="vs-cell">OTLP standard</div>
+        <div class="vs-cell vs-check">✓ OpenTelemetry</div>
+        <div class="vs-cell vs-x">✗ Proprietary</div>
+        <div class="vs-cell vs-check">✓</div>
+        <div class="vs-cell vs-x">✗ Proprietary</div>
+
+        <!-- Alerts -->
+        <div class="vs-cell">Budget alerts</div>
+        <div class="vs-cell vs-check">✓ Built-in</div>
+        <div class="vs-cell vs-check">✓</div>
+        <div class="vs-cell vs-check">✓</div>
+        <div class="vs-cell vs-partial">◐ Basic</div>
+
+        <!-- Trace waterfall -->
+        <div class="vs-cell">Trace waterfall / APM</div>
+        <div class="vs-cell vs-check">✓ Jaeger-style</div>
+        <div class="vs-cell vs-partial">◐ Flat</div>
+        <div class="vs-cell vs-check">✓</div>
+        <div class="vs-cell vs-check">✓</div>
+
+        <!-- Free tier -->
+        <div class="vs-cell">Free tier</div>
+        <div class="vs-cell vs-check">✓ 100k events/mo</div>
+        <div class="vs-cell vs-check">✓ 100k logs</div>
+        <div class="vs-cell vs-x">✗ $0 = $0</div>
+        <div class="vs-cell vs-check">✓ 50k spans</div>
+      </div>
+    </div>
+
+    <div class="vs-section">
+      <h2>Pricing</h2>
+      <div class="vs-grid" style="grid-template-columns:200px repeat(4,1fr)">
+        <div class="vs-cell vs-header">Plan</div>
+        <div class="vs-cell vs-header vs-product highlight">agent-meter</div>
+        <div class="vs-cell vs-header vs-product">Helicone</div>
+        <div class="vs-cell vs-header vs-product">Datadog LLM</div>
+        <div class="vs-cell vs-header vs-product">Langfuse</div>
+
+        <div class="vs-cell">Starter / Free</div>
+        <div class="vs-cell vs-price">$0</div>
+        <div class="vs-cell vs-price">$0</div>
+        <div class="vs-cell vs-price">$0</div>
+        <div class="vs-cell vs-price">$0</div>
+
+        <div class="vs-cell">Pro / Growth</div>
+        <div class="vs-cell vs-price">$19/seat</div>
+        <div class="vs-cell vs-price">$20/seat</div>
+        <div class="vs-cell vs-price">~$150+/mo</div>
+        <div class="vs-cell vs-price">$59/seat</div>
+
+        <div class="vs-cell">Team</div>
+        <div class="vs-cell vs-price">$99/mo flat</div>
+        <div class="vs-cell vs-price">$88/mo</div>
+        <div class="vs-cell vs-price">Custom</div>
+        <div class="vs-cell vs-price">Custom</div>
+      </div>
+    </div>
+
+    <div class="vs-cta">
+      <p style="color:var(--am-text-muted);margin:0 0 12px;font-size:14px">Ready to start tracking your AI costs?</p>
+      <a href="/quickstart" class="am-btn am-btn-primary"><svg class="am-icon"><use href="/_static/icons.svg#i-zap"/></svg>Get started in 60s</a>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+
+<script src="/_static/app.js"></script>
+<script>amShell({active:'', breadcrumb:'Compare'});</script>
+</body>
+</html>
