@@ -2,6 +2,7 @@
 
 use axum::{
     extract::{Path, State},
+    response::Html,
     routing::{delete, get},
     Json, Router,
 };
@@ -11,6 +12,12 @@ use uuid::Uuid;
 use crate::app::AppState;
 use crate::errors::AppError;
 use crate::services::org_service;
+
+const SETTINGS_HTML: &str = include_str!("../../ui/settings.html");
+
+async fn settings_page() -> Html<&'static str> {
+    Html(SETTINGS_HTML)
+}
 
 async fn list_orgs_handler(
     State(state): State<AppState>,
@@ -52,6 +59,7 @@ async fn revoke_key_handler(
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/settings", get(settings_page))
         .route("/api/orgs", get(list_orgs_handler))
         .route("/api/orgs/:org_id/keys", get(list_keys_handler).post(create_key_handler))
         .route("/api/orgs/:org_id/keys/:key_id", delete(revoke_key_handler))

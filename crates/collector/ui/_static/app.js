@@ -119,6 +119,7 @@
       ['reports', '/reports', 'i-reports', 'Reports'],
     ];
     const accountItems = [
+      ['settings', '/settings', 'i-settings', 'Settings'],
       ['pricing', '/pricing', 'i-pricing', 'Pricing'],
       ['github', 'https://github.com/dnorio/agent-meter', 'i-github', 'GitHub'],
     ];

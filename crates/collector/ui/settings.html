@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Settings · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .settings-grid { display:grid; grid-template-columns: 220px 1fr; gap:24px; }
+  .settings-nav { display:flex; flex-direction:column; gap:4px; }
+  .settings-nav a { padding:8px 12px; border-radius:6px; font-size:13px; color:var(--am-text-muted); text-decoration:none; transition:.12s; }
+  .settings-nav a:hover { background:var(--am-surface-2); color:var(--am-text); }
+  .settings-nav a.active { background:var(--am-accent-soft); color:var(--am-accent); font-weight:600; }
+  .key-row { display:grid; grid-template-columns:1fr 180px 120px 80px; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--am-border); font-size:13px; }
+  .key-row:last-child { border-bottom:none; }
+  .key-prefix { font-family:var(--am-font-mono); font-size:12px; color:var(--am-text-muted); background:var(--am-surface-2); padding:2px 8px; border-radius:4px; }
+  .new-key-display { background:var(--am-bg); border:1px solid var(--am-success); border-radius:8px; padding:14px; margin-bottom:16px; }
+  .new-key-display code { font-family:var(--am-font-mono); font-size:13px; word-break:break-all; }
+  .new-key-display .warning { font-size:12px; color:var(--am-danger); margin-top:8px; }
+  @media (max-width:768px) { .settings-grid { grid-template-columns:1fr; } .key-row { grid-template-columns:1fr; gap:4px; } }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="am-page-header">
+      <h1 class="am-page-title">Settings</h1>
+      <p class="am-page-subtitle">Manage your organization, API keys, and preferences.</p>
+    </div>
+
+    <div class="settings-grid">
+      <nav class="settings-nav">
+        <a class="active" href="#keys">API Keys</a>
+        <a href="#profile">Profile</a>
+        <a href="#org">Organization</a>
+      </nav>
+
+      <div>
+        <!-- Profile section -->
+        <div class="am-card" id="profileSection" style="margin-bottom:18px">
+          <div class="am-card-header">
+            <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-user"/></svg>Profile</h3>
+          </div>
+          <div id="profileBody" style="padding:12px 0">
+            <p class="am-muted">Sign in to view your profile.</p>
+          </div>
+        </div>
+
+        <!-- API Keys section -->
+        <div class="am-card" id="keysSection">
+          <div class="am-card-header">
+            <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-key"/></svg>API Keys</h3>
+            <button class="am-btn am-btn-secondary am-btn-sm" id="btnCreateKey">+ New key</button>
+          </div>
+          <div id="newKeyBanner" style="display:none"></div>
+          <div id="keysBody">
+            <p class="am-muted" style="padding:20px;text-align:center">Loading…</p>
+          </div>
+        </div>
+
+        <!-- Usage section -->
+        <div class="am-card" style="margin-top:18px">
+          <div class="am-card-header">
+            <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-activity"/></svg>Usage this month</h3>
+          </div>
+          <div id="usageBody" style="padding:12px 0">
+            <p class="am-muted">Sign in to view usage.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+<script src="/_static/app.js"></script>
+<script>
+amShell({active:'settings', breadcrumb:'Settings'});
+
+let currentOrg = null;
+
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+async function loadProfile() {
+  try {
+    const r = await fetch('/api/me');
+    if (!r.ok) return;
+    const user = await r.json();
+    document.getElementById('profileBody').innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px">
+        ${user.avatar_url ? `<img src="${escapeHtml(user.avatar_url)}" style="width:48px;height:48px;border-radius:50%">` : ''}
+        <div>
+          <div style="font-weight:600;font-size:15px">${escapeHtml(user.display_name || user.email)}</div>
+          <div style="font-size:13px;color:var(--am-text-muted)">${escapeHtml(user.email)}</div>
+        </div>
+      </div>`;
+    if (user.org_id) currentOrg = user.org_id;
+  } catch(e) { /* not logged in */ }
+}
+
+async function loadOrgs() {
+  try {
+    const orgs = await (await fetch('/api/orgs')).json();
+    if (orgs.length > 0 && !currentOrg) currentOrg = orgs[0].id;
+    if (currentOrg) loadKeys();
+  } catch(e) {
+    document.getElementById('keysBody').innerHTML = `<p class="am-muted" style="padding:20px;text-align:center">Sign in to manage API keys.</p>`;
+  }
+}
+
+async function loadKeys() {
+  if (!currentOrg) return;
+  try {
+    const keys = await (await fetch(`/api/orgs/${currentOrg}/keys`)).json();
+    if (!keys.length) {
+      document.getElementById('keysBody').innerHTML = `<p class="am-muted" style="padding:20px;text-align:center">No API keys yet. Create one to start sending events.</p>`;
+      return;
+    }
+    const html = `<div class="key-row" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--am-text-muted);font-weight:600;border-bottom:1px solid var(--am-border)">
+      <div>Name</div><div>Prefix</div><div>Created</div><div></div>
+    </div>` + keys.map(k => `<div class="key-row">
+      <div style="font-weight:500">${escapeHtml(k.name)}</div>
+      <div><span class="key-prefix">${escapeHtml(k.prefix || k.id.slice(0,8))}…</span></div>
+      <div class="am-muted" style="font-size:12px">${new Date(k.created_at).toLocaleDateString()}</div>
+      <div><button class="am-btn am-btn-ghost am-btn-sm" style="color:var(--am-danger)" onclick="revokeKey('${k.id}')">Revoke</button></div>
+    </div>`).join('');
+    document.getElementById('keysBody').innerHTML = html;
+  } catch(e) {
+    document.getElementById('keysBody').innerHTML = `<p class="am-muted" style="padding:20px;text-align:center">Error loading keys.</p>`;
+  }
+}
+
+document.getElementById('btnCreateKey').addEventListener('click', async () => {
+  if (!currentOrg) { alert('Sign in first'); return; }
+  const name = prompt('Key name (e.g. "production", "dev"):');
+  if (!name) return;
+  try {
+    const r = await fetch(`/api/orgs/${currentOrg}/keys`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name }),
+    });
+    if (!r.ok) throw new Error('Failed');
+    const created = await r.json();
+    document.getElementById('newKeyBanner').style.display = 'block';
+    document.getElementById('newKeyBanner').innerHTML = `<div class="new-key-display">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px">🔑 New API key created — copy it now!</div>
+      <code>${escapeHtml(created.raw_key || created.key || created.id)}</code>
+      <div class="warning">⚠️ This key will not be shown again. Store it securely.</div>
+    </div>`;
+    loadKeys();
+  } catch(e) { alert('Error creating key: ' + e.message); }
+});
+
+window.revokeKey = async function(keyId) {
+  if (!confirm('Revoke this API key? This cannot be undone.')) return;
+  try {
+    await fetch(`/api/orgs/${currentOrg}/keys/${keyId}`, { method: 'DELETE' });
+    loadKeys();
+  } catch(e) { alert('Error: ' + e.message); }
+};
+
+async function loadUsage() {
+  try {
+    const since = new Date(Date.now() - 30*24*3600e3).toISOString();
+    const r = await fetch(`/api/cost/summary?from=${since}`);
+    if (!r.ok) return;
+    const data = await r.json();
+    const k = data.kpis;
+    document.getElementById('usageBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px">
+        <div><div style="font-size:11px;color:var(--am-text-muted);text-transform:uppercase">Events</div><div style="font-size:20px;font-weight:700;font-family:var(--am-font-mono)">${amNum(k.total_events)}</div></div>
+        <div><div style="font-size:11px;color:var(--am-text-muted);text-transform:uppercase">Cost</div><div style="font-size:20px;font-weight:700;font-family:var(--am-font-mono)">$${k.total_usd.toFixed(2)}</div></div>
+        <div><div style="font-size:11px;color:var(--am-text-muted);text-transform:uppercase">Tokens</div><div style="font-size:20px;font-weight:700;font-family:var(--am-font-mono)">${amNum(k.total_tokens_in + k.total_tokens_out)}</div></div>
+      </div>`;
+  } catch(e) { /* ignore */ }
+}
+
+loadProfile();
+loadOrgs();
+loadUsage();
+</script>
+</body>
+</html>
