@@ -49,7 +49,7 @@ pub async fn list_conversations(
             LEFT(MAX(tool_result) FILTER (
                 WHERE tool_result IS NOT NULL
                   AND LENGTH(tool_result) >= 10
-                  AND tool_name = 'llm_chat'
+                  AND mcp_server IS NULL
             ), 300)                                                                   AS response_preview,
             MIN(started_at)                                                           AS started_at,
             MAX(ended_at)                                                             AS ended_at,
@@ -149,7 +149,7 @@ pub async fn get_conversation_timeline(
             SUM(duration_ms)::bigint AS total_duration_ms,
             SUM(estimated_input_tokens)::bigint AS total_tokens_in,
             SUM(estimated_output_tokens)::bigint AS total_tokens_out,
-            COALESCE(SUM(compute_event_usd(model, estimated_input_tokens, estimated_output_tokens, cached_tokens)), 0)::float8 AS total_usd_cost,
+            COALESCE(SUM(usd_cost), 0)::float8 AS total_usd_cost,
             COUNT(*)::bigint AS event_count,
             COUNT(*) FILTER (WHERE NOT ok)::bigint AS error_count
         FROM agent_tool_calls
@@ -189,7 +189,7 @@ pub async fn get_conversation_timeline(
             duration_ms,
             estimated_input_tokens,
             estimated_output_tokens,
-            compute_event_usd(model, estimated_input_tokens, estimated_output_tokens, cached_tokens)::float8 AS usd_cost,
+            usd_cost::float8 AS usd_cost,
             ok,
             started_at,
             ended_at,
