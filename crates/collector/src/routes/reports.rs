@@ -119,6 +119,42 @@ async fn by_ide(
     Ok(Json(json!(results)))
 }
 
+async fn top_agents(
+    State(state): State<AppState>,
+    Query(params): Query<ReportParams>,
+) -> Result<Json<Value>, AppError> {
+    let results = report_service::top_agents(&state.pool, &params.into_query()).await?;
+    Ok(Json(json!(results)))
+}
+
+async fn error_patterns(
+    State(state): State<AppState>,
+    Query(params): Query<ReportParams>,
+) -> Result<Json<Value>, AppError> {
+    let results = report_service::error_patterns(&state.pool, &params.into_query()).await?;
+    Ok(Json(json!(results)))
+}
+
+async fn cost_over_time(
+    State(state): State<AppState>,
+    Query(params): Query<CallsOverTimeParams>,
+) -> Result<Json<Value>, AppError> {
+    let q = ReportParams {
+        from: params.from,
+        to: params.to,
+        repo: params.repo,
+        ide: params.ide,
+        agent: params.agent,
+        model: params.model,
+        skill: params.skill,
+        limit: None,
+    }
+    .into_query();
+    let bucket = params.bucket.unwrap_or_else(|| "day".into());
+    let results = report_service::cost_over_time(&state.pool, &q, &bucket).await?;
+    Ok(Json(json!(results)))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/reports", get(page))
@@ -127,6 +163,9 @@ pub fn router() -> Router<AppState> {
         .route("/reports/top-mcp-servers", get(top_mcp_servers))
         .route("/reports/calls-over-time", get(calls_over_time))
         .route("/reports/by-ide", get(by_ide))
+        .route("/reports/top-agents", get(top_agents))
+        .route("/reports/error-patterns", get(error_patterns))
+        .route("/reports/cost-over-time", get(cost_over_time))
         .route("/reports/events", get(events_feed))
 }
 

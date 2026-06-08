@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use crate::errors::AppError;
-use crate::models::tool_call::{EventFeedRow, IdeBreakdown, TopMcpServer, TopTask, TopTool};
+use crate::models::tool_call::{EventFeedRow, IdeBreakdown, TopMcpServer, TopTask, TopTool, TopAgent, ErrorPattern, CostBucket};
 
 pub struct ReportQuery {
     pub from: Option<chrono::DateTime<chrono::Utc>>,
@@ -346,6 +346,125 @@ pub async fn by_ide(pool: &PgPool, q: &ReportQuery) -> Result<Vec<IdeBreakdown>,
     .bind(q.from)
     .bind(q.to)
     .bind(&q.repo)
+    .bind(&q.model)
+    .bind(&q.skill)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
+}
+
+pub async fn top_agents(pool: &PgPool, q: &ReportQuery) -> Result<Vec<TopAgent>, AppError> {
+    let rows = sqlx::query_as::<_, TopAgent>(
+        r#"
+        SELECT
+            COALESCE(agent, 'unknown') AS agent,
+            COUNT(*)::bigint AS calls,
+            SUM(estimated_total_tokens)::bigint AS total_tokens,
+            SUM(usd_cost)::float8 AS total_usd_cost,
+            COUNT(*) FILTER (WHERE NOT ok)::bigint AS errors,
+            COUNT(DISTINCT conversation_id)::bigint AS conversations
+        FROM agent_tool_calls
+        WHERE ($1::timestamptz IS NULL OR started_at >= $1)
+          AND ($2::timestamptz IS NULL OR started_at <= $2)
+          AND ($3::text IS NULL OR repo = $3)
+          AND ($4::text IS NULL OR ide = $4)
+          AND ($5::text IS NULL OR model = $5)
+          AND ($6::text IS NULL OR skill = $6)
+        GROUP BY agent
+        ORDER BY calls DESC
+        LIMIT $7
+        "#,
+    )
+    .bind(q.from)
+    .bind(q.to)
+    .bind(&q.repo)
+    .bind(&q.ide)
+    .bind(&q.model)
+    .bind(&q.skill)
+    .bind(q.limit)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
+}
+
+pub async fn error_patterns(pool: &PgPool, q: &ReportQuery) -> Result<Vec<ErrorPattern>, AppError> {
+    let rows = sqlx::query_as::<_, ErrorPattern>(
+        r#"
+        SELECT
+            COALESCE(error, 'unknown error') AS error,
+            COUNT(*)::bigint AS occurrences,
+            MODE() WITHIN GROUP (ORDER BY tool_name) AS tool_name,
+            MODE() WITHIN GROUP (ORDER BY model) AS model,
+            MAX(started_at) AS last_seen
+        FROM agent_tool_calls
+        WHERE NOT ok
+          AND ($1::timestamptz IS NULL OR started_at >= $1)
+          AND ($2::timestamptz IS NULL OR started_at <= $2)
+          AND ($3::text IS NULL OR repo = $3)
+          AND ($4::text IS NULL OR ide = $4)
+          AND ($5::text IS NULL OR agent = $5)
+          AND ($6::text IS NULL OR model = $6)
+          AND ($7::text IS NULL OR skill = $7)
+        GROUP BY error
+        ORDER BY occurrences DESC
+        LIMIT $8
+        "#,
+    )
+    .bind(q.from)
+    .bind(q.to)
+    .bind(&q.repo)
+    .bind(&q.ide)
+    .bind(&q.agent)
+    .bind(&q.model)
+    .bind(&q.skill)
+    .bind(q.limit.unwrap_or(20))
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
+}
+
+pub async fn cost_over_time(
+    pool: &PgPool,
+    q: &ReportQuery,
+    bucket: &str,
+) -> Result<Vec<CostBucket>, AppError> {
+    let interval = match bucket {
+        "hour" => "hour",
+        "day" => "day",
+        "minute" => "minute",
+        _ => "day",
+    };
+
+    let rows = sqlx::query_as::<_, CostBucket>(
+        &format!(
+            r#"
+            SELECT
+                date_trunc('{interval}', started_at) AS bucket,
+                SUM(usd_cost)::float8 AS total_usd,
+                COUNT(*)::bigint AS calls
+            FROM agent_tool_calls
+            WHERE ($1::timestamptz IS NULL OR started_at >= $1)
+              AND ($2::timestamptz IS NULL OR started_at <= $2)
+              AND ($3::text IS NULL OR repo = $3)
+              AND ($4::text IS NULL OR ide = $4)
+              AND ($5::text IS NULL OR agent = $5)
+              AND ($6::text IS NULL OR model = $6)
+              AND ($7::text IS NULL OR skill = $7)
+            GROUP BY bucket
+            ORDER BY bucket ASC
+            LIMIT 500
+            "#,
+            interval = interval
+        ),
+    )
+    .bind(q.from)
+    .bind(q.to)
+    .bind(&q.repo)
+    .bind(&q.ide)
+    .bind(&q.agent)
     .bind(&q.model)
     .bind(&q.skill)
     .fetch_all(pool)

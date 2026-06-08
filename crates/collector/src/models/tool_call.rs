@@ -119,3 +119,29 @@ pub struct IdeBreakdown {
     pub llm_calls: i64,
     pub tool_calls_count: i64,
 }
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TopAgent {
+    pub agent: String,
+    pub calls: i64,
+    pub total_tokens: Option<i64>,
+    pub total_usd_cost: Option<f64>,
+    pub errors: i64,
+    pub conversations: i64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ErrorPattern {
+    pub error: String,
+    pub occurrences: i64,
+    pub tool_name: Option<String>,
+    pub model: Option<String>,
+    pub last_seen: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CostBucket {
+    pub bucket: DateTime<Utc>,
+    pub total_usd: Option<f64>,
+    pub calls: i64,
+}
