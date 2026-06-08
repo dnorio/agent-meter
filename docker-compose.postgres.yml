@@ -1,0 +1,49 @@
+# agent-meter — Production Docker Compose (PostgreSQL mode)
+#
+# Usage:
+#   docker compose -f docker-compose.postgres.yml up -d
+#   open http://localhost:8081
+
+services:
+  agent-meter:
+    image: ghcr.io/dnorio/agent-meter:latest
+    container_name: agent-meter
+    ports:
+      - "8081:3000"     # Web UI + API
+      - "4318:4318"     # OTLP receiver
+    environment:
+      DATABASE_URL: "postgres://agent_meter:${POSTGRES_PASSWORD:-changeme}@postgres:5432/agent_meter"
+      HOST: "0.0.0.0"
+      PORT: "3000"
+      OTLP_PORT: "4318"
+      RUST_LOG: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-meter-postgres
+    environment:
+      POSTGRES_USER: agent_meter
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: agent_meter
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_meter"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

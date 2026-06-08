@@ -1,0 +1,30 @@
+# agent-meter — Standalone Docker Compose (SQLite mode)
+#
+# Zero-config deployment: just `docker compose -f docker-compose.standalone.yml up`
+# Data persisted in ./data/agent-meter.db
+#
+# Usage:
+#   docker compose -f docker-compose.standalone.yml up -d
+#   open http://localhost:8081
+
+services:
+  agent-meter:
+    image: ghcr.io/dnorio/agent-meter:latest
+    container_name: agent-meter
+    ports:
+      - "8081:3000"     # Web UI + API
+      - "4318:4318"     # OTLP receiver
+    environment:
+      DATABASE_URL: "sqlite:///data/agent-meter.db"
+      HOST: "0.0.0.0"
+      PORT: "3000"
+      OTLP_PORT: "4318"
+      RUST_LOG: "info"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
