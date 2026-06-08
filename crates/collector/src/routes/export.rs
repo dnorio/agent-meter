@@ -1,10 +1,11 @@
 //! T-314 — Trace Export (OpenTelemetry-compatible JSON)
 //!
 //! GET /api/export/traces?conversation_id=UUID → OTLP-compatible JSON
-//! GET /api/export/traces?conversation_id=UUID&format=jaeger → Jaeger format
+//! GET /api/export/events.csv?from=&to=&model= → CSV of raw events
+//! GET /api/export/cost.csv?from=&to= → CSV of daily cost breakdown
 
-use axum::{extract::{Query, State}, routing::get, Json, Router};
-use chrono::{DateTime, Utc};
+use axum::{extract::{Query, State}, http::header, response::IntoResponse, routing::get, Json, Router};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -13,7 +14,10 @@ use crate::app::AppState;
 use crate::errors::AppError;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/api/export/traces", get(export_traces))
+    Router::new()
+        .route("/api/export/traces", get(export_traces))
+        .route("/api/export/events.csv", get(export_events_csv))
+        .route("/api/export/cost.csv", get(export_cost_csv))
 }
 
 #[derive(Deserialize)]
@@ -231,4 +235,181 @@ async fn fetch_spans(pool: &PgPool, conversation_id: Uuid) -> Result<Vec<RawSpan
     .fetch_all(pool)
     .await?;
     Ok(rows)
+}
+
+// ── CSV Exports ────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct CsvParams {
+    from: Option<String>,
+    to: Option<String>,
+    model: Option<String>,
+    ide: Option<String>,
+    agent: Option<String>,
+    limit: Option<i64>,
+}
+
+#[derive(sqlx::FromRow)]
+struct EventCsvRow {
+    started_at: DateTime<Utc>,
+    tool_name: String,
+    model: Option<String>,
+    mcp_server: Option<String>,
+    ide: Option<String>,
+    agent: Option<String>,
+    ok: bool,
+    duration_ms: Option<i64>,
+    estimated_input_tokens: Option<i64>,
+    estimated_output_tokens: Option<i64>,
+    usd_cost: Option<f64>,
+    conversation_id: Option<Uuid>,
+    task_id: Option<String>,
+}
+
+async fn export_events_csv(
+    State(state): State<AppState>,
+    Query(p): Query<CsvParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let to = p.to.as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(Utc::now);
+    let from = p.from.as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|| to - Duration::days(30));
+    let limit = p.limit.unwrap_or(10000).min(50000);
+
+    let rows: Vec<EventCsvRow> = sqlx::query_as(
+        r#"
+        SELECT started_at, tool_name, model, mcp_server, ide, agent, ok,
+               duration_ms::bigint AS duration_ms,
+               estimated_input_tokens, estimated_output_tokens,
+               usd_cost::float8 AS usd_cost, conversation_id, task_id
+        FROM agent_tool_calls
+        WHERE started_at >= $1 AND started_at < $2
+          AND ($3::text IS NULL OR model = $3)
+          AND ($4::text IS NULL OR ide = $4)
+          AND ($5::text IS NULL OR agent = $5)
+        ORDER BY started_at DESC
+        LIMIT $6
+        "#,
+    )
+    .bind(from)
+    .bind(to)
+    .bind(&p.model)
+    .bind(&p.ide)
+    .bind(&p.agent)
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await?;
+
+    let mut csv = String::with_capacity(rows.len() * 200);
+    csv.push_str("started_at,tool_name,model,mcp_server,ide,agent,ok,duration_ms,tokens_in,tokens_out,usd_cost,conversation_id,task_id\n");
+    for r in &rows {
+        use std::fmt::Write;
+        let _ = writeln!(
+            csv,
+            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{}",
+            r.started_at.to_rfc3339(),
+            csv_escape(&r.tool_name),
+            csv_escape(r.model.as_deref().unwrap_or("")),
+            csv_escape(r.mcp_server.as_deref().unwrap_or("")),
+            csv_escape(r.ide.as_deref().unwrap_or("")),
+            csv_escape(r.agent.as_deref().unwrap_or("")),
+            r.ok,
+            r.duration_ms.unwrap_or(0),
+            r.estimated_input_tokens.unwrap_or(0),
+            r.estimated_output_tokens.unwrap_or(0),
+            r.usd_cost.unwrap_or(0.0),
+            r.conversation_id.map(|u| u.to_string()).unwrap_or_default(),
+            csv_escape(r.task_id.as_deref().unwrap_or("")),
+        );
+    }
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+            (header::CONTENT_DISPOSITION, "attachment; filename=\"agent-meter-events.csv\""),
+        ],
+        csv,
+    ))
+}
+
+#[derive(sqlx::FromRow)]
+struct CostCsvRow {
+    day: DateTime<Utc>,
+    model: Option<String>,
+    events: i64,
+    tokens_in: Option<i64>,
+    tokens_out: Option<i64>,
+    usd_cost: Option<f64>,
+}
+
+async fn export_cost_csv(
+    State(state): State<AppState>,
+    Query(p): Query<CsvParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let to = p.to.as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(Utc::now);
+    let from = p.from.as_deref()
+        .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|| to - Duration::days(30));
+
+    let rows: Vec<CostCsvRow> = sqlx::query_as(
+        r#"
+        SELECT
+            date_trunc('day', started_at) AS day,
+            model,
+            COUNT(*)::bigint AS events,
+            SUM(estimated_input_tokens)::bigint AS tokens_in,
+            SUM(estimated_output_tokens)::bigint AS tokens_out,
+            COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost
+        FROM agent_tool_calls
+        WHERE started_at >= $1 AND started_at < $2
+          AND ($3::text IS NULL OR model = $3)
+        GROUP BY 1, model
+        ORDER BY 1 ASC, usd_cost DESC
+        "#,
+    )
+    .bind(from)
+    .bind(to)
+    .bind(&p.model)
+    .fetch_all(&state.pool)
+    .await?;
+
+    let mut csv = String::with_capacity(rows.len() * 100);
+    csv.push_str("date,model,events,tokens_in,tokens_out,usd_cost\n");
+    for r in &rows {
+        use std::fmt::Write;
+        let _ = writeln!(
+            csv,
+            "{},{},{},{},{},{:.6}",
+            r.day.format("%Y-%m-%d"),
+            csv_escape(r.model.as_deref().unwrap_or("")),
+            r.events,
+            r.tokens_in.unwrap_or(0),
+            r.tokens_out.unwrap_or(0),
+            r.usd_cost.unwrap_or(0.0),
+        );
+    }
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+            (header::CONTENT_DISPOSITION, "attachment; filename=\"agent-meter-cost.csv\""),
+        ],
+        csv,
+    ))
+}
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
 }

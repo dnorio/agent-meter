@@ -101,6 +101,10 @@ c<!DOCTYPE html>
           <option value="">All models</option>
         </select>
       </div>
+      <div class="am-btn-group" style="margin-left:auto">
+        <button class="am-btn am-btn-ghost am-btn-sm" id="btnExportEvents" title="Export events as CSV"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-external"/></svg>CSV</button>
+        <button class="am-btn am-btn-ghost am-btn-sm" id="btnExportCost" title="Export cost as CSV"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-dollar"/></svg>Cost CSV</button>
+      </div>
     </div>
 
     <!-- KPIs -->
@@ -568,6 +572,16 @@ const modelSelect = document.getElementById('modelFilter');
 modelSelect.addEventListener('change', () => {
   CURRENT_MODEL = modelSelect.value;
   refresh();
+});
+
+// CSV export buttons
+document.getElementById('btnExportEvents').addEventListener('click', () => {
+  const url = `/api/export/events.csv?from=${periodSince(CURRENT_PERIOD)}${modelParam()}`;
+  window.open(url, '_blank');
+});
+document.getElementById('btnExportCost').addEventListener('click', () => {
+  const url = `/api/export/cost.csv?from=${periodSince(CURRENT_PERIOD)}${modelParam()}`;
+  window.open(url, '_blank');
 });
 
 async function loadModels() {
