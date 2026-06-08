@@ -9,7 +9,7 @@ ALTER TABLE model_pricing
 -- Mark subscription-based models (GitHub Copilot, Cursor built-in)
 UPDATE model_pricing
 SET billing_model = 'subscription', credits_per_request = 1
-WHERE model_name ILIKE '%copilot%'
+WHERE model ILIKE '%copilot%'
    OR source IN ('copilot', 'cursor');
 
 -- Add column to agent_tool_calls for fast filtering

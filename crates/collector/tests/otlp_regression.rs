@@ -17,17 +17,20 @@
 ///   6. MCP OTel semconv       (tools/call <tool>; novo padrão)
 
 use agent_meter_collector::{app, config::Config, db};
+use agent_meter_db::{Database, PostgresDb};
 use reqwest::Client;
 use serde_json::Value;
 use std::path::Path;
+use std::sync::Arc;
 
 async fn setup() -> (String, Client) {
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://agent_meter:agent_meter@localhost:5433/agent_meter".into()
+        "postgres://agent_meter:agent_meter@localhost:54321/agent_meter".into()
     });
     let pool = db::connect(&database_url).await.unwrap();
     let config = Config::from_env();
-    let app = app::build_otlp(config, pool);
+    let db: Arc<dyn Database> = Arc::new(PostgresDb::from_pool(pool.clone()));
+    let app = app::build_otlp(config, pool, db);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let base_url = format!("http://{}", addr);
