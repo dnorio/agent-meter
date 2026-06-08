@@ -58,6 +58,12 @@
         <p>Configure cost-spike, error-rate, latency and tool-failure rules with cooldowns.</p>
         <span class="arrow">Open <svg class="am-icon-sm"><use href="/_static/icons.svg#i-arrow-up-right"/></svg></span>
       </a>
+      <a class="report-tile" href="/api/export/events.csv">
+        <div class="icon-wrap" style="background:color-mix(in srgb, var(--am-chart-5) 15%, transparent);color:var(--am-chart-5)"><svg class="am-icon"><use href="/_static/icons.svg#i-external"/></svg></div>
+        <h3>Export CSV</h3>
+        <p>Download raw events or daily cost data as CSV for Excel, Google Sheets, or custom pipelines.</p>
+        <span class="arrow">Download <svg class="am-icon-sm"><use href="/_static/icons.svg#i-arrow-up-right"/></svg></span>
+      </a>
     </div>
 
     <div class="am-card">
@@ -76,6 +82,9 @@
         <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/tasks?limit=50</span><span class="desc">Recent tasks (any status).</span></div>
         <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/alerts/rules</span><span class="desc">Configured alert rules.</span></div>
         <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/alerts/history?limit=50</span><span class="desc">Recently fired alerts.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/export/events.csv?from=…&amp;model=…</span><span class="desc">Download events as CSV (up to 50k rows).</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/export/cost.csv?from=…&amp;model=…</span><span class="desc">Download daily cost breakdown as CSV.</span></div>
+        <div class="endpoint-row"><span class="method">GET</span><span class="path">/api/export/traces?conversation_id=UUID</span><span class="desc">OTLP-compatible JSON trace export.</span></div>
       </div>
     </div>
   </main>
