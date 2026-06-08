@@ -38,6 +38,7 @@ pub fn build(config: Config, pool: PgPool) -> Router {
         .merge(routes::budgets::router())
         .merge(routes::notifications::router())
         .merge(routes::leaderboard::router())
+        .merge(routes::hosted::router())
         .merge(routes::docs::router())
         .merge(routes::search::router())
         .merge(routes::static_assets::router())

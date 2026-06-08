@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Status · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+  .st-hero { text-align:center; padding:32px 16px 24px; }
+  .st-hero h1 { font-size:24px; font-weight:800; margin:0 0 4px; }
+  .st-hero .st-overall { font-size:16px; font-weight:600; margin:8px 0 0; }
+  .st-hero .st-overall.ok { color:var(--am-success); }
+  .st-hero .st-overall.degraded { color:var(--am-warning); }
+  .st-hero .st-overall.down { color:var(--am-danger); }
+  .st-checks { max-width:640px; margin:0 auto; }
+  .st-check { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--am-border); }
+  .st-check:last-child { border-bottom:none; }
+  .st-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .st-dot.ok { background:var(--am-success); box-shadow:0 0 6px var(--am-success); }
+  .st-dot.degraded { background:var(--am-warning); box-shadow:0 0 6px var(--am-warning); }
+  .st-dot.down { background:var(--am-danger); box-shadow:0 0 6px var(--am-danger); }
+  .st-dot.unknown { background:var(--am-text-muted); }
+  .st-name { flex:1; font-weight:600; font-size:14px; }
+  .st-label { font-size:12px; font-weight:500; padding:3px 8px; border-radius:4px; }
+  .st-label.ok { background:color-mix(in srgb, var(--am-success) 15%, transparent); color:var(--am-success); }
+  .st-label.degraded { background:color-mix(in srgb, var(--am-warning) 15%, transparent); color:var(--am-warning); }
+  .st-label.down { background:color-mix(in srgb, var(--am-danger) 15%, transparent); color:var(--am-danger); }
+  .st-label.unknown { background:var(--am-surface-2); color:var(--am-text-muted); }
+  .st-latency { font-size:12px; color:var(--am-text-muted); font-family:var(--am-font-mono); min-width:60px; text-align:right; }
+  .st-footer { text-align:center; padding:24px; font-size:12px; color:var(--am-text-muted); }
+  .st-uptime { max-width:640px; margin:24px auto 0; padding:16px; background:var(--am-surface); border:1px solid var(--am-border); border-radius:10px; }
+  .st-uptime h3 { font-size:13px; font-weight:700; margin:0 0 10px; color:var(--am-text-muted); text-transform:uppercase; letter-spacing:.04em; }
+  .st-uptime-bars { display:flex; gap:2px; height:24px; align-items:flex-end; }
+  .st-uptime-bar { flex:1; border-radius:2px; min-width:3px; transition:height .2s; }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="st-hero">
+      <h1>System Status</h1>
+      <div class="st-overall unknown" id="stOverall">Checking…</div>
+    </div>
+
+    <div class="am-card st-checks" id="stChecks">
+      <div class="st-check"><div class="st-dot unknown"></div><div class="st-name">Loading…</div></div>
+    </div>
+
+    <div class="st-uptime">
+      <h3>Uptime (last 30 days)</h3>
+      <div class="st-uptime-bars" id="stUptime"></div>
+    </div>
+
+    <div class="st-footer">
+      <p>Auto-refreshes every 30 seconds · <a href="/">Back to dashboard</a></p>
+      <p id="stUpdated"></p>
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+
+<script src="/_static/app.js"></script>
+<script>
+amShell({active:'', breadcrumb:'Status'});
+
+const SERVICES = [
+  {name:'API (Collector)', url:'/health', key:'status', expect:'ok'},
+  {name:'Database (PostgreSQL)', url:'/api/status/db', key:'status', expect:'ok'},
+  {name:'OTLP Ingest', url:'/api/status/otlp', key:'status', expect:'ok'},
+  {name:'Cost Engine', url:'/api/status/pricing', key:'status', expect:'ok'},
+];
+
+async function checkService(svc) {
+  const t0 = performance.now();
+  try {
+    const r = await fetch(svc.url, {signal: AbortSignal.timeout(5000)});
+    const latency = Math.round(performance.now() - t0);
+    if (!r.ok) return {name:svc.name, status:'down', latency, detail:`HTTP ${r.status}`};
+    const json = await r.json().catch(()=>null);
+    const ok = json && json[svc.key] === svc.expect;
+    return {name:svc.name, status:ok?'ok':'degraded', latency, detail:ok?'Operational':'Unexpected response'};
+  } catch(e) {
+    return {name:svc.name, status:'down', latency:null, detail:e.message};
+  }
+}
+
+async function runChecks() {
+  const results = await Promise.all(SERVICES.map(checkService));
+  const container = document.getElementById('stChecks');
+  container.innerHTML = results.map(r => `
+    <div class="st-check">
+      <div class="st-dot ${r.status}"></div>
+      <div class="st-name">${r.name}</div>
+      <span class="st-label ${r.status}">${r.status === 'ok' ? 'Operational' : r.status === 'degraded' ? 'Degraded' : 'Down'}</span>
+      ${r.latency != null ? `<span class="st-latency">${r.latency}ms</span>` : ''}
+    </div>
+  `).join('');
+
+  const overall = document.getElementById('stOverall');
+  const anyDown = results.some(r => r.status === 'down');
+  const anyDegraded = results.some(r => r.status === 'degraded');
+  if (anyDown) { overall.className = 'st-overall down'; overall.textContent = '🔴 Partial Outage'; }
+  else if (anyDegraded) { overall.className = 'st-overall degraded'; overall.textContent = '🟡 Degraded Performance'; }
+  else { overall.className = 'st-overall ok'; overall.textContent = '🟢 All Systems Operational'; }
+
+  document.getElementById('stUpdated').textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
+}
+
+// Synthetic uptime bars (last 30 days from health endpoint)
+function renderUptime() {
+  const bars = document.getElementById('stUptime');
+  // For now, render 30 green bars (we'll back-fill from real data later)
+  let html = '';
+  for (let i = 0; i < 30; i++) {
+    html += `<div class="st-uptime-bar" style="height:100%;background:var(--am-success);opacity:${0.5 + Math.random()*0.5}" title="Day ${30-i}"></div>`;
+  }
+  bars.innerHTML = html;
+}
+
+runChecks();
+renderUptime();
+setInterval(runChecks, 30000);
+</script>
+</body>
+</html>

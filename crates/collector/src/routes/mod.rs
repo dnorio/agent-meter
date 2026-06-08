@@ -10,6 +10,7 @@ pub mod docs;
 pub mod events;
 pub mod export;
 pub mod health;
+pub mod hosted;
 pub mod leaderboard;
 pub mod notifications;
 pub mod orgs;

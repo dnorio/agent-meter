@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Privacy Policy · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>.legal{max-width:720px;margin:0 auto;line-height:1.8;font-size:14px;color:var(--am-text-muted)}.legal h2{color:var(--am-text);font-size:16px;margin:28px 0 8px;font-weight:700}.legal h3{color:var(--am-text);font-size:14px;margin:20px 0 6px;font-weight:600}.legal p,.legal li{margin:6px 0}.legal ul{padding-left:20px}.legal a{color:var(--am-accent)}</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+<div class="am-app">
+  <aside class="am-sidebar" id="amSidebar"></aside>
+  <header class="am-topbar" id="amTopbar"></header>
+  <main class="am-main">
+    <div class="am-page-header"><h1 class="am-page-title">Privacy Policy</h1><p class="am-page-subtitle">Last updated: June 8, 2026</p></div>
+    <div class="legal">
+
+<h2>1. What We Collect</h2>
+<h3>Telemetry data (via OTLP / MCP / Proxy)</h3>
+<ul>
+<li>Tool call names, durations, timestamps</li>
+<li>Model names, token counts (input/output/cached)</li>
+<li>Conversation IDs, agent identifiers, IDE type</li>
+<li>Optionally: prompt text and response previews (if <code>captureContent</code> is enabled by the user)</li>
+</ul>
+<h3>Account data (via GitHub OAuth)</h3>
+<ul>
+<li>GitHub username, email, avatar URL</li>
+<li>Organization membership (for team features)</li>
+</ul>
+<h3>Usage metadata</h3>
+<ul>
+<li>IP address (for rate limiting; not stored long-term)</li>
+<li>Browser user-agent (for compatibility)</li>
+</ul>
+
+<h2>2. How We Use It</h2>
+<ul>
+<li>Display dashboards, cost reports, and alerts to you.</li>
+<li>Compute USD cost attribution per call.</li>
+<li>Enforce budget limits and fire alert notifications.</li>
+<li>Improve the Service (aggregate, anonymized analytics only).</li>
+</ul>
+
+<h2>3. Data Storage &amp; Retention</h2>
+<ul>
+<li>All data is stored in PostgreSQL within our self-hosted infrastructure (OCI ARM64 cluster).</li>
+<li>Telemetry events are retained for <strong>90 days</strong> by default (configurable per plan).</li>
+<li>Account data is retained until you delete your account.</li>
+<li>We do <strong>not</strong> use third-party analytics, ad networks, or tracking pixels.</li>
+</ul>
+
+<h2>4. Data Sharing</h2>
+<p>We do <strong>not</strong> sell, rent, or share your data with third parties. Exceptions:</p>
+<ul>
+<li>If required by law (court order, subpoena).</li>
+<li>To protect our rights or prevent fraud.</li>
+</ul>
+
+<h2>5. Security</h2>
+<ul>
+<li>All traffic is encrypted via TLS (HTTPS).</li>
+<li>API keys are stored as SHA-256 hashes.</li>
+<li>Database access is restricted to the application layer.</li>
+<li>Infrastructure runs on dedicated nodes (not shared cloud tenants).</li>
+</ul>
+
+<h2>6. Your Rights</h2>
+<ul>
+<li><strong>Access</strong>: Request a copy of your data via API (<code>GET /api/export/traces</code>).</li>
+<li><strong>Deletion</strong>: Request account and data deletion by contacting support.</li>
+<li><strong>Portability</strong>: Export your data in OTLP JSON format at any time.</li>
+<li><strong>Opt-out</strong>: Disable <code>captureContent</code> to stop sending prompt/response text.</li>
+</ul>
+
+<h2>7. Cookies</h2>
+<p>We use a single session cookie (<code>am_session</code>) for authentication. It is HttpOnly, Secure, and SameSite=Lax. No tracking cookies.</p>
+
+<h2>8. Children</h2>
+<p>The Service is not intended for users under 16. We do not knowingly collect data from minors.</p>
+
+<h2>9. Changes</h2>
+<p>We may update this policy. Material changes will be announced via the Service dashboard.</p>
+
+<h2>10. Contact</h2>
+<p>Privacy questions: <strong>privacy@agent-meter.com</strong></p>
+
+    </div>
+  </main>
+  <footer class="am-footer" id="amFooter"></footer>
+</div>
+<script src="/_static/app.js"></script>
+<script>amShell({active:'', breadcrumb:'Privacy Policy'});</script>
+</body>
+</html>
