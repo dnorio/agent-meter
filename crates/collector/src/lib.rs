@@ -34,12 +34,16 @@ pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
     let token = CancellationToken::new();
     let token_clone = token.clone();
     let otlp_token = token.clone();
+    let pricing_token = token.clone();
 
     tokio::spawn(async move {
         signal::ctrl_c().await.ok();
         tracing::info!("shutdown signal received");
         token_clone.cancel();
     });
+
+    // T-360: Background pricing auto-sync (every 24h)
+    services::pricing_updater::spawn_pricing_updater(pool.clone(), pricing_token);
 
     let main_handle = tokio::spawn(async move {
         if let Err(e) = serve(listener, main_app)
