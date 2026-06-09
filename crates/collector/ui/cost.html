@@ -156,8 +156,6 @@ function renderSummary(data) {
   document.getElementById('kpiEvents').textContent = `${k.total_events} events`;
   document.getElementById('kpiTokens').textContent = `${amNum(k.total_tokens_in)} / ${amNum(k.total_tokens_out)}`;
 
-  const max = Math.max(0.001, ...data.by_model.map(m => m.usd_cost));
-  const tbody = document.getElementById('byModelBody');
   if (currentView === 'model') renderModelTable(data.by_model);
   drawChart(data.by_day);
 }

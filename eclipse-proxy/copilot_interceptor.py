@@ -43,7 +43,6 @@ COPILOT_PATHS = [
 def is_copilot_request(flow: http.HTTPFlow) -> bool:
     """Check if this request is a Copilot API call."""
     host = flow.request.pretty_host
-    path = flow.request.path
 
     # Check host
     host_match = any(h in host for h in COPILOT_HOSTS)
@@ -178,7 +177,7 @@ def extract_request_meta(flow: http.HTTPFlow) -> dict:
             if "stream" in body:
                 meta["stream"] = body["stream"]
         except (json.JSONDecodeError, KeyError, TypeError):
-            pass
+            pass  # Best-effort metadata extraction; malformed body is non-fatal
 
     # Extract useful headers
     headers = flow.request.headers
@@ -263,7 +262,7 @@ def extract_response_meta(flow: http.HTTPFlow) -> dict:
                     meta["response_text"] = response_text
                     meta["response_preview"] = response_text[:200]
         except (json.JSONDecodeError, KeyError, TypeError):
-            pass
+            pass  # Best-effort response parsing; malformed JSON is non-fatal
     elif flow.response.content and flow.response.headers.get("content-type", "").startswith("text/event-stream"):
         # Parse SSE stream — look for response.completed (Responses API) or last data chunk (chat completions)
         try:
@@ -341,7 +340,7 @@ def extract_response_meta(flow: http.HTTPFlow) -> dict:
                             meta["finish_reason"] = resp_status
                         found_completed = True
                     except (json.JSONDecodeError, KeyError, TypeError):
-                        pass
+                        pass  # Skip malformed SSE chunk; continue to fallback
                     break
 
             # Fallback: chat completions SSE — find last data chunk with usage
@@ -361,7 +360,7 @@ def extract_response_meta(flow: http.HTTPFlow) -> dict:
                         except (json.JSONDecodeError, KeyError, TypeError):
                             continue
         except (UnicodeDecodeError, Exception):
-            pass
+            pass  # SSE stream decode failure; metadata remains partial
 
     return meta
 
@@ -398,9 +397,6 @@ def send_otlp_span(req_meta: dict, resp_meta: dict, tool_call: dict = None, pare
 
     span_id = os.urandom(8).hex()
     trace_id = shared_trace_id or os.urandom(16).hex()
-
-    # Use session_id as conversation_id for grouping
-    conversation_id = req_meta.get("session_id", trace_id)
 
     # Determine span name based on whether this is a tool call or LLM call
     if tool_call:
