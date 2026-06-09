@@ -1,0 +1,38 @@
+{
+  "name": "@agent-meter/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Lightweight SDK to track AI agent tool calls, costs, and latency.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "observability",
+    "telemetry",
+    "llm",
+    "opentelemetry"
+  ],
+  "author": "Agent Meter <security@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dnorio/agent-meter",
+    "directory": "apps/agent-meter/sdk/node"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^5.4"
+  }
+}
