@@ -1,6 +1,7 @@
 use axum::Router;
 use sqlx::PgPool;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -9,6 +10,7 @@ use agent_meter_db::Database;
 use crate::config::Config;
 use crate::middleware::api_key_auth;
 use crate::routes;
+use crate::services::ingest_buffer::IngestBuffer;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -17,14 +19,18 @@ pub struct AppState {
     /// Escape hatch: direct pool access during migration period.
     /// Services should migrate to use `db` trait methods.
     pub pool: PgPool,
+    /// Async ingest buffer for fire-and-forget span writes.
+    pub ingest: Option<IngestBuffer>,
 }
 
-pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>) -> Router {
+pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>, cancel: CancellationToken) -> Router {
     let require_api_key = config.require_api_key;
+    let ingest = IngestBuffer::spawn(pool.clone(), 4096, cancel);
     let state = AppState {
         config: Arc::new(config),
         db,
         pool,
+        ingest: Some(ingest),
     };
 
     let mut router = Router::new()
@@ -64,11 +70,13 @@ pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>) -> Router {
         .with_state(state)
 }
 
-pub fn build_otlp(config: Config, pool: PgPool, db: Arc<dyn Database>) -> Router {
+pub fn build_otlp(config: Config, pool: PgPool, db: Arc<dyn Database>, cancel: CancellationToken) -> Router {
+    let ingest = IngestBuffer::spawn(pool.clone(), 4096, cancel);
     let state = AppState {
         config: Arc::new(config),
         db,
         pool,
+        ingest: Some(ingest),
     };
 
     Router::new()

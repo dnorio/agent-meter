@@ -9,6 +9,45 @@ use self::ide::infer_ide;
 use crate::errors::AppError;
 use crate::models::event::ToolCallEvent;
 use crate::services::event_service;
+use crate::services::ingest_buffer::IngestBuffer;
+
+/// Persist a parsed event: buffer (fire-and-forget) or sync insert (fallback).
+fn persist_event(
+    pool: &PgPool,
+    buffer: Option<&IngestBuffer>,
+    event: ToolCallEvent,
+    results: &mut Vec<serde_json::Value>,
+    label: &str,
+) {
+    if let Some(buf) = buffer {
+        let tool_name = event.tool_name.clone();
+        match buf.try_send(event) {
+            Ok(()) => {
+                results.push(serde_json::json!({
+                    "buffered": true,
+                    "tool_name": tool_name,
+                }));
+            }
+            Err(e) => warn!("ingest buffer full ({label}), dropping event: {e}"),
+        }
+    } else {
+        // Legacy sync path (fallback when buffer is None)
+        match tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                event_service::insert_tool_call(pool, event).await
+            })
+        }) {
+            Ok(record) => {
+                results.push(serde_json::json!({
+                    "event_id": record.event_id,
+                    "tool_name": record.tool_name,
+                    "duration_ms": record.duration_ms,
+                }));
+            }
+            Err(e) => warn!("failed to insert {label}: {e}"),
+        }
+    }
+}
 
 /// Dispatcher: selects protobuf or JSON parser based on Content-Type.
 pub fn handle_trace_request(
@@ -17,15 +56,16 @@ pub fn handle_trace_request(
     client_ip: Option<&str>,
     user_agent: Option<&str>,
     pool: &PgPool,
+    buffer: Option<&IngestBuffer>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
     if content_type.map(|ct| ct.contains("application/json")).unwrap_or(false) {
-        return handle_trace_request_json(body, client_ip, user_agent, pool);
+        return handle_trace_request_json(body, client_ip, user_agent, pool, buffer);
     }
-    handle_trace_request_proto(body, client_ip, user_agent, pool)
+    handle_trace_request_proto(body, client_ip, user_agent, pool, buffer)
 }
 
 /// Parse OTLP JSON (format sent by VS Code / OpenTelemetry JS SDK).
-fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: Option<&str>, pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
+fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: Option<&str>, pool: &PgPool, buffer: Option<&IngestBuffer>) -> Result<Vec<serde_json::Value>, AppError> {
     let root: serde_json::Value = serde_json::from_slice(body)
         .map_err(|e| AppError::Validation(format!("failed to decode OTLP JSON: {e}")))?;
 
@@ -62,20 +102,7 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                     let tool_hint = span_name.strip_prefix("execute_tool").map(|s| s.trim()).filter(|s| !s.is_empty());
                     match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
                         Ok(event) => {
-                            match tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current().block_on(async {
-                                    event_service::insert_tool_call(pool, event).await
-                                })
-                            }) {
-                                Ok(record) => {
-                                    results.push(serde_json::json!({
-                                        "event_id": record.event_id,
-                                        "tool_name": record.tool_name,
-                                        "duration_ms": record.duration_ms,
-                                    }));
-                                }
-                                Err(e) => warn!("failed to insert JSON OTLP tool_call: {e}"),
-                            }
+                            persist_event(pool, buffer, event, &mut results, "JSON OTLP tool_call");
                         }
                         Err(e) => warn!("failed to map JSON OTLP execute_tool span: {e}"),
                     }
@@ -84,20 +111,7 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                     let model_hint = span_name.strip_prefix("chat").map(|s| s.trim()).filter(|s| !s.is_empty());
                     match map_chat_span_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, model_hint) {
                         Ok(event) => {
-                            match tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current().block_on(async {
-                                    event_service::insert_tool_call(pool, event).await
-                                })
-                            }) {
-                                Ok(record) => {
-                                    results.push(serde_json::json!({
-                                        "event_id": record.event_id,
-                                        "tool_name": record.tool_name,
-                                        "duration_ms": record.duration_ms,
-                                    }));
-                                }
-                                Err(e) => warn!("failed to insert JSON OTLP chat span: {e}"),
-                            }
+                            persist_event(pool, buffer, event, &mut results, "JSON OTLP chat");
                         }
                         Err(e) => warn!("failed to map JSON OTLP chat span: {e}"),
                     }
@@ -109,20 +123,7 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                     let tool_hint = span_name.strip_prefix("tools/call").map(|s| s.trim()).filter(|s| !s.is_empty());
                     match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
                         Ok(event) => {
-                            match tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current().block_on(async {
-                                    event_service::insert_tool_call(pool, event).await
-                                })
-                            }) {
-                                Ok(record) => {
-                                    results.push(serde_json::json!({
-                                        "event_id": record.event_id,
-                                        "tool_name": record.tool_name,
-                                        "duration_ms": record.duration_ms,
-                                    }));
-                                }
-                                Err(e) => warn!("failed to insert JSON OTLP mcp tools/call: {e}"),
-                            }
+                            persist_event(pool, buffer, event, &mut results, "JSON OTLP mcp tools/call");
                         }
                         Err(e) => warn!("failed to map JSON OTLP tools/call span: {e}"),
                     }
@@ -134,40 +135,14 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                         match map_chat_span_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, None) {
                             Ok(mut event) => {
                                 event.tool_name = tool_name;
-                                match tokio::task::block_in_place(|| {
-                                    tokio::runtime::Handle::current().block_on(async {
-                                        event_service::insert_tool_call(pool, event).await
-                                    })
-                                }) {
-                                    Ok(record) => {
-                                        results.push(serde_json::json!({
-                                            "event_id": record.event_id,
-                                            "tool_name": record.tool_name,
-                                            "duration_ms": record.duration_ms,
-                                        }));
-                                    }
-                                    Err(e) => warn!("failed to insert copilot HTTP chat span: {e}"),
-                                }
+                                persist_event(pool, buffer, event, &mut results, "copilot HTTP chat");
                             }
                             Err(e) => warn!("failed to map copilot HTTP chat span: {e}"),
                         }
                     } else {
                         match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, Some(&tool_name)) {
                             Ok(event) => {
-                                match tokio::task::block_in_place(|| {
-                                    tokio::runtime::Handle::current().block_on(async {
-                                        event_service::insert_tool_call(pool, event).await
-                                    })
-                                }) {
-                                    Ok(record) => {
-                                        results.push(serde_json::json!({
-                                            "event_id": record.event_id,
-                                            "tool_name": record.tool_name,
-                                            "duration_ms": record.duration_ms,
-                                        }));
-                                    }
-                                    Err(e) => warn!("failed to insert copilot HTTP tool span: {e}"),
-                                }
+                                persist_event(pool, buffer, event, &mut results, "copilot HTTP tool");
                             }
                             Err(e) => warn!("failed to map copilot HTTP tool span: {e}"),
                         }
@@ -844,7 +819,7 @@ fn json_attr_float(attrs: &[serde_json::Value], key: &str) -> Option<f64> {
         })
 }
 
-fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: Option<&str>, pool: &PgPool) -> Result<Vec<serde_json::Value>, AppError> {
+fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: Option<&str>, pool: &PgPool, buffer: Option<&IngestBuffer>) -> Result<Vec<serde_json::Value>, AppError> {
     let req = ExportTraceServiceRequest::decode(body)
         .map_err(|e| AppError::Validation(format!("failed to decode OTLP protobuf: {e}")))?;
 
@@ -862,20 +837,7 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
                     let tool_hint = span.name.strip_prefix("execute_tool").map(|s| s.trim()).filter(|s| !s.is_empty());
                     match map_tool_call(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
                         Ok(event) => {
-                            match tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current().block_on(async {
-                                    event_service::insert_tool_call(pool, event).await
-                                })
-                            }) {
-                                Ok(record) => {
-                                    results.push(serde_json::json!({
-                                        "event_id": record.event_id,
-                                        "tool_name": record.tool_name,
-                                        "duration_ms": record.duration_ms,
-                                    }));
-                                }
-                                Err(e) => warn!("failed to insert OTLP tool_call: {e}"),
-                            }
+                            persist_event(pool, buffer, event, &mut results, "OTLP tool_call");
                         }
                         Err(e) => warn!("failed to map OTLP execute_tool span: {e}"),
                     }
@@ -883,20 +845,7 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
                     let model_hint = span.name.strip_prefix("chat").map(|s| s.trim()).filter(|s| !s.is_empty());
                     match map_chat_span_proto(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, model_hint) {
                         Ok(event) => {
-                            match tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current().block_on(async {
-                                    event_service::insert_tool_call(pool, event).await
-                                })
-                            }) {
-                                Ok(record) => {
-                                    results.push(serde_json::json!({
-                                        "event_id": record.event_id,
-                                        "tool_name": record.tool_name,
-                                        "duration_ms": record.duration_ms,
-                                    }));
-                                }
-                                Err(e) => warn!("failed to insert OTLP chat span: {e}"),
-                            }
+                            persist_event(pool, buffer, event, &mut results, "OTLP chat");
                         }
                         Err(e) => warn!("failed to map OTLP chat span: {e}"),
                     }
@@ -907,20 +856,7 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
                     let tool_hint = span.name.strip_prefix("tools/call").map(|s| s.trim()).filter(|s| !s.is_empty());
                     match map_tool_call(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
                         Ok(event) => {
-                            match tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current().block_on(async {
-                                    event_service::insert_tool_call(pool, event).await
-                                })
-                            }) {
-                                Ok(record) => {
-                                    results.push(serde_json::json!({
-                                        "event_id": record.event_id,
-                                        "tool_name": record.tool_name,
-                                        "duration_ms": record.duration_ms,
-                                    }));
-                                }
-                                Err(e) => warn!("failed to insert OTLP mcp tools/call: {e}"),
-                            }
+                            persist_event(pool, buffer, event, &mut results, "OTLP mcp tools/call");
                         }
                         Err(e) => warn!("failed to map OTLP tools/call span: {e}"),
                     }
@@ -932,40 +868,14 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
                         match map_chat_span_proto(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, None) {
                             Ok(mut event) => {
                                 event.tool_name = tool_name;
-                                match tokio::task::block_in_place(|| {
-                                    tokio::runtime::Handle::current().block_on(async {
-                                        event_service::insert_tool_call(pool, event).await
-                                    })
-                                }) {
-                                    Ok(record) => {
-                                        results.push(serde_json::json!({
-                                            "event_id": record.event_id,
-                                            "tool_name": record.tool_name,
-                                            "duration_ms": record.duration_ms,
-                                        }));
-                                    }
-                                    Err(e) => warn!("failed to insert copilot HTTP chat span (proto): {e}"),
-                                }
+                                persist_event(pool, buffer, event, &mut results, "copilot HTTP chat (proto)");
                             }
                             Err(e) => warn!("failed to map copilot HTTP chat span (proto): {e}"),
                         }
                     } else {
                         match map_tool_call(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, Some(&tool_name)) {
                             Ok(event) => {
-                                match tokio::task::block_in_place(|| {
-                                    tokio::runtime::Handle::current().block_on(async {
-                                        event_service::insert_tool_call(pool, event).await
-                                    })
-                                }) {
-                                    Ok(record) => {
-                                        results.push(serde_json::json!({
-                                            "event_id": record.event_id,
-                                            "tool_name": record.tool_name,
-                                            "duration_ms": record.duration_ms,
-                                        }));
-                                    }
-                                    Err(e) => warn!("failed to insert copilot HTTP tool span (proto): {e}"),
-                                }
+                                persist_event(pool, buffer, event, &mut results, "copilot HTTP tool (proto)");
                             }
                             Err(e) => warn!("failed to map copilot HTTP tool span (proto): {e}"),
                         }
