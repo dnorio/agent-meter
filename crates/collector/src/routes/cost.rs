@@ -6,7 +6,8 @@
 
 use axum::{
     extract::{Query, State},
-    response::Html,
+    http::header,
+    response::{Html, IntoResponse},
     routing::get,
     Json, Router,
 };
@@ -29,7 +30,7 @@ pub struct CostParams {
 async fn summary_handler(
     State(state): State<AppState>,
     Query(p): Query<CostParams>,
-) -> Result<Json<cost_service::CostSummary>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     let to = p
         .to
         .as_deref()
@@ -44,7 +45,10 @@ async fn summary_handler(
         .unwrap_or_else(|| to - Duration::days(30));
 
     let summary = cost_service::cost_summary(&state.pool, from, to, p.model.as_deref()).await?;
-    Ok(Json(summary))
+    Ok((
+        [(header::CACHE_CONTROL, "public, max-age=60")],
+        Json(summary),
+    ))
 }
 
 async fn pricing_handler(
