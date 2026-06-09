@@ -9,6 +9,7 @@ use tower_http::trace::TraceLayer;
 use agent_meter_db::Database;
 use crate::config::Config;
 use crate::middleware::api_key_auth;
+use crate::middleware::rate_limit::RateLimiter;
 use crate::routes;
 use crate::services::ingest_buffer::IngestBuffer;
 
@@ -21,16 +22,21 @@ pub struct AppState {
     pub pool: PgPool,
     /// Async ingest buffer for fire-and-forget span writes.
     pub ingest: Option<IngestBuffer>,
+    /// Per-IP rate limiter for ingest endpoints.
+    pub rate_limiter: Arc<RateLimiter>,
 }
 
 pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>, cancel: CancellationToken) -> Router {
     let require_api_key = config.require_api_key;
     let ingest = IngestBuffer::spawn(pool.clone(), 4096, cancel);
+    // 600 requests/min per IP (generous for batch telemetry)
+    let rate_limiter = Arc::new(RateLimiter::new(600, 60));
     let state = AppState {
         config: Arc::new(config),
         db,
         pool,
         ingest: Some(ingest),
+        rate_limiter,
     };
 
     let mut router = Router::new()
@@ -72,11 +78,13 @@ pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>, cancel: Cancel
 
 pub fn build_otlp(config: Config, pool: PgPool, db: Arc<dyn Database>, cancel: CancellationToken) -> Router {
     let ingest = IngestBuffer::spawn(pool.clone(), 4096, cancel);
+    let rate_limiter = Arc::new(RateLimiter::new(600, 60));
     let state = AppState {
         config: Arc::new(config),
         db,
         pool,
         ingest: Some(ingest),
+        rate_limiter,
     };
 
     Router::new()
