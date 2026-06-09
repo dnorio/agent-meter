@@ -660,6 +660,164 @@ impl Database for PostgresDb {
         }).collect())
     }
 
+    async fn top_tasks(&self, q: &ReportQuery) -> DbResult<Vec<TopTaskRow>> {
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            task_id: String,
+            tool_calls: i64,
+            total_estimated_tokens: Option<i64>,
+            total_duration_ms: Option<i64>,
+            errors: i64,
+            distinct_tools: i64,
+        }
+        let rows = sqlx::query_as::<_, Row>(
+            r#"
+            SELECT
+                conversation_id AS task_id,
+                COUNT(*)::bigint AS tool_calls,
+                SUM(estimated_total_tokens)::bigint AS total_estimated_tokens,
+                SUM(duration_ms)::bigint AS total_duration_ms,
+                COUNT(*) FILTER (WHERE NOT ok)::bigint AS errors,
+                COUNT(DISTINCT tool_name)::bigint AS distinct_tools
+            FROM agent_tool_calls
+            WHERE conversation_id IS NOT NULL
+              AND ($1::timestamptz IS NULL OR started_at >= $1)
+              AND ($2::timestamptz IS NULL OR started_at <= $2)
+              AND ($3::text IS NULL OR repo = $3)
+              AND ($4::text IS NULL OR ide = $4)
+              AND ($5::text IS NULL OR agent = $5)
+              AND ($6::text IS NULL OR model = $6)
+              AND ($7::text IS NULL OR skill = $7)
+            GROUP BY conversation_id
+            ORDER BY tool_calls DESC
+            LIMIT $8
+            "#,
+        )
+        .bind(q.from)
+        .bind(q.to)
+        .bind(&q.repo)
+        .bind(&q.ide)
+        .bind(&q.agent)
+        .bind(&q.model)
+        .bind(&q.skill)
+        .bind(q.limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|r| TopTaskRow {
+            task_id: r.task_id, tool_calls: r.tool_calls,
+            total_estimated_tokens: r.total_estimated_tokens,
+            total_duration_ms: r.total_duration_ms,
+            errors: r.errors, distinct_tools: r.distinct_tools,
+        }).collect())
+    }
+
+    async fn calls_over_time(&self, q: &ReportQuery, bucket: &str) -> DbResult<Vec<CallsBucketRow>> {
+        #[derive(sqlx::FromRow)]
+        struct Row { bucket: chrono::DateTime<chrono::Utc>, calls: i64, errors: i64 }
+
+        let interval = match bucket {
+            "hour" => "hour",
+            "day" => "day",
+            "minute" => "minute",
+            _ => "hour",
+        };
+        let rows = sqlx::query_as::<_, Row>(
+            &format!(
+                r#"
+                SELECT
+                    date_trunc('{interval}', started_at) AS bucket,
+                    COUNT(*)::bigint AS calls,
+                    COUNT(*) FILTER (WHERE NOT ok)::bigint AS errors
+                FROM agent_tool_calls
+                WHERE ($1::timestamptz IS NULL OR started_at >= $1)
+                  AND ($2::timestamptz IS NULL OR started_at <= $2)
+                  AND ($3::text IS NULL OR repo = $3)
+                  AND ($4::text IS NULL OR ide = $4)
+                  AND ($5::text IS NULL OR agent = $5)
+                  AND ($6::text IS NULL OR model = $6)
+                  AND ($7::text IS NULL OR skill = $7)
+                GROUP BY bucket
+                ORDER BY bucket ASC
+                LIMIT 500
+                "#,
+            ),
+        )
+        .bind(q.from)
+        .bind(q.to)
+        .bind(&q.repo)
+        .bind(&q.ide)
+        .bind(&q.agent)
+        .bind(&q.model)
+        .bind(&q.skill)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|r| CallsBucketRow {
+            bucket: r.bucket, calls: r.calls, errors: r.errors,
+        }).collect())
+    }
+
+    async fn distinct_models(&self) -> DbResult<Vec<String>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT DISTINCT model FROM agent_tool_calls WHERE model IS NOT NULL ORDER BY model",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    async fn leaderboard_agents(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+        #[derive(sqlx::FromRow)]
+        struct Row { name: String, events: i64, usd_cost: f64 }
+        let rows = sqlx::query_as::<_, Row>(
+            "SELECT COALESCE(agent, 'unknown') AS name, \
+             COUNT(*)::int8 AS events, \
+             COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost \
+             FROM agent_tool_calls WHERE created_at >= $1::timestamptz \
+             GROUP BY agent ORDER BY events DESC LIMIT $2",
+        )
+        .bind(from)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| LeaderboardEntry { name: r.name, events: r.events, usd_cost: r.usd_cost }).collect())
+    }
+
+    async fn leaderboard_ides(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+        #[derive(sqlx::FromRow)]
+        struct Row { name: String, events: i64, usd_cost: f64 }
+        let rows = sqlx::query_as::<_, Row>(
+            "SELECT COALESCE(ide, 'unknown') AS name, \
+             COUNT(*)::int8 AS events, \
+             COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost \
+             FROM agent_tool_calls WHERE created_at >= $1::timestamptz \
+             GROUP BY ide ORDER BY events DESC LIMIT $2",
+        )
+        .bind(from)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| LeaderboardEntry { name: r.name, events: r.events, usd_cost: r.usd_cost }).collect())
+    }
+
+    async fn leaderboard_models(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+        #[derive(sqlx::FromRow)]
+        struct Row { name: String, events: i64, usd_cost: f64 }
+        let rows = sqlx::query_as::<_, Row>(
+            "SELECT COALESCE(model, 'unknown') AS name, \
+             COUNT(*)::int8 AS events, \
+             COALESCE(SUM(usd_cost), 0)::float8 AS usd_cost \
+             FROM agent_tool_calls WHERE created_at >= $1::timestamptz \
+             GROUP BY model ORDER BY events DESC LIMIT $2",
+        )
+        .bind(from)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| LeaderboardEntry { name: r.name, events: r.events, usd_cost: r.usd_cost }).collect())
+    }
+
     async fn list_conversations(&self, q: &ConversationQuery) -> DbResult<Vec<ConversationRow>> {
         let rows = sqlx::query_as::<_, PgConversationRow>(
             r#"

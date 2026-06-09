@@ -142,6 +142,32 @@ pub struct CostBucketRow {
 // ── Conversations ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
+pub struct TopTaskRow {
+    pub task_id: String,
+    pub tool_calls: i64,
+    pub total_estimated_tokens: Option<i64>,
+    pub total_duration_ms: Option<i64>,
+    pub errors: i64,
+    pub distinct_tools: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CallsBucketRow {
+    pub bucket: DateTime<Utc>,
+    pub calls: i64,
+    pub errors: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LeaderboardEntry {
+    pub name: String,
+    pub events: i64,
+    pub usd_cost: f64,
+}
+
+// ── Conversations ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ConversationRow {
     pub conversation_id: String,
     pub title: Option<String>,

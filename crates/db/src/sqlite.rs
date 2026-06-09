@@ -538,6 +538,37 @@ impl Database for SqliteDb {
         }).collect())
     }
 
+    async fn top_tasks(&self, _q: &ReportQuery) -> DbResult<Vec<TopTaskRow>> {
+        // TODO: Implement SQLite version
+        Ok(vec![])
+    }
+
+    async fn calls_over_time(&self, _q: &ReportQuery, _bucket: &str) -> DbResult<Vec<CallsBucketRow>> {
+        // TODO: Implement SQLite version
+        Ok(vec![])
+    }
+
+    async fn distinct_models(&self) -> DbResult<Vec<String>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT DISTINCT model FROM agent_tool_calls WHERE model IS NOT NULL ORDER BY model",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    async fn leaderboard_agents(&self, _from: &str, _limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+        Ok(vec![])
+    }
+
+    async fn leaderboard_ides(&self, _from: &str, _limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+        Ok(vec![])
+    }
+
+    async fn leaderboard_models(&self, _from: &str, _limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+        Ok(vec![])
+    }
+
     async fn list_conversations(&self, q: &ConversationQuery) -> DbResult<Vec<ConversationRow>> {
         let rows = sqlx::query(
             r#"

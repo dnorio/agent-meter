@@ -7,8 +7,6 @@ pub mod event_service;
 pub mod notification_service;
 pub mod org_service;
 pub mod pricing_updater;
-pub mod report_service;
-pub mod search_service;
 pub mod stripe_service;
 pub mod task_service;
 pub mod token_estimator;

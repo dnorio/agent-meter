@@ -7,6 +7,9 @@ use axum::{
 };
 use serde::Deserialize;
 
+use agent_meter_db::models::ConversationRow;
+use agent_meter_db::params::ConversationQuery;
+
 use crate::app::AppState;
 use crate::errors::AppError;
 use crate::services::conversation_service;
@@ -32,14 +35,13 @@ struct ListQuery {
 async fn list(
     State(state): State<AppState>,
     Query(q): Query<ListQuery>,
-) -> Result<Json<Vec<conversation_service::ConversationRow>>, AppError> {
-    let rows = conversation_service::list_conversations(
-        &state.pool,
-        q.limit.unwrap_or(50).min(200),
-        q.offset.unwrap_or(0),
-        q.ide.as_deref(),
-    )
-    .await?;
+) -> Result<Json<Vec<ConversationRow>>, AppError> {
+    let params = ConversationQuery {
+        limit: q.limit.unwrap_or(50).min(200),
+        offset: q.offset.unwrap_or(0),
+        ide: q.ide,
+    };
+    let rows = state.db.list_conversations(&params).await?;
     Ok(Json(rows))
 }
 

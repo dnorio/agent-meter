@@ -5,9 +5,10 @@ use axum::{
 };
 use serde::Deserialize;
 
+use agent_meter_db::models::SearchResultRow;
+
 use crate::app::AppState;
 use crate::errors::AppError;
-use crate::services::search_service;
 
 #[derive(Debug, Deserialize)]
 pub struct SearchParams {
@@ -22,12 +23,12 @@ pub fn router() -> Router<AppState> {
 async fn search_handler(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
-) -> Result<Json<Vec<search_service::SearchResult>>, AppError> {
+) -> Result<Json<Vec<SearchResultRow>>, AppError> {
     let q = params.q.trim();
     if q.is_empty() || q.len() < 2 {
         return Ok(Json(vec![]));
     }
     let limit = params.limit.unwrap_or(20).min(50);
-    let results = search_service::search(&state.pool, q, limit).await?;
+    let results = state.db.search(q, limit).await?;
     Ok(Json(results))
 }

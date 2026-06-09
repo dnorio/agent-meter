@@ -49,9 +49,17 @@ pub trait Database: Send + Sync + 'static {
     async fn top_tools(&self, params: &ReportQuery) -> DbResult<Vec<TopToolRow>>;
     async fn top_agents(&self, params: &ReportQuery) -> DbResult<Vec<TopAgentRow>>;
     async fn top_mcp_servers(&self, params: &ReportQuery) -> DbResult<Vec<TopMcpServerRow>>;
+    async fn top_tasks(&self, params: &ReportQuery) -> DbResult<Vec<TopTaskRow>>;
     async fn ide_breakdown(&self, params: &ReportQuery) -> DbResult<Vec<IdeBreakdownRow>>;
     async fn error_patterns(&self, params: &ReportQuery) -> DbResult<Vec<ErrorPatternRow>>;
     async fn cost_over_time(&self, params: &ReportQuery) -> DbResult<Vec<CostBucketRow>>;
+    async fn calls_over_time(&self, params: &ReportQuery, bucket: &str) -> DbResult<Vec<CallsBucketRow>>;
+    async fn distinct_models(&self) -> DbResult<Vec<String>>;
+
+    // ── Leaderboard ─────────────────────────────────────────────────────────
+    async fn leaderboard_agents(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>>;
+    async fn leaderboard_ides(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>>;
+    async fn leaderboard_models(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>>;
 
     // ── Conversations ───────────────────────────────────────────────────────
     async fn list_conversations(&self, params: &ConversationQuery) -> DbResult<Vec<ConversationRow>>;
