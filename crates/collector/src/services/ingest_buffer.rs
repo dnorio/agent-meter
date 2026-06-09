@@ -32,6 +32,7 @@ const FLUSH_INTERVAL_MS: u64 = 500;
 #[derive(Clone)]
 pub struct IngestBuffer {
     tx: mpsc::Sender<ToolCallEvent>,
+    capacity: usize,
 }
 
 impl IngestBuffer {
@@ -39,7 +40,7 @@ impl IngestBuffer {
     pub fn spawn(pool: PgPool, capacity: usize, cancel: CancellationToken) -> Self {
         let (tx, rx) = mpsc::channel(capacity);
         tokio::spawn(buffer_worker(rx, pool, cancel));
-        Self { tx }
+        Self { tx, capacity }
     }
 
     /// Send an event to the buffer. Returns Err if the channel is full or closed.
@@ -50,6 +51,16 @@ impl IngestBuffer {
     /// Try to send without waiting (for fire-and-forget paths).
     pub fn try_send(&self, event: ToolCallEvent) -> Result<(), mpsc::error::TrySendError<ToolCallEvent>> {
         self.tx.try_send(event)
+    }
+
+    /// Total channel capacity.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// Number of messages currently queued (approximate).
+    pub fn queued(&self) -> usize {
+        self.capacity - self.tx.capacity()
     }
 }
 
