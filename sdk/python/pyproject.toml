@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-meter"
+version = "0.1.0"
+description = "Lightweight SDK to track AI agent tool calls, costs, and latency."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{ name = "Agent Meter", email = "security@example.com" }]
+keywords = ["ai", "agents", "observability", "telemetry", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = ["httpx>=0.24"]
+
+[project.urls]
+Homepage = "http://localhost:8081"
+Repository = "https://github.com/dnorio/agent-meter/tree/main/apps/agent-meter/sdk/python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent_meter"]
