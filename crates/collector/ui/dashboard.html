@@ -4,6 +4,7 @@ c<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Dashboard · agent-meter</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Real-time dashboard for AI agent tool calls, costs, and latency. Track LLM usage across all your agents.">
 <link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
 <link rel="stylesheet" href="/_static/tokens.css">
 <link rel="stylesheet" href="/_static/app.css">
@@ -42,7 +43,7 @@ c<!DOCTYPE html>
       </span>
       <span class="logo-text">agent-meter</span>
     </a>
-    <nav class="am-sidebar-nav">
+    <nav class="am-sidebar-nav" aria-label="Main navigation">
       <div class="am-nav-section">Observability</div>
       <a class="am-nav-link active" href="/"><svg class="am-icon"><use href="/_static/icons.svg#i-dashboard"/></svg><span>Dashboard</span></a>
       <a class="am-nav-link" href="/conversations"><svg class="am-icon"><use href="/_static/icons.svg#i-conversations"/></svg><span>Conversations</span></a>
@@ -72,7 +73,7 @@ c<!DOCTYPE html>
     </div>
     <div class="am-search" style="position:relative">
       <svg class="am-icon"><use href="/_static/icons.svg#i-search"/></svg>
-      <input id="globalSearch" placeholder="Search conversations, models, tools…" autocomplete="off">
+      <input id="globalSearch" placeholder="Search conversations, models, tools…" autocomplete="off" aria-label="Search conversations, models, and tools">
       <span class="kbd">⌘K</span>
       <div id="searchResults" class="am-search-dropdown" style="display:none"></div>
     </div>
@@ -82,13 +83,13 @@ c<!DOCTYPE html>
   </header>
 
   <!-- MAIN -->
-  <main class="am-main">
+  <main class="am-main" role="main" aria-label="Dashboard content">
     <div class="am-page-header" style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
         <h1 class="am-page-title">Dashboard</h1>
         <p class="am-page-subtitle">Live view of LLM calls, tool runs, and MCP activity across all your agents.</p>
       </div>
-      <div class="am-segment" id="periodSeg">
+      <div class="am-segment" id="periodSeg" role="group" aria-label="Time period selector">
         <button data-period="1h">1h</button>
         <button data-period="6h">6h</button>
         <button data-period="24h" class="active">24h</button>
