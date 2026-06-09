@@ -158,9 +158,9 @@
           <span class="sep">›</span>
           <span class="crumb current">${opts.breadcrumb || opts.title || ''}</span>
         </div>
-        <div class="am-search">
+        <div class="am-search" id="amSearchTrigger">
           <svg class="am-icon"><use href="/_static/icons.svg#i-search"/></svg>
-          <input placeholder="Search…" disabled>
+          <input placeholder="Search…" readonly>
           <span class="kbd">⌘K</span>
         </div>
         <div class="am-topbar-actions" id="amUserSlot">
@@ -186,5 +186,106 @@
         if (f) f.textContent = `${r.service} · ${r.status}`;
       }).catch(()=>{});
     }
+
+    // ── T-353: Global Search (⌘K) ──────────────────────────────────────────
+    const trigger = document.getElementById('amSearchTrigger');
+    if (trigger) trigger.addEventListener('click', () => amOpenSearch());
   };
+
+  // Search modal state
+  let _searchModal = null;
+  let _searchTimeout = null;
+
+  window.amOpenSearch = function() {
+    if (_searchModal) { _searchModal.remove(); _searchModal = null; }
+    const overlay = document.createElement('div');
+    overlay.className = 'am-search-overlay';
+    overlay.innerHTML = `
+      <div class="am-search-modal" role="dialog" aria-label="Search">
+        <div class="am-search-input-wrap">
+          <svg class="am-icon" style="flex-shrink:0;opacity:.5"><use href="/_static/icons.svg#i-search"/></svg>
+          <input class="am-search-input" type="text" placeholder="Search conversations, tools, models…" autofocus>
+          <span class="kbd" style="cursor:pointer" id="amSearchClose">Esc</span>
+        </div>
+        <div class="am-search-results" id="amSearchResults">
+          <div class="am-search-empty">Type to search across conversations</div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    _searchModal = overlay;
+
+    const input = overlay.querySelector('.am-search-input');
+    const results = overlay.querySelector('#amSearchResults');
+
+    input.focus();
+    input.addEventListener('input', () => {
+      clearTimeout(_searchTimeout);
+      const q = input.value.trim();
+      if (q.length < 2) { results.innerHTML = '<div class="am-search-empty">Type to search across conversations</div>'; return; }
+      _searchTimeout = setTimeout(() => doSearch(q, results), 300);
+    });
+
+    // Navigate results with arrows
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); focusResult(results, 1); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); focusResult(results, -1); }
+      else if (ev.key === 'Enter') {
+        const active = results.querySelector('.am-search-item.focused');
+        if (active) active.click();
+      }
+    });
+
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) amCloseSearch(); });
+    overlay.querySelector('#amSearchClose').addEventListener('click', amCloseSearch);
+  };
+
+  window.amCloseSearch = function() {
+    if (_searchModal) { _searchModal.remove(); _searchModal = null; }
+  };
+
+  function focusResult(container, dir) {
+    const items = [...container.querySelectorAll('.am-search-item')];
+    if (!items.length) return;
+    const cur = items.findIndex(i => i.classList.contains('focused'));
+    items.forEach(i => i.classList.remove('focused'));
+    const next = Math.max(0, Math.min(items.length - 1, cur + dir));
+    items[next].classList.add('focused');
+    items[next].scrollIntoView({ block: 'nearest' });
+  }
+
+  async function doSearch(q, container) {
+    container.innerHTML = '<div class="am-search-empty">Searching…</div>';
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=15`);
+      if (!r.ok) throw new Error(r.statusText);
+      const rows = await r.json();
+      if (!rows.length) { container.innerHTML = '<div class="am-search-empty">No results</div>'; return; }
+      container.innerHTML = rows.map((row, i) => {
+        const title = row.user_prompt ? row.user_prompt.slice(0, 80) : row.tool_name || row.conversation_id.slice(0, 8);
+        const meta = [row.model, row.agent, row.tool_name].filter(Boolean).join(' · ');
+        const time = row.started_at ? new Date(row.started_at).toLocaleDateString() : '';
+        const badge = row.match_field ? `<span class="am-search-badge">${row.match_field}</span>` : '';
+        return `<a class="am-search-item${i===0?' focused':''}" href="/conversations/${encodeURIComponent(row.conversation_id)}/timeline">
+          <div class="am-search-item-title">${escapeForSearch(title)}</div>
+          <div class="am-search-item-meta">${badge}${escapeForSearch(meta)}${time ? ' · ' + time : ''}</div>
+        </a>`;
+      }).join('');
+    } catch(e) {
+      container.innerHTML = `<div class="am-search-empty">Error: ${e.message}</div>`;
+    }
+  }
+
+  function escapeForSearch(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ⌘K / Ctrl+K keyboard shortcut
+  document.addEventListener('keydown', (ev) => {
+    if ((ev.metaKey || ev.ctrlKey) && ev.key === 'k') {
+      ev.preventDefault();
+      if (_searchModal) amCloseSearch(); else amOpenSearch();
+    }
+    if (ev.key === 'Escape' && _searchModal) amCloseSearch();
+  });
 })();
