@@ -315,7 +315,23 @@ impl Database for SqliteDb {
                 AVG(duration_ms) AS avg_duration_ms,
                 SUM(CASE WHEN NOT ok THEN 1 ELSE 0 END) AS errors,
                 AVG(response_bytes) AS avg_response_bytes,
-                NULL AS top_model,
+                (
+                    SELECT atc2.model
+                    FROM agent_tool_calls atc2
+                    WHERE atc2.mcp_server = agent_tool_calls.mcp_server
+                      AND atc2.tool_name = agent_tool_calls.tool_name
+                      AND (?1 IS NULL OR atc2.started_at >= ?1)
+                      AND (?2 IS NULL OR atc2.started_at <= ?2)
+                      AND (?3 IS NULL OR atc2.repo = ?3)
+                      AND (?4 IS NULL OR atc2.ide = ?4)
+                      AND (?5 IS NULL OR atc2.agent = ?5)
+                      AND (?6 IS NULL OR atc2.model = ?6)
+                      AND (?7 IS NULL OR atc2.skill = ?7)
+                      AND atc2.model IS NOT NULL
+                    GROUP BY atc2.model
+                    ORDER BY COUNT(*) DESC, atc2.model ASC
+                    LIMIT 1
+                ) AS top_model,
                 SUM(cached_tokens) AS cached_tokens_total,
                 AVG(estimated_input_tokens) AS avg_input_tokens,
                 AVG(estimated_output_tokens) AS avg_output_tokens
@@ -407,7 +423,7 @@ impl Database for SqliteDb {
                 COUNT(*) AS calls,
                 SUM(estimated_total_tokens) AS total_estimated_tokens,
                 AVG(response_bytes) AS avg_response_bytes,
-                CAST(SUM(CASE WHEN NOT ok THEN 1 ELSE 0 END) AS REAL) / MAX(COUNT(*), 1) AS error_rate
+                CAST(SUM(CASE WHEN NOT ok THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) AS error_rate
             FROM agent_tool_calls
             WHERE mcp_server IS NOT NULL AND mcp_server <> ''
               AND tool_name <> 'llm_chat'
@@ -474,20 +490,57 @@ impl Database for SqliteDb {
     async fn error_patterns(&self, q: &ReportQuery) -> DbResult<Vec<ErrorPatternRow>> {
         let rows = sqlx::query(
             r#"
+            WITH filtered AS (
+                SELECT error, tool_name, model, started_at
+                FROM agent_tool_calls
+                WHERE NOT ok AND error IS NOT NULL
+                  AND (?1 IS NULL OR started_at >= ?1)
+                  AND (?2 IS NULL OR started_at <= ?2)
+                  AND (?3 IS NULL OR repo = ?3)
+                  AND (?4 IS NULL OR ide = ?4)
+            ),
+            base AS (
+                SELECT
+                    error,
+                    COUNT(*) AS occurrences,
+                    MAX(started_at) AS last_seen
+                FROM filtered
+                GROUP BY error
+            ),
+            tool_ranked AS (
+                SELECT
+                    error,
+                    tool_name,
+                    COUNT(*) AS cnt,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY error
+                        ORDER BY COUNT(*) DESC, tool_name ASC
+                    ) AS rn
+                FROM filtered
+                GROUP BY error, tool_name
+            ),
+            model_ranked AS (
+                SELECT
+                    error,
+                    model,
+                    COUNT(*) AS cnt,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY error
+                        ORDER BY COUNT(*) DESC, model ASC
+                    ) AS rn
+                FROM filtered
+                GROUP BY error, model
+            )
             SELECT
-                error,
-                COUNT(*) AS occurrences,
-                tool_name,
-                model,
-                MAX(started_at) AS last_seen
-            FROM agent_tool_calls
-            WHERE NOT ok AND error IS NOT NULL
-              AND (?1 IS NULL OR started_at >= ?1)
-              AND (?2 IS NULL OR started_at <= ?2)
-              AND (?3 IS NULL OR repo = ?3)
-              AND (?4 IS NULL OR ide = ?4)
-            GROUP BY error
-            ORDER BY occurrences DESC
+                b.error,
+                b.occurrences,
+                tr.tool_name,
+                mr.model,
+                b.last_seen
+            FROM base b
+            LEFT JOIN tool_ranked tr ON tr.error = b.error AND tr.rn = 1
+            LEFT JOIN model_ranked mr ON mr.error = b.error AND mr.rn = 1
+            ORDER BY b.occurrences DESC
             LIMIT ?5
             "#,
         )
@@ -648,7 +701,7 @@ impl Database for SqliteDb {
                 COALESCE(AVG(usd_cost), 0.0) AS avg_usd_per_event,
                 0.0 AS burn_rate_usd_per_hour,
                 COALESCE(AVG(duration_ms), 0.0) AS avg_duration_ms,
-                CAST(SUM(CASE WHEN NOT ok THEN 1 ELSE 0 END) AS REAL) / MAX(COUNT(*), 1) AS error_rate
+                CAST(SUM(CASE WHEN NOT ok THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) AS error_rate
             FROM agent_tool_calls
             WHERE started_at >= ?1 AND started_at <= ?2
               AND (?3 IS NULL OR model = ?3)

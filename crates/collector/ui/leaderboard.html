@@ -81,12 +81,15 @@ amShell({active:'', breadcrumb:'Leaderboard'});
 
 const RANK_CLS = ['gold','silver','bronze'];
 const IDE_COLORS = {'copilot-vscode':'#0078d4','cursor':'#a855f7','antigravity':'#f97316','claude-code':'#d97706','codex':'#10b981','copilot-cli':'#3b82f6','opencode':'#06b6d4','rust-rover':'#ef4444','unknown':'#6b7280'};
+const MAX_LEADERBOARD_ENTRIES = 20;
+const MS_PER_DAY = 86400000;
+const REFRESH_INTERVAL_MS = 60000;
 
 function renderTable(tbodyId, rows, nameKey) {
   const tbody = document.getElementById(tbodyId);
   if (!rows || !rows.length) { tbody.innerHTML = `<tr><td colspan="5" class="lb-empty">No data yet — connect an agent to appear on the board.</td></tr>`; return; }
   const maxEvents = Math.max(...rows.map(r => r.events || r.calls || 0), 1);
-  tbody.innerHTML = rows.slice(0, 20).map((r, i) => {
+  tbody.innerHTML = rows.slice(0, MAX_LEADERBOARD_ENTRIES).map((r, i) => {
     const rank = i + 1;
     const cls = i < 3 ? RANK_CLS[i] : '';
     const name = r[nameKey] || r.name || '—';
@@ -105,7 +108,7 @@ function renderTable(tbodyId, rows, nameKey) {
 }
 
 async function loadLeaderboard() {
-  const from = new Date(Date.now() - 30*86400000).toISOString();
+  const from = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
   try {
     const data = await fetch(`/api/leaderboard/all?from=${from}`).then(r=>r.json());
     renderTable('lbAgents', data.agents, 'agent');
@@ -113,7 +116,18 @@ async function loadLeaderboard() {
     renderTable('lbModels', data.models, 'model');
     document.getElementById('lbUpdated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
   } catch(e) {
-    document.getElementById('lbAgents').innerHTML = `<tr><td colspan="5" class="lb-empty">Error: ${e.message}</td></tr>`;
+    const errorMsg = `Error: ${e.message}`;
+    ['lbAgents', 'lbIdes', 'lbModels'].forEach(id => {
+      const tbody = document.getElementById(id);
+      tbody.textContent = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.className = 'lb-empty';
+      td.textContent = errorMsg;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
   }
 }
 
@@ -127,7 +141,7 @@ document.querySelectorAll('.lb-tab').forEach(tab => {
 });
 
 loadLeaderboard();
-setInterval(loadLeaderboard, 60000);
+setInterval(loadLeaderboard, REFRESH_INTERVAL_MS);
 </script>
 </body>
 </html>
