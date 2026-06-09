@@ -211,6 +211,9 @@ const IDE_META = {
 };
 function getIde(ide) { return IDE_META[ide] || { abbr:'??', cls:'ide-unknown', label: ide || '?' }; }
 
+// Escape HTML entities to prevent XSS when interpolating into innerHTML
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 function shortAgent(a) {
   if (!a) return null;
   return a.replace(/^copilotLanguageModel(Wrapper)?$/, 'Copilot')
@@ -244,11 +247,14 @@ function cleanPrompt(text) {
     .replace(/^In this environment you have access to[\s\S]*$/g, '')
     .replace(/^You are an expert AI programming[\s\S]*$/g, '')
     .replace(/^Follow the user's requirements[\s\S]*$/g, '')
-    .replace(/^The following tasks can be executed[\s\S]*$/g, '')
-    // Remove remaining XML tags
-    .replace(/<[^>]+>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/^The following tasks can be executed[\s\S]*$/g, '');
+  // Remove ALL HTML/XML tags iteratively until stable (prevents multi-char bypass)
+  let prev;
+  do {
+    prev = s;
+    s = s.replace(/<[^>]*>/g, '');
+  } while (s !== prev);
+  s = s.replace(/\s+/g, ' ').trim();
   // If after cleanup we got nothing or too short, return empty
   if (s.length < 4) return '';
   return s;
@@ -312,13 +318,13 @@ function render() {
     const prompt = cleanPrompt(rawPrompt).replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/\n/g,' ');
     const response = cleanPrompt(rawResponse).replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/\n/g,' ');
     const ide = getIde(c.ide);
-    const agent = shortAgent(c.agent);
-    const model = shortModel(c.model);
+    const agent = esc(shortAgent(c.agent));
+    const model = esc(shortModel(c.model));
     const hasErr = c.error_count > 0;
     const totalTok = (c.total_tokens_in||0) + (c.total_tokens_out||0);
 
     // Line 2 chips
-    let line2 = `<span class="tag tag-model" style="font-family:var(--am-font-mono)">${shortId}</span>`;
+    let line2 = `<span class="tag tag-model" style="font-family:var(--am-font-mono)">${esc(shortId)}</span>`;
     if (agent) line2 += `<span class="dot"></span><span class="tag tag-agent">${agent}</span>`;
     if (model) line2 += `<span class="dot"></span><span class="tag tag-model">${model}</span>`;
     if (hasErr) line2 += `<span class="dot"></span><span class="tag tag-err">${c.error_count} err</span>`;
@@ -330,7 +336,7 @@ function render() {
     const responseSnippet = (response && displayTitle !== response.slice(0, 80)) ? (response.length > 120 ? response.slice(0,120) + '…' : response) : '';
 
     return `<a class="conv-row" href="/conversations/${encodeURIComponent(id)}/timeline">
-      <div class="ide-badge ${ide.cls}" title="${ide.label}">${ide.abbr}</div>
+      <div class="ide-badge ${ide.cls}" title="${esc(ide.label)}">${esc(ide.abbr)}</div>
       <div class="conv-main">
         <div class="conv-line1"><span class="conv-title">${displayTitle || '<span style=\"color:var(--am-text-dim)\">Untitled session</span>'}</span></div>
         ${showPromptBelow ? `<div class="conv-prompt">${prompt}</div>` : ''}

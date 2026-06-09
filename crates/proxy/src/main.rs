@@ -10,10 +10,12 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use hudsucker::{
     certificate_authority::RcgenAuthority,
+    rustls::crypto::aws_lc_rs,
     Body, HttpHandler, HttpContext, RequestOrResponse,
     Proxy,
 };
 use http::{Request, Response};
+use rcgen::{Issuer, KeyPair};
 use tracing_subscriber::fmt;
 
 use interceptor::InterceptorState;
@@ -127,14 +129,12 @@ async fn cmd_start(listen: SocketAddr, collector: String) -> Result<()> {
     let key_pem = std::fs::read_to_string(&key_path).context("reading CA key")?;
     let cert_pem = std::fs::read_to_string(&cert_path).context("reading CA cert")?;
 
-    let key_pair = rcgen::KeyPair::from_pem(&key_pem)
+    let key_pair = KeyPair::from_pem(&key_pem)
         .context("parsing CA key")?;
-    let ca_cert_params = rcgen::CertificateParams::from_ca_cert_pem(&cert_pem)
-        .context("parsing CA cert")?;
-    let ca_cert = ca_cert_params.self_signed(&key_pair)
-        .context("rebuilding CA certificate")?;
+    let issuer = Issuer::from_ca_cert_pem(&cert_pem, key_pair)
+        .context("parsing CA cert into Issuer")?;
 
-    let ca = RcgenAuthority::new(key_pair, ca_cert, 1000);
+    let ca = RcgenAuthority::new(issuer, 1000, aws_lc_rs::default_provider());
 
     // Write PID file
     let pid_path = ca::ca_dir().join("proxy.pid");
@@ -153,10 +153,11 @@ async fn cmd_start(listen: SocketAddr, collector: String) -> Result<()> {
 
     let proxy = Proxy::builder()
         .with_addr(listen)
-        .with_rustls_client()
         .with_ca(ca)
+        .with_rustls_connector(aws_lc_rs::default_provider())
         .with_http_handler(handler)
-        .build();
+        .build()
+        .context("building proxy")?;
 
     proxy.start().await.context("proxy runtime error")?;
 
