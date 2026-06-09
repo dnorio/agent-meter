@@ -136,7 +136,8 @@ pub async fn get_conversation_timeline(
     conversation_id: &str,
     limit: Option<i64>,
 ) -> Result<ConversationTimeline, AppError> {
-    let summary: Option<SummaryRow> = sqlx::query_as(
+    // Run summary and events queries in parallel
+    let summary_fut = sqlx::query_as::<_, SummaryRow>(
         r#"
         SELECT
             (SELECT user_prompt FROM agent_tool_calls
@@ -157,29 +158,9 @@ pub async fn get_conversation_timeline(
         "#,
     )
     .bind(conversation_id)
-    .fetch_optional(pool)
-    .await?;
+    .fetch_optional(pool);
 
-    let summary = match summary {
-        Some(s) => s,
-        None => {
-            return Ok(ConversationTimeline {
-                conversation_id: conversation_id.to_string(),
-                title: format!("Conversation {}", conversation_id),
-                started_at: chrono::Utc::now(),
-                ended_at: chrono::Utc::now(),
-                total_duration_ms: 0,
-                total_tokens_in: 0,
-                total_tokens_out: 0,
-                total_usd_cost: 0.0,
-                event_count: 0,
-                error_count: 0,
-                events: vec![],
-            });
-        }
-    };
-
-    let events_raw: Vec<TimelineRow> = sqlx::query_as(
+    let events_fut = sqlx::query_as::<_, TimelineRow>(
         r#"
         SELECT
             ROW_NUMBER() OVER (ORDER BY started_at ASC)::integer AS "order",
@@ -214,8 +195,30 @@ pub async fn get_conversation_timeline(
     )
     .bind(conversation_id)
     .bind(limit.unwrap_or(2000))
-    .fetch_all(pool)
-    .await?;
+    .fetch_all(pool);
+
+    let (summary_res, events_res) = tokio::join!(summary_fut, events_fut);
+    let summary = summary_res?;
+    let events_raw = events_res?;
+
+    let summary = match summary {
+        Some(s) => s,
+        None => {
+            return Ok(ConversationTimeline {
+                conversation_id: conversation_id.to_string(),
+                title: format!("Conversation {}", conversation_id),
+                started_at: chrono::Utc::now(),
+                ended_at: chrono::Utc::now(),
+                total_duration_ms: 0,
+                total_tokens_in: 0,
+                total_tokens_out: 0,
+                total_usd_cost: 0.0,
+                event_count: 0,
+                error_count: 0,
+                events: vec![],
+            });
+        }
+    };
 
     let title = summary
         .user_prompt

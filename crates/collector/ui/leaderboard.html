@@ -107,14 +107,10 @@ function renderTable(tbodyId, rows, nameKey) {
 async function loadLeaderboard() {
   const from = new Date(Date.now() - 30*86400000).toISOString();
   try {
-    const [agents, ides, models] = await Promise.all([
-      fetch(`/api/leaderboard/agents?from=${from}`).then(r=>r.json()),
-      fetch(`/api/leaderboard/ides?from=${from}`).then(r=>r.json()),
-      fetch(`/api/leaderboard/models?from=${from}`).then(r=>r.json()),
-    ]);
-    renderTable('lbAgents', agents, 'agent');
-    renderTable('lbIdes', ides, 'ide');
-    renderTable('lbModels', models, 'model');
+    const data = await fetch(`/api/leaderboard/all?from=${from}`).then(r=>r.json());
+    renderTable('lbAgents', data.agents, 'agent');
+    renderTable('lbIdes', data.ides, 'ide');
+    renderTable('lbModels', data.models, 'model');
     document.getElementById('lbUpdated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
   } catch(e) {
     document.getElementById('lbAgents').innerHTML = `<tr><td colspan="5" class="lb-empty">Error: ${e.message}</td></tr>`;

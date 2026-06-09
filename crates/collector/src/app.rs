@@ -1,6 +1,7 @@
 use axum::Router;
 use sqlx::PgPool;
 use std::sync::Arc;
+use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
@@ -57,6 +58,7 @@ pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>) -> Router {
     }
 
     router
+        .layer(CompressionLayer::new())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
