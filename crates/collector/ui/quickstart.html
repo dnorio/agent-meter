@@ -42,7 +42,8 @@
       <button class="qs-tab active" data-tab="mcp" role="tab">MCP Wrapper</button>
       <button class="qs-tab" data-tab="proxy" role="tab">HTTPS Proxy</button>
       <button class="qs-tab" data-tab="otlp" role="tab">OTLP (VS Code)</button>
-      <button class="qs-tab" data-tab="sdk" role="tab">Python SDK</button>
+      <button class="qs-tab" data-tab="python-sdk" role="tab">Python SDK</button>
+      <button class="qs-tab" data-tab="node-sdk" role="tab">Node.js SDK</button>
     </div>
 
     <!-- MCP Wrapper -->
@@ -113,7 +114,7 @@
     </div>
 
     <!-- Python SDK -->
-    <div class="qs-panel" data-panel="sdk">
+    <div class="qs-panel" data-panel="python-sdk">
       <div class="qs-steps">
         <div class="qs-step">
           <h3>Install the package</h3>
@@ -121,19 +122,53 @@
         </div>
         <div class="qs-step">
           <h3>Instrument your code</h3>
-          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy='from agent_meter import track_llm_call
+          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy='from agent_meter import AgentMeter
 
-@track_llm_call(endpoint="http://localhost:8081")
-def ask_ai(prompt: str) -> str:
-    return openai.chat(prompt)'>Copy</button><pre>from agent_meter import track_llm_call
+am = AgentMeter(api_key="am_live_...")
 
-@track_llm_call(endpoint="http://localhost:8081")
-def ask_ai(prompt: str) -> str:
-    return openai.chat(prompt)</pre></div>
+span = am.track("web_search", model="gpt-4o")
+result = search(query)
+span.finish()'>Copy</button><pre>from agent_meter import AgentMeter
+
+am = AgentMeter(api_key="am_live_...")
+
+span = am.track("web_search", model="gpt-4o")
+result = search(query)
+span.finish()</pre></div>
         </div>
         <div class="qs-step">
           <h3>Run your app</h3>
-          <p>Each decorated call sends a span. View them on the <a href="/">Dashboard</a>.</p>
+          <p>Spans flush automatically every 5s. View them on the <a href="/">Dashboard</a> in real time.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Node.js SDK -->
+    <div class="qs-panel" data-panel="node-sdk">
+      <div class="qs-steps">
+        <div class="qs-step">
+          <h3>Install the package</h3>
+          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy="npm install @agent-meter/sdk">Copy</button><pre>npm install @agent-meter/sdk</pre></div>
+        </div>
+        <div class="qs-step">
+          <h3>Instrument your code</h3>
+          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy='import { AgentMeter } from "@agent-meter/sdk";
+
+const am = new AgentMeter({ apiKey: "am_live_..." });
+
+const span = am.track("web_search", { model: "gpt-4o" });
+const result = await search(query);
+am.finish(span);'>Copy</button><pre>import { AgentMeter } from "@agent-meter/sdk";
+
+const am = new AgentMeter({ apiKey: "am_live_..." });
+
+const span = am.track("web_search", { model: "gpt-4o" });
+const result = await search(query);
+am.finish(span);</pre></div>
+        </div>
+        <div class="qs-step">
+          <h3>Run your app</h3>
+          <p>Spans flush automatically every 5s. View them on the <a href="/">Dashboard</a> in real time.</p>
         </div>
       </div>
     </div>
