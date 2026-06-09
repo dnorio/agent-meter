@@ -21,7 +21,7 @@ async fn post_traces(
         .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
         .unwrap_or_else(|| addr.ip().to_string());
     let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
-    let results = otlp::handle_trace_request(&body, content_type, Some(&client_ip), user_agent, &state.pool)?;
+    let results = otlp::handle_trace_request(&body, content_type, Some(&client_ip), user_agent, &state.pool, state.ingest.as_ref())?;
     Ok(Json(results))
 }
 

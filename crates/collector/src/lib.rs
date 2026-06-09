@@ -24,8 +24,13 @@ pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
 
     let db: Arc<dyn agent_meter_db::Database> = Arc::new(PostgresDb::from_pool(pool.clone()));
 
-    let main_app = app::build(config.clone(), pool.clone(), db.clone());
-    let otlp_app = app::build_otlp(config.clone(), pool.clone(), db.clone());
+    let token = CancellationToken::new();
+    let token_clone = token.clone();
+    let otlp_token = token.clone();
+    let pricing_token = token.clone();
+
+    let main_app = app::build(config.clone(), pool.clone(), db.clone(), token.clone());
+    let otlp_app = app::build_otlp(config.clone(), pool.clone(), db.clone(), token.clone());
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
     let otlp_addr: SocketAddr = format!("{}:{}", config.host, config.otlp_port).parse()?;
@@ -35,11 +40,6 @@ pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let otlp_listener = tokio::net::TcpListener::bind(otlp_addr).await?;
-
-    let token = CancellationToken::new();
-    let token_clone = token.clone();
-    let otlp_token = token.clone();
-    let pricing_token = token.clone();
 
     tokio::spawn(async move {
         signal::ctrl_c().await.ok();
