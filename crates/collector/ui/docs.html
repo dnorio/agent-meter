@@ -129,6 +129,7 @@
         <a href="#codex-cli">Codex CLI</a>
         <div class="toc-section">Reference</div>
         <a href="#api">REST API</a>
+        <a href="#sdks">SDKs</a>
         <a href="#otlp">OTLP Protocol</a>
         <a href="#security">Security</a>
         <a href="#faq">FAQ</a>
@@ -611,6 +612,58 @@ codex "refactor this function"</code></pre>
   "repo": "string",             // optional
   "branch": "string"            // optional
 }</code></pre>
+        </section>
+
+        <!-- SDKs -->
+        <section id="sdks">
+          <h2>SDKs</h2>
+          <p>Official SDKs wrap the OTLP endpoint with ergonomic APIs. Both auto-flush in the background and work with any <code>AGENT_METER_ENDPOINT</code>.</p>
+
+          <h3>Python</h3>
+          <pre><code>pip install agent-meter</code></pre>
+          <pre><code>from agent_meter import AgentMeter
+
+am = AgentMeter(api_key="am_live_...")
+
+# Track a tool call
+span = am.track("web_search", model="gpt-4o")
+result = search(query)
+span.finish()
+
+# With tokens and cost
+span = am.track("code_review", model="claude-sonnet-4-20250514")
+span.estimated_input_tokens = 2000
+span.estimated_output_tokens = 500
+span.usd_cost = 0.012
+span.finish()</code></pre>
+
+          <h3>Node.js / TypeScript</h3>
+          <pre><code>npm install @agent-meter/sdk</code></pre>
+          <pre><code>import { AgentMeter } from "@agent-meter/sdk";
+
+const am = new AgentMeter({ apiKey: "am_live_..." });
+
+const span = am.track("web_search", { model: "gpt-4o" });
+const result = await search(query);
+am.finish(span);
+
+// With tokens and cost
+const span2 = am.track("code_review", { model: "claude-sonnet-4-20250514" });
+span2.estimatedInputTokens = 2000;
+span2.estimatedOutputTokens = 500;
+span2.usdCost = 0.012;
+am.finish(span2);</code></pre>
+
+          <h3>Configuration (both SDKs)</h3>
+          <table>
+            <thead><tr><th>Env Variable</th><th>Description</th><th>Default</th></tr></thead>
+            <tbody>
+              <tr><td><code>AGENT_METER_API_KEY</code></td><td>API key for auth</td><td>—</td></tr>
+              <tr><td><code>AGENT_METER_ENDPOINT</code></td><td>Collector URL</td><td><code>http://localhost:8081</code></td></tr>
+              <tr><td><code>AGENT_METER_IDE</code></td><td>IDE identifier</td><td><code>python-sdk</code> / <code>node-sdk</code></td></tr>
+              <tr><td><code>AGENT_METER_AGENT</code></td><td>Agent name tag</td><td>—</td></tr>
+            </tbody>
+          </table>
         </section>
 
         <!-- OTLP PROTOCOL -->
