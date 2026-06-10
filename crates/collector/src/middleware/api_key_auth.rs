@@ -71,6 +71,9 @@ fn is_exempt_path(path: &str) -> bool {
             | "/api/billing/webhook"
             | "/api/billing/plans"
             | "/api/stats/public"
+            | "/api/status/db"
+            | "/api/status/otlp"
+            | "/api/status/pricing"
             | "/v1/traces"
     )
 }
