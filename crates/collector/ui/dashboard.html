@@ -5,6 +5,14 @@ c<!DOCTYPE html>
 <title>Dashboard · agent-meter</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Real-time dashboard for AI agent tool calls, costs, and latency. Track LLM usage across all your agents.">
+<meta property="og:title" content="Dashboard · agent-meter">
+<meta property="og:description" content="Real-time dashboard for AI agent tool calls, costs, and latency. Track LLM usage across all your agents.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="http://localhost:8081/">
+<meta property="og:image" content="http://localhost:8081/badge/events.svg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="agent-meter — AI Agent Observability">
+<meta name="twitter:description" content="Real-time dashboard for AI agent tool calls, costs, and latency.">
 <link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
 <link rel="stylesheet" href="/_static/tokens.css">
 <link rel="stylesheet" href="/_static/app.css">
@@ -106,6 +114,15 @@ c<!DOCTYPE html>
         <button class="am-btn am-btn-ghost am-btn-sm" id="btnExportEvents" title="Export events as CSV"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-external"/></svg>CSV</button>
         <button class="am-btn am-btn-ghost am-btn-sm" id="btnExportCost" title="Export cost as CSV"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-dollar"/></svg>Cost CSV</button>
       </div>
+    </div>
+
+    <!-- SOCIAL PROOF BANNER (anonymous visitors) -->
+    <div id="socialProof" style="display:none;margin-bottom:20px;padding:12px 20px;background:var(--am-surface);border:1px solid var(--am-border);border-radius:var(--am-radius);align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;font-size:var(--am-fs-sm)">>
+      <span style="font-weight:600;color:var(--am-text)">📊 Live platform stats</span>
+      <span><strong id="spEvents">—</strong> <span class="am-muted">events tracked</span></span>
+      <span><strong id="spModels">—</strong> <span class="am-muted">AI models</span></span>
+      <span><strong id="spIDEs">—</strong> <span class="am-muted">IDEs connected</span></span>
+      <span><strong id="spCost">—</strong> <span class="am-muted">USD monitored</span></span>
     </div>
 
     <!-- KPIs -->
@@ -648,6 +665,18 @@ setInterval(() => { loadHealth(); refresh(); }, 30000);
   }
 
   function esc(s) { return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+})();
+</script>
+<script>
+(function(){
+  fetch('/api/stats/public').then(r=>r.json()).then(d=>{
+    const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n);
+    document.getElementById('spEvents').textContent=fmt(d.total_events||0);
+    document.getElementById('spModels').textContent=String(d.distinct_models||0);
+    document.getElementById('spIDEs').textContent=String(d.distinct_ides||0);
+    document.getElementById('spCost').textContent='$'+Number(d.total_usd_tracked||0).toFixed(0);
+    document.getElementById('socialProof').style.display='flex';
+  }).catch(()=>{});
 })();
 </script>
 </body>

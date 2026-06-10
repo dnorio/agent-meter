@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <title>Documentation · agent-meter</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="API reference, SDK guides, and integration docs for agent-meter — the observability layer for AI agents.">
+<meta property="og:title" content="Documentation · agent-meter">
+<meta property="og:description" content="API reference, SDK guides, and integration docs for agent-meter.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="http://localhost:8081/docs">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Documentation · agent-meter">
+<meta name="twitter:description" content="API reference, SDK guides, and integration docs for agent-meter.">
 <link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
 <link rel="stylesheet" href="/_static/tokens.css">
 <link rel="stylesheet" href="/_static/app.css">
@@ -132,6 +140,7 @@
         <a href="#sdks">SDKs</a>
         <a href="#otlp">OTLP Protocol</a>
         <a href="#security">Security</a>
+        <a href="#badges">Badges</a>
         <a href="#faq">FAQ</a>
       </nav>
 
@@ -731,6 +740,27 @@ security delete-certificate -c "mitmproxy" ~/Library/Keychains/login.keychain
 
 # Windows
 certmgr.msc → Trusted Root CAs → delete "mitmproxy"</code></pre>
+        </section>
+
+        <!-- BADGES -->
+        <section id="badges">
+          <h2>Badges</h2>
+          <p>Embed live cost and event badges in your README, docs, or dashboard. Badges auto-update every 5 minutes.</p>
+
+          <h3>Monthly Cost</h3>
+          <p>Shows total AI spend this month:</p>
+          <p><img src="/badge/cost.svg" alt="AI Cost" style="height:20px"></p>
+<pre><code>![AI Cost](http://localhost:8081/badge/cost.svg)</code></pre>
+          <p>HTML embed:</p>
+<pre><code>&lt;img src="http://localhost:8081/badge/cost.svg" alt="AI Cost"&gt;</code></pre>
+
+          <h3>Monthly Events</h3>
+          <p>Shows total LLM events tracked this month:</p>
+          <p><img src="/badge/events.svg" alt="Events" style="height:20px"></p>
+<pre><code>![Events](http://localhost:8081/badge/events.svg)</code></pre>
+
+          <h3>Caching</h3>
+          <p>Badge responses include <code>Cache-Control: public, max-age=300</code> (5 min) with <code>stale-while-revalidate=3600</code>. GitHub and CDNs will cache them automatically — no rate limiting concerns.</p>
         </section>
 
         <!-- FAQ -->
