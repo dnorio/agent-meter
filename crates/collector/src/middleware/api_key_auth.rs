@@ -70,6 +70,7 @@ fn is_exempt_path(path: &str) -> bool {
         "/health"
             | "/api/billing/webhook"
             | "/api/billing/plans"
+            | "/api/stats/public"
             | "/v1/traces"
     )
 }

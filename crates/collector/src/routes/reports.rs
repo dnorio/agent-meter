@@ -207,6 +207,53 @@ pub fn router() -> Router<AppState> {
         .route("/reports/cost-over-time", get(cost_over_time))
         .route("/reports/models", get(distinct_models))
         .route("/reports/events", get(events_feed))
+        .route("/api/stats/public", get(public_stats))
+}
+
+/// Public stats — social proof counters for landing/pricing pages.
+/// Cacheable, no auth required, no PII exposed.
+async fn public_stats(
+    State(state): State<AppState>,
+) -> Result<impl axum::response::IntoResponse, AppError> {
+    let row = sqlx::query_as::<_, PublicStatsRow>(
+        r#"
+        SELECT
+            COUNT(*)::bigint AS total_events,
+            COUNT(DISTINCT conversation_id)::bigint AS total_conversations,
+            COUNT(DISTINCT model) FILTER (WHERE model IS NOT NULL)::bigint AS distinct_models,
+            COUNT(DISTINCT ide) FILTER (WHERE ide IS NOT NULL)::bigint AS distinct_ides,
+            COALESCE(SUM(usd_cost), 0)::float8 AS total_usd_tracked,
+            COUNT(*) FILTER (WHERE started_at > now() - interval '24 hours')::bigint AS events_24h,
+            COUNT(*) FILTER (WHERE started_at > now() - interval '7 days')::bigint AS events_7d
+        FROM agent_tool_calls
+        "#,
+    )
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok((
+        [(axum::http::header::CACHE_CONTROL, "public, max-age=300")],
+        Json(json!({
+            "total_events": row.total_events,
+            "total_conversations": row.total_conversations,
+            "distinct_models": row.distinct_models,
+            "distinct_ides": row.distinct_ides,
+            "total_usd_tracked": row.total_usd_tracked,
+            "events_24h": row.events_24h,
+            "events_7d": row.events_7d,
+        })),
+    ))
+}
+
+#[derive(sqlx::FromRow)]
+struct PublicStatsRow {
+    total_events: i64,
+    total_conversations: i64,
+    distinct_models: i64,
+    distinct_ides: i64,
+    total_usd_tracked: f64,
+    events_24h: i64,
+    events_7d: i64,
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

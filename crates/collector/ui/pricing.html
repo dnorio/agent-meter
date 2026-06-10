@@ -101,7 +101,7 @@
 <section class="am-hero" style="text-align:center; padding-top: 40px;">
   <div class="am-hero-eyebrow">
     <svg class="am-icon" style="color: var(--am-accent)"><use href="/_static/icons.svg#i-sparkles"/></svg>
-    Live now · 8,300 events captured today
+    Live now · <span id="liveEventsCount">...</span> events tracked
   </div>
   <h1 class="am-hero-title" style="margin: 0 auto 18px;">Stop guessing what your <span class="accent">AI agents</span> cost.</h1>
   <p class="am-hero-sub" style="margin: 0 auto 26px;">The observability layer for AI agents. Full waterfall traces, USD attribution per call, smart alerts — built in Rust, runs on your stack or ours.</p>
@@ -346,6 +346,14 @@
 
   updateRoi();
   loadPlans();
+
+  // Populate live event count from public stats API
+  fetch('/api/stats/public').then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.total_events) {
+      const el = document.getElementById('liveEventsCount');
+      if (el) el.textContent = Number(d.total_events).toLocaleString();
+    }
+  }).catch(() => {});
 </script>
 <script src="/_static/app.js"></script>
 </body>
