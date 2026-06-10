@@ -42,7 +42,9 @@
     <div class="qs-tabs" role="tablist">
       <button class="qs-tab active" data-tab="mcp" role="tab">MCP Wrapper</button>
       <button class="qs-tab" data-tab="proxy" role="tab">HTTPS Proxy</button>
-      <button class="qs-tab" data-tab="otlp" role="tab">OTLP (VS Code)</button>
+      <button class="qs-tab" data-tab="otlp" role="tab">VS Code OTLP</button>
+      <button class="qs-tab" data-tab="cursor" role="tab">Cursor</button>
+      <button class="qs-tab" data-tab="claude" role="tab">Claude Code</button>
       <button class="qs-tab" data-tab="python-sdk" role="tab">Python SDK</button>
       <button class="qs-tab" data-tab="node-sdk" role="tab">Node.js SDK</button>
     </div>
@@ -110,6 +112,52 @@
         <div class="qs-step">
           <h3>Done — no binary needed</h3>
           <p>Copilot sends trace data directly. Check <a href="/conversations">Conversations</a> within seconds.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cursor -->
+    <div class="qs-panel" data-panel="cursor">
+      <div class="qs-steps">
+        <div class="qs-step">
+          <h3>Add agent-meter MCP to Cursor<span class="qs-badge">Zero code</span></h3>
+          <p>Add to <code>.cursor/mcp.json</code> in your project root:</p>
+          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy='{ "mcpServers": { "agent-meter": { "command": "agent-meter-mcp-wrapper", "args": ["--endpoint", "http://localhost:8081"] } } }'>Copy</button><pre>{
+  "mcpServers": {
+    "agent-meter": {
+      "command": "agent-meter-mcp-wrapper",
+      "args": ["--endpoint", "http://localhost:8081"]
+    }
+  }
+}</pre></div>
+        </div>
+        <div class="qs-step">
+          <h3>Install the wrapper</h3>
+          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy="cargo install agent-meter-mcp-wrapper">Copy</button><pre>cargo install agent-meter-mcp-wrapper</pre></div>
+        </div>
+        <div class="qs-step">
+          <h3>Code with Cursor normally</h3>
+          <p>Every Composer / Cmd+K / Ctrl+I call is metered. See real-time cost on the <a href="/cost">Cost page</a>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Claude Code -->
+    <div class="qs-panel" data-panel="claude">
+      <div class="qs-steps">
+        <div class="qs-step">
+          <h3>Add to Claude Code's MCP config<span class="qs-badge">Zero code</span></h3>
+          <p>Run in your terminal:</p>
+          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy='claude mcp add agent-meter -- agent-meter-mcp-wrapper --endpoint http://localhost:8081'>Copy</button><pre>claude mcp add agent-meter -- agent-meter-mcp-wrapper \
+  --endpoint http://localhost:8081</pre></div>
+        </div>
+        <div class="qs-step">
+          <h3>Install the wrapper</h3>
+          <div class="qs-code"><button class="am-btn am-btn-ghost am-btn-sm copy-btn" data-copy="cargo install agent-meter-mcp-wrapper">Copy</button><pre>cargo install agent-meter-mcp-wrapper</pre></div>
+        </div>
+        <div class="qs-step">
+          <h3>Use Claude Code</h3>
+          <p>All tool calls (read_file, edit, bash, etc.) are tracked with timing and token counts. Check <a href="/conversations">Conversations</a>.</p>
         </div>
       </div>
     </div>

@@ -116,6 +116,7 @@ pub fn router() -> Router<AppState> {
         .route("/quickstart", get(quickstart_page))
         .route("/leaderboard", get(leaderboard_page))
         .route("/vs", get(vs_page))
+        .route("/vs/{competitor}", get(vs_page))
         .route("/api/leaderboard/agents", get(leaderboard_agents))
         .route("/api/leaderboard/ides", get(leaderboard_ides))
         .route("/api/leaderboard/models", get(leaderboard_models))

@@ -226,9 +226,11 @@ async fn fetch_spans(pool: &PgPool, conversation_id: Uuid) -> Result<Vec<RawSpan
     let rows = sqlx::query_as::<_, RawSpan>(
         "SELECT trace_id, span_id, parent_span_id, tool_name, model, mcp_server, ide, \
          ok, error, started_at, ended_at, duration_ms::bigint AS duration_ms, \
-         estimated_input_tokens, estimated_output_tokens, usd_cost::float8 AS usd_cost \
+         estimated_input_tokens::bigint AS estimated_input_tokens, \
+         estimated_output_tokens::bigint AS estimated_output_tokens, \
+         usd_cost::float8 AS usd_cost \
          FROM agent_tool_calls \
-         WHERE conversation_id = $1 \
+         WHERE conversation_id = $1::text \
          ORDER BY started_at",
     )
     .bind(conversation_id)
@@ -262,7 +264,7 @@ struct EventCsvRow {
     estimated_input_tokens: Option<i64>,
     estimated_output_tokens: Option<i64>,
     usd_cost: Option<f64>,
-    conversation_id: Option<Uuid>,
+    conversation_id: Option<String>,
     task_id: Option<String>,
 }
 
@@ -284,8 +286,9 @@ async fn export_events_csv(
         r#"
         SELECT started_at, tool_name, model, mcp_server, ide, agent, ok,
                duration_ms::bigint AS duration_ms,
-               estimated_input_tokens, estimated_output_tokens,
-               usd_cost::float8 AS usd_cost, conversation_id, task_id
+               estimated_input_tokens::bigint AS estimated_input_tokens,
+               estimated_output_tokens::bigint AS estimated_output_tokens,
+               usd_cost::float8 AS usd_cost, conversation_id::text AS conversation_id, task_id
         FROM agent_tool_calls
         WHERE started_at >= $1 AND started_at < $2
           AND ($3::text IS NULL OR model = $3)
@@ -322,7 +325,7 @@ async fn export_events_csv(
             r.estimated_input_tokens.unwrap_or(0),
             r.estimated_output_tokens.unwrap_or(0),
             r.usd_cost.unwrap_or(0.0),
-            r.conversation_id.map(|u| u.to_string()).unwrap_or_default(),
+            csv_escape(r.conversation_id.as_deref().unwrap_or("")),
             csv_escape(r.task_id.as_deref().unwrap_or("")),
         );
     }
