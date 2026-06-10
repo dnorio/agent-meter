@@ -52,6 +52,7 @@ pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>, cancel: Cancel
         .merge(routes::orgs::router())
         .merge(routes::alerts::router())
         .merge(routes::auth::router())
+        .merge(routes::badge::router())
         .merge(routes::billing::router())
         .merge(routes::budgets::router())
         .merge(routes::notifications::router())

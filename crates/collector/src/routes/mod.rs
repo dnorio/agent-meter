@@ -1,5 +1,6 @@
 pub mod alerts;
 pub mod auth;
+pub mod badge;
 pub mod billing;
 pub mod budgets;
 pub mod conversation_detail;
