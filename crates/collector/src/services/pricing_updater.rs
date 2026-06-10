@@ -24,10 +24,18 @@ struct ModelPrice {
 }
 
 const PRICING_REGISTRY: &[ModelPrice] = &[
-    // Anthropic (June 2026)
+    // Anthropic (June 2026) — Direct API rates (prefix fallback)
     ModelPrice { model: "claude-opus-4", match_kind: "prefix", input_per_mtok: 15.0, output_per_mtok: 75.0, cached_per_mtok: 1.875, priority: 100, source: "anthropic" },
     ModelPrice { model: "claude-sonnet-4", match_kind: "prefix", input_per_mtok: 3.0, output_per_mtok: 15.0, cached_per_mtok: 0.375, priority: 100, source: "anthropic" },
     ModelPrice { model: "claude-haiku-4", match_kind: "prefix", input_per_mtok: 0.80, output_per_mtok: 4.0, cached_per_mtok: 0.10, priority: 100, source: "anthropic" },
+    // Anthropic via GitHub Copilot (exact match — lower rates, takes precedence)
+    ModelPrice { model: "claude-opus-4.6", match_kind: "exact", input_per_mtok: 5.0, output_per_mtok: 25.0, cached_per_mtok: 0.50, priority: 10, source: "github_copilot" },
+    ModelPrice { model: "claude-opus-4.7", match_kind: "exact", input_per_mtok: 5.0, output_per_mtok: 25.0, cached_per_mtok: 0.50, priority: 10, source: "github_copilot" },
+    ModelPrice { model: "claude-opus-4-7", match_kind: "exact", input_per_mtok: 5.0, output_per_mtok: 25.0, cached_per_mtok: 0.50, priority: 10, source: "github_copilot" },
+    ModelPrice { model: "claude-opus-4-6", match_kind: "exact", input_per_mtok: 5.0, output_per_mtok: 25.0, cached_per_mtok: 0.50, priority: 10, source: "github_copilot" },
+    ModelPrice { model: "claude-sonnet-4.6", match_kind: "exact", input_per_mtok: 3.0, output_per_mtok: 15.0, cached_per_mtok: 0.30, priority: 10, source: "github_copilot" },
+    ModelPrice { model: "claude-sonnet-4-6", match_kind: "exact", input_per_mtok: 3.0, output_per_mtok: 15.0, cached_per_mtok: 0.30, priority: 10, source: "github_copilot" },
+    // Anthropic legacy (prefix)
     ModelPrice { model: "claude-3-7-sonnet", match_kind: "prefix", input_per_mtok: 3.0, output_per_mtok: 15.0, cached_per_mtok: 0.30, priority: 90, source: "anthropic" },
     ModelPrice { model: "claude-3-5-sonnet", match_kind: "prefix", input_per_mtok: 3.0, output_per_mtok: 15.0, cached_per_mtok: 0.30, priority: 90, source: "anthropic" },
     ModelPrice { model: "claude-3-5-haiku", match_kind: "prefix", input_per_mtok: 0.80, output_per_mtok: 4.0, cached_per_mtok: 0.08, priority: 90, source: "anthropic" },
