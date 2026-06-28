@@ -115,6 +115,11 @@ Baixar certificado CA
 <div class="label">macOS</div>
 <div class="hint">Apple Silicon · v1.2.3</div>
 </div>
+<div class="os-card" onclick="selectOs('mac-x64')" id="os-mac-x64">
+<div class="icon">🍎</div>
+<div class="label">macOS Intel</div>
+<div class="hint">x64 · v1.2.3</div>
+</div>
 <div class="os-card" onclick="selectOs('linux')" id="os-linux">
 <div class="icon">🐧</div>
 <div class="label">Linux</div>
@@ -137,10 +142,19 @@ Import-Certificate -FilePath "$env:TEMP\agent-meter-ca.crt" -CertStoreLocation C
 <div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Instale o certificado CA</div><div class="step-desc">Execute no Terminal:</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/ca-cert -o /tmp/agent-meter-ca.crt
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/agent-meter-ca.crt</code></div></div></div>
-<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Baixe o proxy</div><div class="step-desc">Para Apple Silicon (M1/M2/M3):</div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Baixe o proxy</div><div class="step-desc">Para Apple Silicon (M1/M2/M3/M4):</div>
 <div class="download-options">
-<a href="/api/setup/proxy?os=mac&format=arm64" class="download-option"><span class="format">DMG</span><span class="desc">Apple Silicon</span></a>
-<a href="/api/setup/proxy?os=mac&format=x64" class="download-option"><span class="format">DMG</span><span class="desc">Intel</span></a>
+<a href="/api/setup/proxy?os=mac&format=arm64" class="download-option"><span class="format">DMG</span><span class="desc">Apple Silicon (M1-M4)</span></a>
+</div></div></div>
+</div>
+
+<div id="instructions-mac-x64" class="instructions" style="display:none">
+<div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Instale o certificado CA</div><div class="step-desc">Execute no Terminal:</div>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/ca-cert -o /tmp/agent-meter-ca.crt
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/agent-meter-ca.crt</code></div></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Baixe o proxy</div><div class="step-desc">Para Intel Macs:</div>
+<div class="download-options">
+<a href="/api/setup/proxy?os=mac&format=x64" class="download-option"><span class="format">DMG</span><span class="desc">Intel (x64)</span></a>
 </div></div></div>
 </div>
 
@@ -199,9 +213,23 @@ function copyCode(btn) {
   setTimeout(() => btn.textContent = 'Copy', 2000);
 }
 const platform = navigator.platform.toLowerCase();
-if (platform.includes('win')) selectOs('windows');
-else if (platform.includes('mac') || platform.includes('darwin')) selectOs('mac');
-else selectOs('linux');
+const userAgent = navigator.userAgent;
+// Detect Apple Silicon vs Intel Mac
+if (platform.includes('mac') || platform.includes('darwin')) {
+  // Check for Apple Silicon indicators in user agent
+  if (userAgent.includes('Macintosh') && (userAgent.includes('Apple') || userAgent.includes('Silicon') || userAgent.includes('M1') || userAgent.includes('M2') || userAgent.includes('M3') || userAgent.includes('M4'))) {
+    selectOs('mac');
+  } else if (userAgent.includes('Macintosh') && userAgent.includes('Intel')) {
+    selectOs('mac-x64');
+  } else {
+    // Default to Apple Silicon for modern Macs
+    selectOs('mac');
+  }
+} else if (platform.includes('win')) {
+  selectOs('windows');
+} else {
+  selectOs('linux');
+}
 </script>
 </body>
 </html>
@@ -285,10 +313,118 @@ async fn proxy_download(Query(query): Query<ProxyQuery>) -> impl IntoResponse {
         ).to_string())
         .unwrap()
 }
+/// Releases page with full changelog
+async fn releases_page() -> Html<&'static str> {
+    Html(r#"<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Releases · agent-meter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/_static/favicon.svg">
+<link rel="stylesheet" href="/_static/tokens.css">
+<link rel="stylesheet" href="/_static/app.css">
+<style>
+:root {
+  --setup-accent: #22d3ee;
+  --setup-accent-dim: #0891b2;
+  --setup-bg: #0f172a;
+  --setup-card: #1e293b;
+  --setup-border: #334155;
+  --setup-text: #f1f5f9;
+  --setup-text-muted: #94a3b8;
+  --setup-success: #10b981;
+}
+body { background: var(--setup-bg); min-height: 100vh; margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+.releases-container { max-width:900px; margin: 0 auto; padding: 60px 24px; }
+.releases-header { text-align: center; margin-bottom: 48px; }
+.releases-header h1 { font-size: 42px; font-weight: 800; margin: 0 0 12px; background: linear-gradient(135deg, #fff 0%, var(--setup-accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.releases-header p { color: var(--setup-text-muted); font-size: 18px; margin: 0; }
+.version-card { background: var(--setup-card); border: 1px solid var(--setup-border); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+.version-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+.version-tag { background: var(--setup-accent); color: #000; font-weight: 700; padding: 6px 16px; border-radius: 20px; font-size: 14px; }
+.version-date { color: var(--setup-text-muted); font-size: 14px; }
+.version-changes { margin: 0; padding-left: 20px; }
+.version-changes li { color: var(--setup-text-muted); margin-bottom: 8px; line-height: 1.5; }
+.version-changes li::marker { color: var(--setup-accent); }
+.downloads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 20px; }
+.download-item { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--setup-border); border-radius: 12px; padding: 20px; text-decoration: none; transition: all 0.2s; }
+.download-item:hover { border-color: var(--setup-accent); transform: translateY(-2px); }
+.download-item .os-icon { font-size: 28px; margin-bottom: 8px; }
+.download-item .os-name { font-weight: 600; color: var(--setup-text); }
+.download-item .os-arch { font-size: 12px; color: var(--setup-text-muted); margin-top: 4px; }
+.download-item .format-badge { font-size: 11px; background: var(--setup-border); padding: 4px 8px; border-radius: 4px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<svg style="display:none"><use href="/_static/icons.svg"/></svg>
+<div class="am-app">
+<aside class="am-sidebar" id="amSidebar"></aside>
+<header class="am-topbar" id="amTopbar"></header>
+<main class="am-main">
+<div class="releases-container">
+<div class="releases-header">
+<h1>📦 Releases</h1>
+<p>Histórico de versões do agent-meter-proxy</p>
+</div>
 
+<div class="version-card">
+<div class="version-header">
+<span class="version-tag">v1.2.3</span>
+<span class="version-date">28 Jun 2026</span>
+</div>
+<ul class="version-changes">
+<li>Setup page com UI melhorada</li>
+<li>Suporte a download MSI para Windows</li>
+<li>Detecção automática de OS (Apple Silicon vs Intel)</li>
+<li>Adicionada página de releases</li>
+</ul>
+<div class="downloads-grid">
+<a href="/api/setup/proxy?os=windows&format=msi" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">MSI</span></a>
+<a href="/api/setup/proxy?os=windows&format=zip" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">ZIP</span></a>
+<a href="/api/setup/proxy?os=mac&format=arm64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Apple Silicon</span><span class="format-badge">DMG</span></a>
+<a href="/api/setup/proxy?os=mac&format=x64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Intel</span><span class="format-badge">DMG</span></a>
+<a href="/api/setup/proxy?os=linux&format=deb" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">DEB</span></a>
+<a href="/api/setup/proxy?os=linux&format=rpm" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">RPM</span></a>
+<a href="/api/setup/proxy?os=linux&format=tgz" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">TGZ</span></a>
+</div>
+</div>
+
+<div class="version-card">
+<div class="version-header">
+<span class="version-tag">v1.2.2</span>
+<span class="version-date">15 Jun 2026</span>
+</div>
+<ul class="version-changes">
+<li>Fix: proxy não iniciava sem CA certificado</li>
+<li>Melhoria: logs mais detalhados</li>
+<li>Melhoria: tempo de startup reduzido</li>
+</ul>
+</div>
+
+<div class="version-card">
+<div class="version-header">
+<span class="version-tag">v1.2.1</span>
+<span class="version-date">01 Jun 2026</span>
+</div>
+<ul class="version-changes">
+<li>Initial release</li>
+<li>Suporte a Cursor, Copilot, Claude Code</li>
+<li>Proxy HTTPS com interceptação de certificados</li>
+</ul>
+</div>
+</div>
+</main>
+<footer class="am-footer" id="amFooter"></footer>
+</div>
+</body>
+</html>
+"#)
+}
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/setup", get(setup_page))
+        .route("/releases", get(releases_page))
         .route("/api/setup/ca-cert", get(ca_cert))
         .route("/api/setup/proxy", get(proxy_download))
 }
