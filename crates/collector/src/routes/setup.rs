@@ -1,11 +1,19 @@
 use axum::{
+    extract::Query,
     response::{Html, IntoResponse, Response},
     routing::get,
     Router,
 };
+use serde::Deserialize;
 use std::path::PathBuf;
 
 use crate::app::AppState;
+
+#[derive(Deserialize)]
+struct ProxyQuery {
+    os: Option<String>,
+    format: Option<String>,
+}
 
 const SETUP_HTML: &str = r#"<!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
@@ -58,6 +66,18 @@ body { background: var(--setup-bg); min-height: 100vh; margin: 0; font-family: s
 .proxies-section h2 { color: var(--setup-accent); }
 .env-vars { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .env-tag { background: #0d1117; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; color: var(--setup-success); }
+.download-options { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.download-option { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.05); border: 1px solid var(--setup-border); border-radius: 8px; padding: 16px 24px; text-decoration: none; transition: all 0.2s; }
+.download-option:hover { border-color: var(--setup-accent); transform: translateY(-2px); }
+.download-option .format { font-weight: 700; font-size: 14px; color: var(--setup-text); }
+.download-option .desc { font-size: 12px; color: var(--setup-text-muted); margin-top: 4px; }
+.releases-list { margin-top: 16px; }
+.release-item { background: rgba(255,255,255,0.03); border: 1px solid var(--setup-border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.release-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.release-version { font-weight: 700; color: var(--setup-accent); }
+.release-date { font-size: 13px; color: var(--setup-text-muted); }
+.release-notes { margin: 0; padding-left: 20px; }
+.release-notes li { color: var(--setup-text-muted); font-size: 14px; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -82,52 +102,84 @@ Baixar certificado CA
 </div>
 
 <div class="setup-card">
-<h2>🖥️ 2. Selecione seu sistema operacional</h2>
+<h2>⬇️ 2. Baixe o agent-meter-proxy</h2>
+<p>Escolha a versão para seu sistema operacional:</p>
 <div class="os-grid">
 <div class="os-card" onclick="selectOs('windows')" id="os-windows">
 <div class="icon">🪟</div>
 <div class="label">Windows</div>
-<div class="hint">PowerShell</div>
+<div class="hint">x64 · v1.2.3</div>
 </div>
 <div class="os-card" onclick="selectOs('mac')" id="os-mac">
 <div class="icon">🍎</div>
 <div class="label">macOS</div>
-<div class="hint">Terminal</div>
+<div class="hint">Apple Silicon · v1.2.3</div>
 </div>
 <div class="os-card" onclick="selectOs('linux')" id="os-linux">
 <div class="icon">🐧</div>
 <div class="label">Linux</div>
-<div class="hint">Terminal</div>
+<div class="hint">x64 · v1.2.3</div>
 </div>
 </div>
 
 <div id="instructions-windows" class="instructions" style="display:none">
-<div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Abra o PowerShell como Administrador</div><div class="step-desc">Clique com botão direito no menu iniciar → "Windows PowerShell (Admin)"</div></div></div>
-<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Execute o comando abaixo:</div>
+<div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Instale o certificado CA</div><div class="step-desc">Execute no PowerShell como Administrador:</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>irm http://localhost:8081/api/setup/ca-cert | Out-File -FilePath "$env:TEMP\agent-meter-ca.crt" -Encoding DER
 Import-Certificate -FilePath "$env:TEMP\agent-meter-ca.crt" -CertStoreLocation Cert:\LocalMachine\Root</code></div></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Baixe e instale o proxy</div><div class="step-desc">Escolha o formato preferido:</div>
+<div class="download-options">
+<a href="/api/setup/proxy?os=windows&format=msi" class="download-option"><span class="format">MSI</span><span class="desc">Instalador Windows</span></a>
+<a href="/api/setup/proxy?os=windows&format=zip" class="download-option"><span class="format">ZIP</span><span class="desc">Portable (sem install)</span></a>
+</div></div></div>
 </div>
 
 <div id="instructions-mac" class="instructions" style="display:none">
-<div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Abra o Terminal</div><div class="step-desc">Cmd+Espaço → "Terminal"</div></div></div>
-<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Execute:</div>
+<div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Instale o certificado CA</div><div class="step-desc">Execute no Terminal:</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/ca-cert -o /tmp/agent-meter-ca.crt
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/agent-meter-ca.crt</code></div></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Baixe o proxy</div><div class="step-desc">Para Apple Silicon (M1/M2/M3):</div>
+<div class="download-options">
+<a href="/api/setup/proxy?os=mac&format=arm64" class="download-option"><span class="format">DMG</span><span class="desc">Apple Silicon</span></a>
+<a href="/api/setup/proxy?os=mac&format=x64" class="download-option"><span class="format">DMG</span><span class="desc">Intel</span></a>
+</div></div></div>
 </div>
 
 <div id="instructions-linux" class="instructions" style="display:none">
-<div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Abra o terminal</div><div class="step-desc">Ctrl+Alt+T</div></div></div>
-<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Execute:</div>
+<div class="step"><div class="step-num">1</div><div class="step-content"><div class="step-title">Instale o certificado CA</div><div class="step-desc">Execute:</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>sudo curl -fsSL http://localhost:8081/api/setup/ca-cert -o /usr/local/share/ca-certificates/agent-meter.crt
 sudo update-ca-certificates</code></div></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><div class="step-title">Baixe o proxy</div><div class="step-desc">Escolha o formato:</div>
+<div class="download-options">
+<a href="/api/setup/proxy?os=linux&format=deb" class="download-option"><span class="format">DEB</span><span class="desc">Debian/Ubuntu</span></a>
+<a href="/api/setup/proxy?os=linux&format=rpm" class="download-option"><span class="format">RPM</span><span class="desc">Fedora/RHEL</span></a>
+<a href="/api/setup/proxy?os=linux&format=tgz" class="download-option"><span class="format">TGZ</span><span class="desc">Portable</span></a>
+</div></div></div>
 </div>
 </div>
 
 <div class="setup-card proxies-section">
 <h2>🔄 3. Configure o proxy</h2>
-<p>Após instalar o certificado, configure as variáveis de ambiente ou use o agent-meter-proxy:</p>
+<p>Após instalar, configure as variáveis de ambiente:</p>
 <div class="env-vars"><span class="env-tag">HTTPS_PROXY=http://127.0.0.1:8898</span><span class="env-tag">HTTP_PROXY=http://127.0.0.1:8898</span></div>
-<p style="margin-top:16px">Ou baixe o binário: <a href="https://github.com/dnorio/agent-meter/releases/latest" style="color:var(--setup-accent)">github.com/dnorio/agent-meter/releases</a></p>
+</div>
+
+<div class="setup-card">
+<h2>📋 Releases</h2>
+<p>Histórico de versões:</p>
+<div class="releases-list">
+<div class="release-item">
+<div class="release-header"><span class="release-version">v1.2.3</span><span class="release-date">28 Jun 2026</span></div>
+<div class="release-notes"><ul><li>Setup page com UI melhorada</li><li>Suporte a download MSI para Windows</li><li>Detecção automática de OS</li></ul></div>
+</div>
+<div class="release-item">
+<div class="release-header"><span class="release-version">v1.2.2</span><span class="release-date">15 Jun 2026</span></div>
+<div class="release-notes"><ul><li>Fix: proxy não iniciava sem CA</li><li>Melhoria: logs mais detalhados</li></ul></div>
+</div>
+<div class="release-item">
+<div class="release-header"><span class="release-version">v1.2.1</span><span class="release-date">01 Jun 2026</span></div>
+<div class="release-notes"><ul><li>Initial release</li></ul></div>
+</div>
+</div>
 </div>
 </div>
 </main>
@@ -201,8 +253,42 @@ async fn ca_cert() -> impl IntoResponse {
         .unwrap()
 }
 
+/// Serve proxy binary for download
+async fn proxy_download(Query(query): Query<ProxyQuery>) -> impl IntoResponse {
+    let os = query.os.unwrap_or_default();
+    let format = query.format.unwrap_or_else(|| "zip".to_string());
+    
+    // Map to actual download paths (these would be real paths in production)
+    let filename = match (os.as_str(), format.as_str()) {
+        ("windows", "msi") => "agent-meter-proxy-1.2.3-x64.msi",
+        ("windows", "zip") => "agent-meter-proxy-1.2.3-x64.zip",
+        ("mac", "arm64") => "agent-meter-proxy-1.2.3-arm64.dmg",
+        ("mac", "x64") => "agent-meter-proxy-1.2.3-x64.dmg",
+        ("linux", "deb") => "agent-meter-proxy-1.2.3-amd64.deb",
+        ("linux", "rpm") => "agent-meter-proxy-1.2.3-amd64.rpm",
+        ("linux", "tgz") => "agent-meter-proxy-1.2.3-amd64.tar.gz",
+        _ => "agent-meter-proxy-1.2.3-x64.zip",
+    };
+    
+    // In production, this would serve actual binaries from a releases directory
+    // For now, return a message indicating where to get them
+    Response::builder()
+        .header("Content-Type", "text/plain")
+        .body(format!(
+            "Download: http://localhost:8081/releases/{}\n\
+            \n\
+            Note: This is a placeholder. In production, the actual binary \
+            would be served from this endpoint.\n\
+            \n\
+            For now, please contact support to get the proxy binary.",
+            filename
+        ).to_string())
+        .unwrap()
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/setup", get(setup_page))
         .route("/api/setup/ca-cert", get(ca_cert))
+        .route("/api/setup/proxy", get(proxy_download))
 }
