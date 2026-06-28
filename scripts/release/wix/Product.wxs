@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Package
+        Name="agent-meter-proxy"
+        Version="1.2.3.0"
+        Manufacturer="DNOR"
+        UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+        Compressed="yes"
+        InstallerVersion="500">
+
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+        <MediaTemplate EmbedCab="yes" />
+
+        <!-- Features -->
+        <Feature Id="ProductFeature" Title="agent-meter-proxy" Level="1">
+            <ComponentGroupRef Id="ProductComponents" />
+            <ComponentRef Id="ApplicationShortcut" />
+        </Feature>
+
+        <!-- Directory Structure -->
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLFOLDER" Name="agent-meter-proxy" />
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="agent-meter-proxy" />
+            </Directory>
+        </Directory>
+
+        <!-- Components -->
+        <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+            <!-- Main binary -->
+            <Component Id="MainExecutable" Guid="*">
+                <File Id="ProxyExe" KeyPath="yes">
+                    <Shortcut Id="StartMenuShortcut"
+                              Directory="ApplicationProgramsFolder"
+                              Name="agent-meter-proxy"
+                              Description="AI IDE/CLI Telemetry Proxy"
+                              WorkingDirectory="INSTALLFOLDER" />
+                </File>
+            </Component>
+        </ComponentGroup>
+
+        <!-- PowerShell Custom Actions for CA + Service + Env Vars -->
+        
+        <!-- 1. Install CA Certificate to Windows Certificate Store -->
+        <CustomAction Id="InstallCACertificate" 
+                      Execute="deferred" 
+                      Impersonate="no"
+                      Return="check"
+                      PowerShellScript="&amp; {
+                          $certPath = Join-Path $env:LOCALAPPDATA 'agent-meter-proxy\ca.crt'
+                          if (Test-Path $certPath) {
+                              $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+                              $cert.Import($certPath)
+                              $store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root', 'LocalMachine')
+                              $store.Open('ReadWrite')
+                              $store.Add($cert)
+                              $store.Close()
+                              Write-Host 'CA certificate installed successfully'
+                          }
+                      }" />
+
+        <!-- 2. Install as Windows Service -->
+        <CustomAction Id="InstallWindowsService" 
+                      Execute="deferred" 
+                      Impersonate="no"
+                      Return="check"
+                      PowerShellScript="&amp; {
+                          $exePath = Join-Path $env:ProgramFiles 'agent-meter-proxy\agent-meter-proxy.exe'
+                          $existing = Get-Service -Name 'agent-meter-proxy' -ErrorAction SilentlyContinue
+                          if (-not $existing) {
+                              New-Service -Name 'agent-meter-proxy' -BinaryPathName $exePath -DisplayName 'agent-meter-proxy' -Description 'AI IDE/CLI Telemetry Proxy' -StartupType Automatic
+                              Start-Service -Name 'agent-meter-proxy'
+                              Write-Host 'Service installed and started'
+                          }
+                      }" />
+
+        <!-- 3. Configure Environment Variables (user-level) -->
+        <CustomAction Id="ConfigureEnvironmentVariables" 
+                      Execute="deferred" 
+                      Impersonate="no"
+                      Return="check"
+                      PowerShellScript="&amp; {
+                          [Environment]::SetEnvironmentVariable('HTTPS_PROXY', 'http://127.0.0.1:8898', 'User')
+                          [Environment]::SetEnvironmentVariable('HTTP_PROXY', 'http://127.0.0.1:8898', 'User')
+                          Write-Host 'Environment variables configured'
+                      }" />
+
+        <!-- Install Execute Sequence -->
+        <InstallExecuteSequence>
+            <Custom Action="InstallCACertificate" After="InstallFiles">NOT Installed</Custom>
+            <Custom Action="InstallWindowsService" After="InstallCACertificate">NOT Installed</Custom>
+            <Custom Action="ConfigureEnvironmentVariables" After="InstallWindowsService">NOT Installed</Custom>
+        </InstallExecuteSequence>
+
+        <!-- Uninstall: Stop and remove service -->
+        <CustomAction Id="UninstallService" 
+                      Execute="deferred" 
+                      Impersonate="no"
+                      Return="ignore"
+                      PowerShellScript="&amp; {
+                          $svc = Get-Service -Name 'agent-meter-proxy' -ErrorAction SilentlyContinue
+                          if ($svc) {
+                              Stop-Service -Name 'agent-meter-proxy' -Force -ErrorAction SilentlyContinue
+                              sc.exe delete agent-meter-proxy
+                          }
+                      }" />
+
+        <InstallExecuteSequence>
+            <Custom Action="UninstallService" Before="RemoveFiles">Installed</Custom>
+        </InstallExecuteSequence>
+
+    </Package>
+</Wix>
+
+        <CustomAction Id="InstallWindowsService" 
+                      Execute="deferred" 
+                      Impersonate="no"
+                      BinaryKey="ServiceInstaller"
+                      DllEntry="InstallWindowsService" />
+
+        <CustomAction Id="ConfigureEnvironmentVariables" 
+                      Execute="deferred" 
+                      Impersonate="no"
+                      BinaryKey="EnvConfigurator"
+                      DllEntry="ConfigureEnvironmentVariables" />
+
+        <!-- Install Execute Sequence -->
+        <InstallExecuteSequence>
+            <Custom Action="InstallCACertificate" After="InstallFiles">NOT Installed</Custom>
+            <Custom Action="InstallWindowsService" After="InstallCACertificate">NOT Installed</Custom>
+            <Custom Action="ConfigureEnvironmentVariables" After="InstallWindowsService">NOT Installed</Custom>
+        </InstallExecuteSequence>
+
+        <!-- Shortcuts -->
+        <Component Id="ApplicationShortcut" Guid="*" Directory="ApplicationProgramsFolder">
+            <Shortcut Id="ApplicationStartMenuShortcut"
+                      Name="agent-meter-proxy"
+                      Description="AI IDE/CLI Telemetry Proxy"
+                      Target="[INSTALLFOLDER]agent-meter-proxy.exe"
+                      WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\agent-meter-proxy" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+
+        <Component Id="DesktopShortcut" Guid="*" Directory="DesktopFolder">
+            <Shortcut Id="DesktopShortcut"
+                      Name="agent-meter-proxy"
+                      Description="AI IDE/CLI Telemetry Proxy"
+                      Target="[INSTALLFOLDER]agent-meter-proxy.exe"
+                      WorkingDirectory="INSTALLFOLDER" />
+            <RegistryValue Root="HKCU" Key="Software\agent-meter-proxy" Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+
+    </Package>
+</Wix>
