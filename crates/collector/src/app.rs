@@ -60,6 +60,7 @@ pub fn build(config: Config, pool: PgPool, db: Arc<dyn Database>, cancel: Cancel
         .merge(routes::hosted::router())
         .merge(routes::docs::router())
         .merge(routes::search::router())
+        .merge(routes::setup::router())
         .merge(routes::static_assets::router())
         .fallback(routes::static_assets::not_found_page);
 
