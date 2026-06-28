@@ -294,8 +294,8 @@ async fn proxy_download(Query(query): Query<ProxyQuery>) -> impl IntoResponse {
     let format = query.format.unwrap_or_else(|| "zip".to_string());
     
     // GitHub Releases base URL (update when releasing)
-    const GITHUB_RELEASES: &str = "https://github.com/dnor-io/agent-meter/releases/download";
-    const VERSION: &str = "v1.2.3";
+    const GITHUB_RELEASES: &str = "https://github.com/dnorio/agent-meter/releases/download";
+    const VERSION: &str = "agent-meter-proxy-v1.2.3";
     
     // Map to actual download filenames from GitHub Releases
     let (filename, content_type) = match (os.as_str(), format.as_str()) {
