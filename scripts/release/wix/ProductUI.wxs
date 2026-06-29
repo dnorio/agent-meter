@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  agent-meter-proxy Windows installer (full wizard).
+
+  Builds on Windows with WiX v5 + UI and Util extensions:
+    wix extension add -g WixToolset.UI.wixext/5.0.0
+    wix extension add -g WixToolset.Util.wixext/5.0.0
+    wix build ProductUI.wxs \
+        -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext \
+        -arch x64 -d ProxyExe=agent-meter-proxy-windows-x86_64.exe \
+        -o agent-meter-proxy-1.2.3-x64.msi
+
+  The Util extension provides WixQuietExec64 used by the deferred custom
+  actions (CA install + Windows service create/start/stop/delete).
+
+  Wizard pages (WixUI_FeatureTree): Welcome -> License (accept) ->
+  Custom Setup (feature tree + folder change) -> Ready -> Progress -> Finish.
+
+  Branding: custom icon, top banner and left dialog bitmap.
+  Optional post-install actions are modeled as Features the user can toggle:
+    - Install local CA into the Windows Root store (certutil)
+    - Configure HTTPS_PROXY/HTTP_PROXY user environment variables
+    - Install and start a Windows Service
+    - Desktop shortcut
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <?ifndef ProxyExe ?>
+    <?define ProxyExe = "agent-meter-proxy-windows-x86_64.exe" ?>
+  <?endif?>
+
+  <Package
+    Name="agent-meter-proxy"
+    Manufacturer="DNOR"
+    Version="1.2.3.0"
+    UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+    Scope="perMachine"
+    Compressed="yes"
+    InstallerVersion="500">
+
+    <SummaryInformation
+      Manufacturer="DNOR"
+      Description="agent-meter-proxy 1.2.3 — AI IDE/CLI telemetry proxy installer" />
+
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Add/Remove Programs metadata + product icon -->
+    <Icon Id="ProductIcon" SourceFile="assets/icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
+    <Property Id="ARPHELPLINK" Value="http://localhost:8081/setup" />
+    <Property Id="ARPURLINFOABOUT" Value="http://localhost:8081" />
+    <Property Id="ARPNOREPAIR" Value="0" />
+
+    <!-- ============ Directories ============ -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="agent-meter-proxy" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppProgramMenuDir" Name="agent-meter-proxy" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+
+    <!-- ============ Components ============ -->
+    <!-- Main binary (always installed) -->
+    <ComponentGroup Id="CoreFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable" Guid="*">
+        <File Id="ProxyExe"
+              Source="$(var.ProxyExe)"
+              Name="agent-meter-proxy.exe"
+              KeyPath="yes" />
+      </Component>
+      <Component Id="StartMenuShortcut" Guid="*" Directory="AppProgramMenuDir">
+        <Shortcut Id="StartMenuProxy"
+                  Name="agent-meter-proxy"
+                  Description="AI IDE/CLI Telemetry Proxy"
+                  Target="[INSTALLFOLDER]agent-meter-proxy.exe"
+                  Icon="ProductIcon"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="CleanupStartMenu" Directory="AppProgramMenuDir" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\DNOR\agent-meter-proxy"
+                       Name="startmenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Optional: desktop shortcut -->
+    <ComponentGroup Id="DesktopShortcutGroup" Directory="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="*">
+        <Shortcut Id="DesktopProxy"
+                  Name="agent-meter-proxy"
+                  Description="AI IDE/CLI Telemetry Proxy"
+                  Target="[INSTALLFOLDER]agent-meter-proxy.exe"
+                  Icon="ProductIcon"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\DNOR\agent-meter-proxy"
+                       Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Optional: generate + install CA, runs `agent-meter-proxy setup` -->
+    <ComponentGroup Id="CaComponents" Directory="INSTALLFOLDER">
+      <Component Id="CaMarker" Guid="*">
+        <RegistryValue Root="HKLM" Key="Software\DNOR\agent-meter-proxy"
+                       Name="ca_installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Optional: proxy environment variables (user scope) -->
+    <ComponentGroup Id="EnvComponents" Directory="INSTALLFOLDER">
+      <Component Id="ProxyEnvVars" Guid="*">
+        <Environment Id="HttpsProxyVar" Name="HTTPS_PROXY"
+                     Value="http://127.0.0.1:8898" Action="set" Part="all"
+                     System="no" Permanent="no" />
+        <Environment Id="HttpProxyVar" Name="HTTP_PROXY"
+                     Value="http://127.0.0.1:8898" Action="set" Part="all"
+                     System="no" Permanent="no" />
+        <RegistryValue Root="HKCU" Key="Software\DNOR\agent-meter-proxy"
+                       Name="env_configured" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Optional: Windows service marker (service created via custom action) -->
+    <ComponentGroup Id="ServiceComponents" Directory="INSTALLFOLDER">
+      <Component Id="ServiceMarker" Guid="*">
+        <RegistryValue Root="HKLM" Key="Software\DNOR\agent-meter-proxy"
+                       Name="service_installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- ============ Features (the wizard "Custom Setup" tree) ============ -->
+    <Feature Id="ProductFeature" Title="agent-meter-proxy" Level="1"
+             Description="The agent-meter-proxy executable and Start Menu shortcut."
+             AllowAbsent="no" Display="expand"
+             ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentGroupRef Id="CoreFiles" />
+
+      <Feature Id="FeatureCA" Level="1"
+               Title="Install local CA certificate"
+               Description="Generate and trust a local CA so the proxy can inspect AI API traffic on this machine.">
+        <ComponentGroupRef Id="CaComponents" />
+      </Feature>
+
+      <Feature Id="FeatureEnv" Level="1"
+               Title="Configure proxy environment variables"
+               Description="Set HTTPS_PROXY and HTTP_PROXY (user scope) to http://127.0.0.1:8898.">
+        <ComponentGroupRef Id="EnvComponents" />
+      </Feature>
+
+      <Feature Id="FeatureService" Level="1"
+               Title="Install Windows service"
+               Description="Install and start agent-meter-proxy as an automatic Windows service.">
+        <ComponentGroupRef Id="ServiceComponents" />
+      </Feature>
+
+      <Feature Id="FeatureDesktop" Level="1"
+               Title="Desktop shortcut"
+               Description="Add an agent-meter-proxy shortcut to the desktop.">
+        <ComponentGroupRef Id="DesktopShortcutGroup" />
+      </Feature>
+    </Feature>
+
+    <!-- ============ Custom actions (deferred, run as SYSTEM) ============ -->
+    <!-- 1) Generate + install CA via the shipped binary -->
+    <CustomAction Id="SetCaCmd"
+                  Property="DoInstallCA"
+                  Value="&quot;[INSTALLFOLDER]agent-meter-proxy.exe&quot; setup" />
+    <CustomAction Id="DoInstallCA"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <!-- 2) Install + start the Windows service -->
+    <CustomAction Id="SetSvcInstall"
+                  Property="DoSvcInstall"
+                  Value="&quot;[System64Folder]sc.exe&quot; create agent-meter-proxy binPath= &quot;\&quot;[INSTALLFOLDER]agent-meter-proxy.exe\&quot; start --listen 127.0.0.1:8898 --collector http://localhost:8081:4318&quot; start= auto DisplayName= &quot;agent-meter-proxy&quot;" />
+    <CustomAction Id="DoSvcInstall"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="SetSvcStart"
+                  Property="DoSvcStart"
+                  Value="&quot;[System64Folder]sc.exe&quot; start agent-meter-proxy" />
+    <CustomAction Id="DoSvcStart"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <!-- 3) Uninstall: stop + delete service -->
+    <CustomAction Id="SetSvcStop"
+                  Property="DoSvcStop"
+                  Value="&quot;[System64Folder]sc.exe&quot; stop agent-meter-proxy" />
+    <CustomAction Id="DoSvcStop"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="SetSvcDelete"
+                  Property="DoSvcDelete"
+                  Value="&quot;[System64Folder]sc.exe&quot; delete agent-meter-proxy" />
+    <CustomAction Id="DoSvcDelete"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <!-- CA: only when FeatureCA selected -->
+      <Custom Action="SetCaCmd" After="InstallFiles" Condition="&amp;FeatureCA=3" />
+      <Custom Action="DoInstallCA" After="SetCaCmd" Condition="&amp;FeatureCA=3" />
+
+      <!-- Service install on first install when selected -->
+      <Custom Action="SetSvcInstall" After="DoInstallCA" Condition="&amp;FeatureService=3 AND NOT Installed" />
+      <Custom Action="DoSvcInstall" After="SetSvcInstall" Condition="&amp;FeatureService=3 AND NOT Installed" />
+      <Custom Action="SetSvcStart" After="DoSvcInstall" Condition="&amp;FeatureService=3 AND NOT Installed" />
+      <Custom Action="DoSvcStart" After="SetSvcStart" Condition="&amp;FeatureService=3 AND NOT Installed" />
+
+      <!-- Service teardown on uninstall -->
+      <Custom Action="SetSvcStop" Before="RemoveFiles" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
+      <Custom Action="DoSvcStop" After="SetSvcStop" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
+      <Custom Action="SetSvcDelete" After="DoSvcStop" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
+      <Custom Action="DoSvcDelete" After="SetSvcDelete" Condition="Installed AND REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+
+    <!-- ============ UI: full wizard ============ -->
+    <ui:WixUI Id="WixUI_FeatureTree" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <WixVariable Id="WixUIBannerBmp" Value="assets/banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="assets/dialog.bmp" />
+
+  </Package>
+</Wix>

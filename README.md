@@ -48,8 +48,8 @@ agent-meter solves this with a lightweight, self-hosted collector that aggregate
 ### Docker Compose (recommended)
 
 ```bash
-git clone https://github.com/YOUR_ORG/agent-meter
-cd agent-meter
+git clone https://github.com/dnorio/agent-meter.git
+cd agent-meter-worktree/apps/agent-meter
 
 # Start PostgreSQL + collector
 docker compose up -d

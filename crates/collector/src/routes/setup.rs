@@ -129,17 +129,19 @@ Baixar certificado CA (.crt)
 </div>
 
 <div id="instructions-windows" class="instructions" style="display:none">
-<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Instale o certificado CA</div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>irm http://localhost:8081/api/setup/ca-cert | Out-File -FilePath "$env:TEMP\agent-meter-ca.crt" -Encoding DER
-Import-Certificate -FilePath "$env:TEMP\agent-meter-ca.crt" -CertStoreLocation Cert:\LocalMachine\Root</code></div></div></div>
-<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Baixe o proxy</div>
+<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Baixe o instalador (recomendado)</div>
 <div class="download-options">
-<a href="/api/setup/proxy?os=windows&format=msi" class="download-option"><span class="format">MSI</span><span class="desc">Instalador (recomendado)</span></a>
-<a href="/api/setup/proxy?os=windows&format=zip" class="download-option"><span class="format">ZIP</span><span class="desc">Portable (sem install)</span></a>
+<a href="/api/setup/proxy?os=windows&format=msi" class="download-option"><span class="format">MSI x64</span><span class="desc">Wizard guiado</span></a>
 </div></div></div>
-<div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Configure o proxy</div>
+<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Siga o assistente</div>
+<div class="step-desc">O instalador abre um wizard com: aceite dos termos (EULA), escolha da pasta de instalação e opções marcáveis — instalar o certificado CA, configurar <code>HTTPS_PROXY</code>/<code>HTTP_PROXY</code>, instalar o serviço do Windows e criar atalho na área de trabalho. Tudo é feito automaticamente; não é preciso rodar comandos manuais.</div></div></div>
+<div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Prefere portable?</div>
+<div class="download-options">
+<a href="/api/setup/proxy?os=windows&format=x64" class="download-option"><span class="format">EXE x64</span><span class="desc">Sem instalar</span></a>
+<a href="/api/setup/proxy?os=windows&format=arm64" class="download-option"><span class="format">EXE ARM64</span><span class="desc">Sem instalar</span></a>
+</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>setx HTTPS_PROXY "http://127.0.0.1:8898"
-setx HTTP_PROXY "http://127.0.0.1:8898"</code></div><p class="step-note">⚠️ Reinicie o Cursor após configurar</p></div></div>
+setx HTTP_PROXY "http://127.0.0.1:8898"</code></div><p class="step-note">⚠️ Só para a versão portable. Reinicie o Cursor após configurar.</p></div></div>
 </div>
 
 <div id="instructions-mac" class="instructions" style="display:none">
@@ -148,7 +150,7 @@ setx HTTP_PROXY "http://127.0.0.1:8898"</code></div><p class="step-note">⚠️ 
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/agent-meter-ca.crt</code></div></div></div>
 <div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Baixe o proxy (Apple Silicon)</div>
 <div class="download-options">
-<a href="/api/setup/proxy?os=mac&format=arm64" class="download-option"><span class="format">DMG</span><span class="desc">M1, M2, M3, M4</span></a>
+<a href="/api/setup/proxy?os=mac&format=arm64" class="download-option"><span class="format">Binário ARM64</span><span class="desc">M1, M2, M3, M4</span></a>
 </div></div></div>
 <div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Configure o proxy</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export HTTPS_PROXY=http://127.0.0.1:8898
@@ -161,7 +163,7 @@ export HTTP_PROXY=http://127.0.0.1:8898</code></div><p class="step-note">⚠️ 
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/agent-meter-ca.crt</code></div></div></div>
 <div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Baixe o proxy (Intel)</div>
 <div class="download-options">
-<a href="/api/setup/proxy?os=mac&format=x64" class="download-option"><span class="format">DMG</span><span class="desc">Intel Mac</span></a>
+<a href="/api/setup/proxy?os=mac&format=x64" class="download-option"><span class="format">Binário x64</span><span class="desc">Intel Mac</span></a>
 </div></div></div>
 <div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Configure o proxy</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export HTTPS_PROXY=http://127.0.0.1:8898
@@ -174,9 +176,8 @@ export HTTP_PROXY=http://127.0.0.1:8898</code></div><p class="step-note">⚠️ 
 sudo update-ca-certificates</code></div></div></div>
 <div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Baixe o proxy</div>
 <div class="download-options">
-<a href="/api/setup/proxy?os=linux&format=deb" class="download-option"><span class="format">DEB</span><span class="desc">Debian, Ubuntu</span></a>
-<a href="/api/setup/proxy?os=linux&format=rpm" class="download-option"><span class="format">RPM</span><span class="desc">Fedora, RHEL</span></a>
-<a href="/api/setup/proxy?os=linux&format=tgz" class="download-option"><span class="format">TGZ</span><span class="desc">Portable</span></a>
+<a href="/api/setup/proxy?os=linux&format=x64" class="download-option"><span class="format">Binário x64</span><span class="desc">Linux Intel/AMD</span></a>
+<a href="/api/setup/proxy?os=linux&format=arm64" class="download-option"><span class="format">Binário ARM64</span><span class="desc">Linux ARM</span></a>
 </div></div></div>
 <div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Configure o proxy</div>
 <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export HTTPS_PROXY=http://127.0.0.1:8898
@@ -190,7 +191,7 @@ export HTTP_PROXY=http://127.0.0.1:8898</code></div><p class="step-note">⚠️ 
 <div class="releases-list">
 <div class="release-item">
 <div class="release-header"><span class="release-version">v1.2.3</span><span class="release-date">28 Jun 2026</span></div>
-<div class="release-notes"><ul><li>Setup page com UI melhorada</li><li>Suporte a download MSI para Windows</li><li>Detecção automática de OS</li></ul></div>
+<div class="release-notes"><ul><li>Setup page com UI melhorada</li><li>Downloads alinhados aos assets reais do GitHub Releases</li><li>Detecção automática de OS</li></ul></div>
 </div>
 <div class="release-item">
 <div class="release-header"><span class="release-version">v1.2.2</span><span class="release-date">15 Jun 2026</span></div>
@@ -206,6 +207,7 @@ export HTTP_PROXY=http://127.0.0.1:8898</code></div><p class="step-note">⚠️ 
 </main>
 <footer class="am-footer" id="amFooter"></footer>
 </div>
+<script src="/_static/app.js"></script>
 <script>
 function selectOs(os) {
   document.querySelectorAll('.os-card').forEach(c => c.classList.remove('selected'));
@@ -237,6 +239,8 @@ if (platform.includes('mac') || platform.includes('darwin')) {
 } else {
   selectOs('linux');
 }
+// Initialize shell with Setup as active page
+amShell({active:'setup', title:'Setup', breadcrumb:'Setup'});
 </script>
 </body>
 </html>
@@ -290,36 +294,38 @@ async fn ca_cert() -> impl IntoResponse {
 
 /// Serve proxy binary for download
 async fn proxy_download(Query(query): Query<ProxyQuery>) -> impl IntoResponse {
-    let os = query.os.unwrap_or_default();
-    let format = query.format.unwrap_or_else(|| "zip".to_string());
+    let os = query.os.unwrap_or_else(|| "linux".to_string());
+    let format = query.format.unwrap_or_else(|| "x64".to_string());
     
     // GitHub Releases base URL (update when releasing)
     const GITHUB_RELEASES: &str = "https://github.com/dnorio/agent-meter/releases/download";
     const VERSION: &str = "agent-meter-proxy-v1.2.3";
     
-    // Map to actual download filenames from GitHub Releases
-    let (filename, content_type) = match (os.as_str(), format.as_str()) {
-        // Windows
-        ("windows", "msi") => ("agent-meter-proxy-windows-x86_64.exe", "application/x-msi"),
-        ("windows", "zip") => ("agent-meter-proxy-windows-x86_64.exe", "application/zip"),
-        // macOS
-        ("mac", "arm64") => ("agent-meter-proxy-darwin-aarch64", "application/octet-stream"),
-        ("mac", "x64") => ("agent-meter-proxy-darwin-x86_64", "application/octet-stream"),
-        // Linux
-        ("linux", "x64") => ("agent-meter-proxy-linux-x86_64", "application/octet-stream"),
-        ("linux", "arm64") => ("agent-meter-proxy-linux-aarch64", "application/octet-stream"),
-        ("linux", "deb") => ("agent-meter-proxy_1.2.3_amd64.deb", "application/x-deb"),
-        ("linux", "rpm") => ("agent-meter-proxy-1.2.3-1.x86_64.rpm", "application/x-rpm"),
-        ("linux", "tgz") => ("agent-meter-proxy-linux-x86_64", "application/gzip"),
-        // Default
-        _ => ("agent-meter-proxy-linux-x86_64", "application/octet-stream"),
+    // Map only to assets that are actually published in the GitHub Release.
+    let filename = match (os.as_str(), format.as_str()) {
+        ("windows", "msi") => Some("agent-meter-proxy-1.2.3-x64.msi"),
+        ("windows", "x64") => Some("agent-meter-proxy-windows-x86_64.exe"),
+        ("windows", "arm64") => Some("agent-meter-proxy-windows-aarch64.exe"),
+        ("mac", "arm64") => Some("agent-meter-proxy-darwin-aarch64"),
+        ("mac", "x64") => Some("agent-meter-proxy-darwin-x86_64"),
+        ("linux", "x64") => Some("agent-meter-proxy-linux-x86_64"),
+        ("linux", "arm64") => Some("agent-meter-proxy-linux-aarch64"),
+        _ => None,
     };
-    
+
+    let Some(filename) = filename else {
+        return Response::builder()
+            .header("Content-Type", "text/plain; charset=utf-8")
+            .status(404)
+            .body(format!("No published agent-meter-proxy asset for os={os:?}, format={format:?}"))
+            .unwrap();
+    };
+
     let download_url = format!("{}/{}/{}", GITHUB_RELEASES, VERSION, filename);
-    
-    // Redirect to GitHub Releases for actual download
+
+    // Redirect to GitHub Releases for the actual download.
     Response::builder()
-        .header("Content-Type", content_type)
+        .header("Content-Type", "application/octet-stream")
         .header("Location", &download_url)
         .status(302)
         .body(format!("Redirecting to {}", download_url))
@@ -387,18 +393,18 @@ body { background: var(--setup-bg); min-height: 100vh; margin: 0; font-family: s
 </div>
 <ul class="version-changes">
 <li>Setup page com UI melhorada</li>
-<li>Suporte a download MSI para Windows</li>
+<li>Downloads alinhados aos assets reais do GitHub Releases</li>
 <li>Detecção automática de OS (Apple Silicon vs Intel)</li>
-<li>Adicionada página de releases</li>
+<li>Instalador MSI com wizard (EULA, pasta, CA, serviço, atalho)</li>
 </ul>
 <div class="downloads-grid">
 <a href="/api/setup/proxy?os=windows&format=msi" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">MSI</span></a>
-<a href="/api/setup/proxy?os=windows&format=zip" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">ZIP</span></a>
-<a href="/api/setup/proxy?os=mac&format=arm64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Apple Silicon</span><span class="format-badge">DMG</span></a>
-<a href="/api/setup/proxy?os=mac&format=x64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Intel</span><span class="format-badge">DMG</span></a>
-<a href="/api/setup/proxy?os=linux&format=deb" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">DEB</span></a>
-<a href="/api/setup/proxy?os=linux&format=rpm" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">RPM</span></a>
-<a href="/api/setup/proxy?os=linux&format=tgz" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">TGZ</span></a>
+<a href="/api/setup/proxy?os=windows&format=x64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">EXE</span></a>
+<a href="/api/setup/proxy?os=windows&format=arm64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">ARM64</span><span class="format-badge">EXE</span></a>
+<a href="/api/setup/proxy?os=mac&format=arm64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Apple Silicon</span><span class="format-badge">BIN</span></a>
+<a href="/api/setup/proxy?os=mac&format=x64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Intel</span><span class="format-badge">BIN</span></a>
+<a href="/api/setup/proxy?os=linux&format=x64" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">BIN</span></a>
+<a href="/api/setup/proxy?os=linux&format=arm64" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">ARM64</span><span class="format-badge">BIN</span></a>
 </div>
 </div>
 
