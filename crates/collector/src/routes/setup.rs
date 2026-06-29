@@ -300,17 +300,19 @@ async fn proxy_download(Query(query): Query<ProxyQuery>) -> impl IntoResponse {
     // Map to actual download filenames from GitHub Releases
     let (filename, content_type) = match (os.as_str(), format.as_str()) {
         // Windows
-        ("windows", "msi") => ("agent-meter-proxy-1.2.3-x64.msi", "application/x-msi"),
-        ("windows", "zip") => ("agent-meter-proxy-windows-x86_64.exe.zip", "application/zip"),
+        ("windows", "msi") => ("agent-meter-proxy-windows-x86_64.exe", "application/x-msi"),
+        ("windows", "zip") => ("agent-meter-proxy-windows-x86_64.exe", "application/zip"),
         // macOS
         ("mac", "arm64") => ("agent-meter-proxy-darwin-aarch64", "application/octet-stream"),
         ("mac", "x64") => ("agent-meter-proxy-darwin-x86_64", "application/octet-stream"),
         // Linux
+        ("linux", "x64") => ("agent-meter-proxy-linux-x86_64", "application/octet-stream"),
+        ("linux", "arm64") => ("agent-meter-proxy-linux-aarch64", "application/octet-stream"),
         ("linux", "deb") => ("agent-meter-proxy_1.2.3_amd64.deb", "application/x-deb"),
         ("linux", "rpm") => ("agent-meter-proxy-1.2.3-1.x86_64.rpm", "application/x-rpm"),
-        ("linux", "tgz") => ("agent-meter-proxy-x86_64.tgz", "application/gzip"),
+        ("linux", "tgz") => ("agent-meter-proxy-linux-x86_64", "application/gzip"),
         // Default
-        _ => ("agent-meter-proxy-windows-x86_64.exe.zip", "application/zip"),
+        _ => ("agent-meter-proxy-linux-x86_64", "application/octet-stream"),
     };
     
     let download_url = format!("{}/{}/{}", GITHUB_RELEASES, VERSION, filename);
