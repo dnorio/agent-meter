@@ -11,6 +11,8 @@ RUN rm -rf crates
 ARG BUILD_HASH=unknown
 COPY apps/agent-meter/crates ./crates
 COPY apps/agent-meter/migrations ./migrations
+COPY apps/agent-meter/scripts ./scripts
+COPY apps/agent-meter/install.ps1 ./install.ps1
 RUN touch crates/collector/src/main.rs crates/mcp-wrapper/src/main.rs \
     crates/collector/src/routes/conversation_detail.rs \
     crates/collector/src/routes/dashboard.rs \
