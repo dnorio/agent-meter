@@ -12,7 +12,6 @@ use agent_meter_db::params::ConversationQuery;
 
 use crate::app::AppState;
 use crate::errors::AppError;
-use crate::services::conversation_service;
 
 // ── HTML page ─────────────────────────────────────────────────────────────────
 async fn page() -> impl IntoResponse {
@@ -45,23 +44,18 @@ async fn list(
     Ok(Json(rows))
 }
 
-// ── Timeline JSON ─────────────────────────────────────────────────────────────
-async fn get_timeline(
+// ── Conversation detail JSON (tool-call rows) ───────────────────────────────────
+async fn get_detail(
     State(state): State<AppState>,
     Path(conversation_id): Path<String>,
-) -> Result<Json<crate::models::timeline::ConversationTimeline>, AppError> {
-    let timeline = conversation_service::get_conversation_timeline(
-        &state.pool,
-        &conversation_id,
-        Some(1000),
-    )
-    .await?;
-    Ok(Json(timeline))
+) -> Result<Json<Vec<agent_meter_db::models::ToolCallRow>>, AppError> {
+    let rows = state.db.conversation_detail(&conversation_id).await?;
+    Ok(Json(rows))
 }
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/conversations", get(page))
         .route("/api/conversations", get(list))
-        .route("/api/conversations/:conversation_id/timeline", get(get_timeline))
+        .route("/api/conversations/:conversation_id/timeline", get(get_detail))
 }

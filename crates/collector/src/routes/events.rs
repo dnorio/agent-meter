@@ -21,7 +21,8 @@ async fn post_tool_call(
     if event.user_agent.is_none() {
         event.user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
     }
-    let record = event_service::insert_tool_call(&state.pool, event).await?;
+    let insert = event_service::to_insert(event);
+    let record = state.db.insert_tool_call(&insert).await?;
 
     Ok(Json(json!({
         "event_id": record.event_id,

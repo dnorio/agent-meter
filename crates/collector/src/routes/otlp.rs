@@ -31,7 +31,7 @@ async fn post_traces(
     }
 
     let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
-    match otlp::handle_trace_request(&body, content_type, Some(&client_ip), user_agent, &state.pool, state.ingest.as_ref()) {
+    match otlp::handle_trace_request(&body, content_type, Some(&client_ip), user_agent, state.ingest.as_ref()) {
         Ok(results) => Json(results).into_response(),
         Err(e) => e.into_response(),
     }

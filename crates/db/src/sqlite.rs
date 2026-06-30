@@ -645,7 +645,7 @@ impl Database for SqliteDb {
             WHERE conversation_id IS NOT NULL AND conversation_id <> ''
               AND (?3 IS NULL OR ide = ?3)
             GROUP BY conversation_id
-            HAVING COUNT(*) > 1
+            HAVING COUNT(*) >= 1
             ORDER BY started_at DESC
             LIMIT ?1 OFFSET ?2
             "#,
