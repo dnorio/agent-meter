@@ -30,12 +30,7 @@
   <?ifndef ProxyExe ?>
     <?define ProxyExe = "agent-meter-proxy-windows-x86_64.exe" ?>
   <?endif?>
-  <?ifndef UtilCA ?>
-    <?define UtilCA = "Wix4UtilCA_X64" ?>
-  <?endif?>
-  <?ifndef UtilQuietExec ?>
-    <?define UtilQuietExec = "WixQuietExec64" ?>
-  <?endif?>
+  <?define UtilCA = "Wix4UtilCA_$(sys.BUILDARCHSHORT)" ?>
 
   <Package
     Name="agent-meter-proxy"
@@ -176,7 +171,7 @@
                   Value="&quot;[INSTALLFOLDER]agent-meter-proxy.exe&quot; setup" />
     <CustomAction Id="DoInstallCA"
                   BinaryRef="$(var.UtilCA)"
-                  DllEntry="$(var.UtilQuietExec)"
+                  DllEntry="WixQuietExec"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
     <!-- 2) Install + start the Windows service -->
@@ -185,14 +180,14 @@
                   Value="&quot;[System64Folder]sc.exe&quot; create agent-meter-proxy binPath= &quot;\&quot;[INSTALLFOLDER]agent-meter-proxy.exe\&quot; start --listen 127.0.0.1:8898 --collector http://localhost:8081&quot; start= auto DisplayName= &quot;agent-meter-proxy&quot;" />
     <CustomAction Id="DoSvcInstall"
                   BinaryRef="$(var.UtilCA)"
-                  DllEntry="$(var.UtilQuietExec)"
+                  DllEntry="WixQuietExec"
                   Execute="deferred" Impersonate="no" Return="ignore" />
     <CustomAction Id="SetSvcStart"
                   Property="DoSvcStart"
                   Value="&quot;[System64Folder]sc.exe&quot; start agent-meter-proxy" />
     <CustomAction Id="DoSvcStart"
                   BinaryRef="$(var.UtilCA)"
-                  DllEntry="$(var.UtilQuietExec)"
+                  DllEntry="WixQuietExec"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
     <!-- 3) Uninstall: stop + delete service -->
@@ -201,14 +196,14 @@
                   Value="&quot;[System64Folder]sc.exe&quot; stop agent-meter-proxy" />
     <CustomAction Id="DoSvcStop"
                   BinaryRef="$(var.UtilCA)"
-                  DllEntry="$(var.UtilQuietExec)"
+                  DllEntry="WixQuietExec"
                   Execute="deferred" Impersonate="no" Return="ignore" />
     <CustomAction Id="SetSvcDelete"
                   Property="DoSvcDelete"
                   Value="&quot;[System64Folder]sc.exe&quot; delete agent-meter-proxy" />
     <CustomAction Id="DoSvcDelete"
                   BinaryRef="$(var.UtilCA)"
-                  DllEntry="$(var.UtilQuietExec)"
+                  DllEntry="WixQuietExec"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
     <InstallExecuteSequence>
