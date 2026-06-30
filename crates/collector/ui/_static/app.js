@@ -38,21 +38,6 @@
       app.setAttribute('data-collapsed', 'true');
     }
 
-    // load /api/me into user menu
-    fetch('/api/me', {credentials:'include'}).then(r => r.ok ? r.json() : null).then(me => {
-      const slot = document.getElementById('amUserSlot');
-      if (!slot) return;
-      if (me) {
-        const name = me.display_name || me.github_login || me.email;
-        slot.innerHTML = `
-          <a class="am-btn am-btn-ghost am-btn-sm" href="/auth/logout" title="Sign out">
-            ${me.avatar_url ? `<img src="${me.avatar_url}" alt="" style="width:20px;height:20px;border-radius:50%">` : '<svg class="am-icon"><use href="/_static/icons.svg#i-user"/></svg>'}
-            <span>${name}</span>
-          </a>`;
-      } else {
-        slot.innerHTML = `<a class="am-btn am-btn-secondary am-btn-sm" href="/login"><svg class="am-icon"><use href="/_static/icons.svg#i-github"/></svg>Sign in</a>`;
-      }
-    }).catch(()=>{});
   });
 
   // sparkline helper: amSpark(values, w, h, color)
@@ -113,22 +98,17 @@
     const navItems = [
       ['dashboard', '/', 'i-dashboard', 'Dashboard'],
       ['conversations', '/conversations', 'i-conversations', 'Conversations'],
-      ['cost', '/cost', 'i-cost', 'Cost'],
-      ['alerts', '/alerts', 'i-alerts', 'Alerts'],
-      ['tasks', '/tasks', 'i-tasks', 'Tasks'],
       ['reports', '/reports', 'i-reports', 'Reports'],
-      ['setup', '/setup', 'i-settings', 'Setup'],
+      ['cost', '/cost', 'i-cost', 'Cost'],
     ];
     const accountItems = [
-      ['settings', '/settings', 'i-settings', 'Settings'],
-      ['pricing', '/pricing', 'i-pricing', 'Pricing'],
       ['github', 'https://github.com/dnorio/agent-meter', 'i-github', 'GitHub'],
     ];
     const navHtml = navItems.map(([k,h,i,l]) =>
       `<a class="am-nav-link${k===active?' active':''}" href="${h}"><svg class="am-icon"><use href="/_static/icons.svg#${i}"/></svg><span>${l}</span></a>`
     ).join('');
     const accHtml = accountItems.map(([k,h,i,l]) =>
-      `<a class="am-nav-link${k===active?' active':''}" href="${h}"><svg class="am-icon"><use href="/_static/icons.svg#${i}"/></svg><span>${l}</span></a>`
+      `<a class="am-nav-link${k===active?' active':''}" href="${h}" target="_blank" rel="noopener"><svg class="am-icon"><use href="/_static/icons.svg#${i}"/></svg><span>${l}</span></a>`
     ).join('');
     const sidebar = document.getElementById('amSidebar');
     if (sidebar) {
@@ -142,7 +122,7 @@
         <nav class="am-sidebar-nav">
           <div class="am-nav-section">Observability</div>
           ${navHtml}
-          <div class="am-nav-section">Account</div>
+          <div class="am-nav-section">Links</div>
           ${accHtml}
         </nav>
         <div class="am-sidebar-footer">
@@ -165,21 +145,13 @@
           <span class="kbd">⌘K</span>
         </div>
         <div class="am-topbar-actions" id="amUserSlot">
-          <a class="am-btn am-btn-secondary am-btn-sm" href="/login">Sign in</a>
+          <a class="am-btn am-btn-ghost am-btn-sm" href="https://github.com/dnorio/agent-meter" target="_blank" rel="noopener" title="GitHub"><svg class="am-icon"><use href="/_static/icons.svg#i-github"/></svg></a>
         </div>`;
-      // re-fire user-slot fetch
-      fetch('/api/me', {credentials:'include'}).then(r => r.ok ? r.json() : null).then(me => {
-        const slot = document.getElementById('amUserSlot'); if (!slot) return;
-        if (me) {
-          const name = me.display_name || me.github_login || me.email;
-          slot.innerHTML = `<a class="am-btn am-btn-ghost am-btn-sm" href="/auth/logout" title="Sign out">${me.avatar_url ? `<img src="${me.avatar_url}" alt="" style="width:20px;height:20px;border-radius:50%">` : '<svg class="am-icon"><use href="/_static/icons.svg#i-user"/></svg>'}<span>${name}</span></a>`;
-        }
-      }).catch(()=>{});
     }
     const footer = document.getElementById('amFooter');
     if (footer) {
       footer.setAttribute('role', 'contentinfo');
-      footer.innerHTML = `<span>© 2026 agent-meter</span><a href="/pricing">Pricing</a><a href="https://github.com/dnorio/agent-meter">GitHub</a><span class="am-spacer" style="flex:1"></span><span id="amHealthFoot" class="am-mono am-muted" style="font-size:11px">checking…</span>`;
+      footer.innerHTML = `<span>© 2026 agent-meter · MIT</span><a href="https://github.com/dnorio/agent-meter" target="_blank" rel="noopener">GitHub</a><span class="am-spacer" style="flex:1"></span><span id="amHealthFoot" class="am-mono am-muted" style="font-size:11px">checking…</span>`;
       fetch('/health').then(r=>r.json()).then(r=>{
         const p = document.getElementById('amHealthPill');
         const f = document.getElementById('amHealthFoot');
