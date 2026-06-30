@@ -281,7 +281,35 @@ else
   echo "==> [4/4] SKIP (MCP wrapper not requested)"
 fi
 
-# ---- 5. smoke test ----
+# ---- 5. HTTPS proxy (cursor/codex) ----
+if [[ "$AGENT" == "cursor" || "$AGENT" == "codex" ]]; then
+  echo ""
+  echo "==> [5/5] configurando agent-meter-proxy (HTTPS :8898)..."
+  HTTPS_PROXY_SCRIPT="$SCRIPT_DIR/setup-https-proxy.sh"
+  if [[ -f "$HTTPS_PROXY_SCRIPT" ]]; then
+    COLLECTOR_HTTPS="${COLLECTOR_URL/http:\/\//https:\/\/}"
+    COLLECTOR_HTTPS="${COLLECTOR_HTTPS/localhost:8081/http://localhost:8081}"
+    COLLECTOR_HTTPS="${COLLECTOR_HTTPS/agent-meter:3000/http://localhost:8081}"
+    if [[ "$IS_WSL" == true ]]; then
+      AGENT_METER_BASE_URL="http://localhost:8081" \
+      AGENT_METER_COLLECTOR_URL="http://localhost:8081" \
+        bash "$HTTPS_PROXY_SCRIPT" --ensure-only 2>/dev/null || \
+        bash "$HTTPS_PROXY_SCRIPT"
+    else
+      AGENT_METER_COLLECTOR_URL="${COLLECTOR_HTTPS}" \
+        bash "$HTTPS_PROXY_SCRIPT" --ensure-only 2>/dev/null || \
+        AGENT_METER_COLLECTOR_URL="${COLLECTOR_HTTPS}" bash "$HTTPS_PROXY_SCRIPT"
+    fi
+    echo "    proxy HTTPS configurado (sem HTTP_PROXY global)"
+  else
+    echo "    SKIP — $HTTPS_PROXY_SCRIPT não encontrado"
+  fi
+else
+  echo ""
+  echo "==> [5/5] SKIP (proxy HTTPS só para cursor/codex)"
+fi
+
+# ---- smoke test ----
 echo ""
 echo "==> verifying installation..."
 

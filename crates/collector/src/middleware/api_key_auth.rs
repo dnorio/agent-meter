@@ -65,6 +65,9 @@ pub async fn require_api_key(
 }
 
 fn is_exempt_path(path: &str) -> bool {
+    if path.starts_with("/api/setup/") {
+        return true;
+    }
     matches!(
         path,
         "/health"

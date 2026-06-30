@@ -1,22 +1,29 @@
-#!/bin/sh
-# agent-meter-proxy installer
-# Works on: bash, zsh, sh, Git Bash, WSL
+#!/usr/bin/env bash
+# agent-meter-proxy installer — full auto when piped (curl | sh)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | sh
-#   wget -qO- https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | sh
+#   curl -fsSL http://localhost:8081/api/setup/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter-worktree/main/apps/agent-meter/install.sh | sh
 #
-# Environment variables:
-#   AGENT_METER_VERSION  — specific version (default: latest)
-#   AGENT_METER_DIR      — install directory (default: ~/.local/bin)
+# Environment:
+#   AGENT_METER_AUTO=0     — só baixa o binário (comportamento legado)
+#   AGENT_METER_VERSION    — tag do release (default: latest)
+#   AGENT_METER_DIR        — diretório de instalação (default: ~/.local/bin)
+#   AGENT_METER_BASE_URL   — URL do collector (default: http://localhost:8081)
 
 set -e
 
 REPO="dnorio/agent-meter"
 BINARY="agent-meter-proxy"
 INSTALL_DIR="${AGENT_METER_DIR:-$HOME/.local/bin}"
+BASE_URL="${AGENT_METER_BASE_URL:-http://localhost:8081}"
+AUTO="${AGENT_METER_AUTO:-1}"
 
-# --- Detect platform ---
+# Quando piped, default é instalação completa via bootstrap
+if [ ! -t 0 ] && [ "$AUTO" = "1" ] && [ -z "${AGENT_METER_SKIP_BOOTSTRAP:-}" ]; then
+  echo "==> Instalação automática (proxy + CA + serviço + Cursor)..."
+  exec bash -c "curl -fsSL '${BASE_URL}/api/setup/bootstrap.sh' | bash"
+fi
 
 detect_os() {
   case "$(uname -s)" in
@@ -43,8 +50,6 @@ if [ "$OS" = "unknown" ] || [ "$ARCH" = "unknown" ]; then
   exit 1
 fi
 
-# --- Determine version ---
-
 if [ -z "$AGENT_METER_VERSION" ]; then
   AGENT_METER_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')
@@ -55,8 +60,6 @@ if [ -z "$AGENT_METER_VERSION" ]; then
 fi
 
 echo "Installing ${BINARY} ${AGENT_METER_VERSION} for ${OS}/${ARCH}..."
-
-# --- Download ---
 
 EXT=""
 if [ "$OS" = "windows" ]; then EXT=".exe"; fi
@@ -73,24 +76,26 @@ chmod +x "$DEST"
 
 echo "  Installed to ${DEST}"
 
-# --- Check PATH ---
-
 case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
     echo ""
     echo "  ⚠ ${INSTALL_DIR} is not in your PATH."
-    echo "  Add this to your shell profile:"
-    echo ""
-    echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
-    echo ""
+    echo "  Add: export PATH=\"${INSTALL_DIR}:\$PATH\""
     ;;
 esac
 
 echo ""
-echo "✓ ${BINARY} ${AGENT_METER_VERSION} installed successfully!"
+echo "✓ ${BINARY} ${AGENT_METER_VERSION} installed!"
 echo ""
-echo "  Next steps:"
-echo "    ${BINARY} setup          # Generate & install CA certificate"
-echo "    ${BINARY} start          # Start the proxy"
-echo "    ${BINARY} wrap cursor .  # Launch Cursor with telemetry capture"
+if [ "$AUTO" = "1" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo "$INSTALL_DIR")"
+  if [ -f "${SCRIPT_DIR}/scripts/setup-https-proxy.sh" ]; then
+  AGENT_METER_BASE_URL="$BASE_URL" AGENT_METER_COLLECTOR_URL="$BASE_URL" \
+    bash "${SCRIPT_DIR}/scripts/setup-https-proxy.sh"
+  else
+    echo "  Run full setup: curl -fsSL ${BASE_URL}/api/setup/bootstrap.sh | bash"
+  fi
+else
+  echo "  Next: ${BINARY} setup && ${BINARY} start"
+fi

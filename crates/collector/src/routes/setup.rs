@@ -1,5 +1,6 @@
 use axum::{
-    extract::Query,
+    extract::{Query, State},
+    http::{header, HeaderMap},
     response::{Html, IntoResponse, Response},
     routing::get,
     Router,
@@ -90,12 +91,19 @@ body { background: var(--setup-bg); min-height: 100vh; margin: 0; font-family: s
 <div class="setup-container">
 <div class="setup-header">
 <h1>⚡ Setup agent-meter</h1>
-<p>Configure seu IDE para enviar telemetria ao agent-meter</p>
+<p>Um comando — telemetria capturada automaticamente</p>
 </div>
 
-<div class="setup-card">
-<h2>📥 1. Instale o certificado CA</h2>
-<p>O certificado CA permite descriptografar a telemetria do seu IDE. É necessário para o proxy funcionar.</p>
+<div class="setup-card proxies-section" id="auto-install-card">
+<h2>🚀 Instalação automática</h2>
+<p id="auto-install-desc">Copie e cole no terminal — instala proxy, CA, serviço e configura o Cursor.</p>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code id="auto-install-cmd">curl -fsSL http://localhost:8081/api/setup/bootstrap.sh | bash</code></div>
+<p class="step-note" id="auto-install-note" style="display:none">No Windows, use o instalador MSI abaixo — ele faz tudo automaticamente (CA, proxy, variáveis, serviço).</p>
+</div>
+
+<div class="setup-card" id="ca-manual-card">
+<h2>📥 Certificado CA (só se necessário)</h2>
+<p>No <strong>Windows com MSI</strong> ou no <strong>Linux/macOS com o comando acima</strong>, o CA já é instalado. Use este download só para setup manual.</p>
 <a href="/api/setup/ca-cert" class="download-btn" download="agent-meter-ca.crt">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
 Baixar certificado CA (.crt)
@@ -103,13 +111,13 @@ Baixar certificado CA (.crt)
 </div>
 
 <div class="setup-card">
-<h2>⬇️ 2. Baixe o agent-meter-proxy</h2>
-<p>Escolha seu sistema operacional e arquitetura:</p>
+<h2>⬇️ Downloads manuais</h2>
+<p>Prefere instalar à mão? Escolha seu sistema:</p>
 <div class="os-grid">
 <div class="os-card" onclick="selectOs('windows')" id="os-windows">
 <div class="icon">🪟</div>
 <div class="label">Windows</div>
-<div class="hint">x64</div>
+<div class="hint" id="windows-arch-hint">x64 / ARM64</div>
 </div>
 <div class="os-card" onclick="selectOs('mac')" id="os-mac">
 <div class="icon">🍎</div>
@@ -129,12 +137,14 @@ Baixar certificado CA (.crt)
 </div>
 
 <div id="instructions-windows" class="instructions" style="display:none">
-<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Baixe o instalador (recomendado)</div>
+<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Baixe o instalador MSI (recomendado)</div>
 <div class="download-options">
-<a href="/api/setup/proxy?os=windows&format=msi" class="download-option"><span class="format">MSI x64</span><span class="desc">Wizard guiado</span></a>
+<a href="/api/setup/proxy?os=windows&format=msi" id="msi-x64-link" class="download-option"><span class="format">MSI x64</span><span class="desc">Wizard guiado</span></a>
+<a href="/api/setup/proxy?os=windows&format=msi-arm64" id="msi-arm64-link" class="download-option"><span class="format">MSI ARM64</span><span class="desc">Wizard guiado</span></a>
+<a href="/api/setup/proxy?os=windows&format=auto" id="msi-auto-link" class="download-option" style="display:none"><span class="format">MSI (auto)</span><span class="desc">Detecta sua arquitetura</span></a>
 </div></div></div>
-<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Siga o assistente</div>
-<div class="step-desc">O instalador abre um wizard com: aceite dos termos (EULA), escolha da pasta de instalação e opções marcáveis — instalar o certificado CA, configurar <code>HTTPS_PROXY</code>/<code>HTTP_PROXY</code>, instalar o serviço do Windows e criar atalho na área de trabalho. Tudo é feito automaticamente; não é preciso rodar comandos manuais.</div></div></div>
+<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Siga o assistente — pronto</div>
+<div class="step-desc">O wizard instala tudo: EULA, pasta, <strong>certificado CA</strong>, <code>HTTPS_PROXY</code>, <strong>serviço Windows</strong> e atalho. Reinicie o Cursor ao final. Zero comandos manuais.</div></div></div>
 <div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Prefere portable?</div>
 <div class="download-options">
 <a href="/api/setup/proxy?os=windows&format=x64" class="download-option"><span class="format">EXE x64</span><span class="desc">Sem instalar</span></a>
@@ -145,43 +155,33 @@ setx HTTP_PROXY "http://127.0.0.1:8898"</code></div><p class="step-note">⚠️ 
 </div>
 
 <div id="instructions-mac" class="instructions" style="display:none">
-<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Instale o certificado CA</div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/ca-cert -o /tmp/agent-meter-ca.crt
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/agent-meter-ca.crt</code></div></div></div>
-<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Baixe o proxy (Apple Silicon)</div>
+<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Instalação automática (recomendado)</div>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/bootstrap.sh | bash</code></div>
+<p class="step-desc">Instala proxy, CA, serviço e configura o Cursor. Reinicie o IDE ao final.</p></div></div>
+<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Ou baixe o binário (Apple Silicon)</div>
 <div class="download-options">
 <a href="/api/setup/proxy?os=mac&format=arm64" class="download-option"><span class="format">Binário ARM64</span><span class="desc">M1, M2, M3, M4</span></a>
 </div></div></div>
-<div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Configure o proxy</div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export HTTPS_PROXY=http://127.0.0.1:8898
-export HTTP_PROXY=http://127.0.0.1:8898</code></div><p class="step-note">⚠️ Adicione ao seu ~/.zshrc ou ~/.bashrc</p></div></div>
 </div>
 
 <div id="instructions-mac-x64" class="instructions" style="display:none">
-<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Instale o certificado CA</div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/ca-cert -o /tmp/agent-meter-ca.crt
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/agent-meter-ca.crt</code></div></div></div>
-<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Baixe o proxy (Intel)</div>
+<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Instalação automática (recomendado)</div>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/bootstrap.sh | bash</code></div></div></div>
+<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Ou baixe o binário (Intel)</div>
 <div class="download-options">
 <a href="/api/setup/proxy?os=mac&format=x64" class="download-option"><span class="format">Binário x64</span><span class="desc">Intel Mac</span></a>
 </div></div></div>
-<div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Configure o proxy</div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export HTTPS_PROXY=http://127.0.0.1:8898
-export HTTP_PROXY=http://127.0.0.1:8898</code></div><p class="step-note">⚠️ Adicione ao seu ~/.zshrc ou ~/.bashrc</p></div></div>
 </div>
 
 <div id="instructions-linux" class="instructions" style="display:none">
-<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Instale o certificado CA</div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>sudo curl -fsSL http://localhost:8081/api/setup/ca-cert -o /usr/local/share/ca-certificates/agent-meter.crt
-sudo update-ca-certificates</code></div></div></div>
-<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Baixe o proxy</div>
+<div class="step"><div class="step-num">①</div><div class="step-content"><div class="step-title">Instalação automática (recomendado)</div>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>curl -fsSL http://localhost:8081/api/setup/bootstrap.sh | bash</code></div>
+<p class="step-desc">Instala proxy, CA, systemd user service e configura o Cursor — sem HTTP_PROXY global.</p></div></div>
+<div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Ou baixe o binário</div>
 <div class="download-options">
 <a href="/api/setup/proxy?os=linux&format=x64" class="download-option"><span class="format">Binário x64</span><span class="desc">Linux Intel/AMD</span></a>
 <a href="/api/setup/proxy?os=linux&format=arm64" class="download-option"><span class="format">Binário ARM64</span><span class="desc">Linux ARM</span></a>
 </div></div></div>
-<div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Configure o proxy</div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>export HTTPS_PROXY=http://127.0.0.1:8898
-export HTTP_PROXY=http://127.0.0.1:8898</code></div><p class="step-note">⚠️ Adicione ao seu ~/.bashrc</p></div></div>
 </div>
 </div>
 
@@ -223,6 +223,22 @@ function copyCode(btn) {
 }
 const platform = navigator.platform.toLowerCase();
 const userAgent = navigator.userAgent;
+const isWinArm = userAgent.includes('ARM64') || userAgent.includes('aarch64');
+const origin = window.location.origin;
+document.querySelectorAll('#auto-install-cmd, .code-block code').forEach(el => {
+  if (el.textContent.includes('localhost/api/setup/bootstrap')) {
+    el.textContent = 'curl -fsSL ' + origin + '/api/setup/bootstrap.sh | bash';
+  }
+});
+if (platform.includes('win')) {
+  document.getElementById('auto-install-note').style.display = 'block';
+  document.getElementById('auto-install-desc').textContent = 'No Windows use o instalador MSI — detectamos sua arquitetura automaticamente.';
+  document.getElementById('auto-install-cmd').parentElement.parentElement.style.display = 'none';
+  if (isWinArm) {
+    document.getElementById('windows-arch-hint').textContent = 'ARM64 detectado';
+    document.getElementById('msi-arm64-link').style.borderColor = 'var(--setup-accent)';
+  }
+}
 // Detect Apple Silicon vs Intel Mac
 if (platform.includes('mac') || platform.includes('darwin')) {
   // Check for Apple Silicon indicators in user agent
@@ -251,18 +267,116 @@ async fn setup_page() -> Html<&'static str> {
     Html(SETUP_HTML)
 }
 
-/// Detect OS from User-Agent
-fn detect_os(user_agent: &str) -> &'static str {
-    if user_agent.contains("Windows") {
-        "windows"
-    } else if user_agent.contains("Mac") || user_agent.contains("Darwin") {
-        "mac"
-    } else {
-        "linux"
+/// Map (os, format) to published GitHub Release asset filename.
+fn resolve_proxy_asset(os: &str, format: &str) -> Option<&'static str> {
+    match (os, format) {
+        ("windows", "msi" | "msi-x64") => Some("agent-meter-proxy-1.2.3-x64.msi"),
+        ("windows", "msi-arm64" | "msi_arm64") => Some("agent-meter-proxy-1.2.3-arm64.msi"),
+        ("windows", "x64") => Some("agent-meter-proxy-windows-x86_64.exe"),
+        ("windows", "arm64") => Some("agent-meter-proxy-windows-aarch64.exe"),
+        ("mac", "arm64") => Some("agent-meter-proxy-darwin-aarch64"),
+        ("mac", "x64") => Some("agent-meter-proxy-darwin-x86_64"),
+        ("linux", "x64") => Some("agent-meter-proxy-linux-x86_64"),
+        ("linux", "arm64") => Some("agent-meter-proxy-linux-aarch64"),
+        _ => None,
     }
 }
 
-/// Serve the CA certificate for download
+fn windows_format_from_ua(user_agent: &str) -> &'static str {
+    if user_agent.contains("ARM64") || user_agent.contains("aarch64") {
+        "msi-arm64"
+    } else {
+        "msi"
+    }
+}
+
+/// Serve proxy binary for download (redirect to GitHub Releases).
+async fn proxy_download(headers: HeaderMap, Query(query): Query<ProxyQuery>) -> impl IntoResponse {
+    let os = query.os.unwrap_or_else(|| "linux".to_string());
+    let mut format = query.format.unwrap_or_else(|| "x64".to_string());
+
+    if format == "auto" {
+        format = match os.as_str() {
+            "windows" => windows_format_from_ua(
+                headers
+                    .get(header::USER_AGENT)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or(""),
+            )
+            .to_string(),
+            "mac" | "linux" => "arm64".to_string(), // overridden below for x64 hosts if needed
+            _ => "x64".to_string(),
+        };
+        if os == "mac" || os == "linux" {
+            let ua = headers
+                .get(header::USER_AGENT)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            if ua.contains("x86_64") || ua.contains("Intel") {
+                format = "x64".to_string();
+            }
+        }
+    }
+
+    // GitHub Releases base URL (update when releasing)
+    const GITHUB_RELEASES: &str = "https://github.com/dnorio/agent-meter/releases/download";
+    const VERSION: &str = "agent-meter-proxy-v1.2.3";
+
+    let Some(filename) = resolve_proxy_asset(os.as_str(), format.as_str()) else {
+        return Response::builder()
+            .header("Content-Type", "text/plain; charset=utf-8")
+            .status(404)
+            .body(format!(
+                "No published agent-meter-proxy asset for os={os:?}, format={format:?}"
+            ))
+            .unwrap();
+    };
+
+    let download_url = format!("{}/{}/{}", GITHUB_RELEASES, VERSION, filename);
+
+    Response::builder()
+        .header("Content-Type", "application/octet-stream")
+        .header("Location", &download_url)
+        .status(302)
+        .body(format!("Redirecting to {}", download_url))
+        .unwrap()
+}
+
+/// One-shot bootstrap script (curl | bash).
+async fn bootstrap_sh(State(state): State<AppState>) -> impl IntoResponse {
+    let base = state.config.public_url.trim_end_matches('/');
+    let script = include_str!("../../../../scripts/setup-https-proxy.sh");
+    let body = if let Some(rest) = script.strip_prefix("#!/usr/bin/env bash\n") {
+        format!(
+            "#!/usr/bin/env bash\nexport AGENT_METER_BASE_URL=\"{base}\"\nexport AGENT_METER_COLLECTOR_URL=\"{base}\"\n{rest}"
+        )
+    } else {
+        format!(
+            "#!/usr/bin/env bash\nexport AGENT_METER_BASE_URL=\"{base}\"\nexport AGENT_METER_COLLECTOR_URL=\"{base}\"\n{script}"
+        )
+    };
+
+    Response::builder()
+        .header("Content-Type", "text/x-shellscript; charset=utf-8")
+        .header("Content-Disposition", "inline; filename=\"bootstrap.sh\"")
+        .body(body)
+        .unwrap()
+}
+/// One-shot bootstrap for Windows PowerShell (irm | iex).
+async fn bootstrap_ps1(State(state): State<AppState>) -> impl IntoResponse {
+    let base = state.config.public_url.trim_end_matches('/');
+    let script = include_str!("../../../../install.ps1");
+    let body = format!(
+        "$env:AGENT_METER_BASE_URL = \"{base}\"\n{script}"
+    );
+
+    Response::builder()
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .header("Content-Disposition", "inline; filename=\"bootstrap.ps1\"")
+        .body(body)
+        .unwrap()
+}
+
 async fn ca_cert() -> impl IntoResponse {
     // Try multiple possible locations (local dev first, then container path)
     let possible_paths = [
@@ -292,45 +406,6 @@ async fn ca_cert() -> impl IntoResponse {
         .unwrap()
 }
 
-/// Serve proxy binary for download
-async fn proxy_download(Query(query): Query<ProxyQuery>) -> impl IntoResponse {
-    let os = query.os.unwrap_or_else(|| "linux".to_string());
-    let format = query.format.unwrap_or_else(|| "x64".to_string());
-    
-    // GitHub Releases base URL (update when releasing)
-    const GITHUB_RELEASES: &str = "https://github.com/dnorio/agent-meter/releases/download";
-    const VERSION: &str = "agent-meter-proxy-v1.2.3";
-    
-    // Map only to assets that are actually published in the GitHub Release.
-    let filename = match (os.as_str(), format.as_str()) {
-        ("windows", "msi") => Some("agent-meter-proxy-1.2.3-x64.msi"),
-        ("windows", "x64") => Some("agent-meter-proxy-windows-x86_64.exe"),
-        ("windows", "arm64") => Some("agent-meter-proxy-windows-aarch64.exe"),
-        ("mac", "arm64") => Some("agent-meter-proxy-darwin-aarch64"),
-        ("mac", "x64") => Some("agent-meter-proxy-darwin-x86_64"),
-        ("linux", "x64") => Some("agent-meter-proxy-linux-x86_64"),
-        ("linux", "arm64") => Some("agent-meter-proxy-linux-aarch64"),
-        _ => None,
-    };
-
-    let Some(filename) = filename else {
-        return Response::builder()
-            .header("Content-Type", "text/plain; charset=utf-8")
-            .status(404)
-            .body(format!("No published agent-meter-proxy asset for os={os:?}, format={format:?}"))
-            .unwrap();
-    };
-
-    let download_url = format!("{}/{}/{}", GITHUB_RELEASES, VERSION, filename);
-
-    // Redirect to GitHub Releases for the actual download.
-    Response::builder()
-        .header("Content-Type", "application/octet-stream")
-        .header("Location", &download_url)
-        .status(302)
-        .body(format!("Redirecting to {}", download_url))
-        .unwrap()
-}
 /// Releases page with full changelog
 async fn releases_page() -> Html<&'static str> {
     Html(r#"<!DOCTYPE html>
@@ -399,6 +474,7 @@ body { background: var(--setup-bg); min-height: 100vh; margin: 0; font-family: s
 </ul>
 <div class="downloads-grid">
 <a href="/api/setup/proxy?os=windows&format=msi" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">MSI</span></a>
+<a href="/api/setup/proxy?os=windows&format=msi-arm64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">ARM64</span><span class="format-badge">MSI</span></a>
 <a href="/api/setup/proxy?os=windows&format=x64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">EXE</span></a>
 <a href="/api/setup/proxy?os=windows&format=arm64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">ARM64</span><span class="format-badge">EXE</span></a>
 <a href="/api/setup/proxy?os=mac&format=arm64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Apple Silicon</span><span class="format-badge">BIN</span></a>
@@ -445,4 +521,6 @@ pub fn router() -> Router<AppState> {
         .route("/releases", get(releases_page))
         .route("/api/setup/ca-cert", get(ca_cert))
         .route("/api/setup/proxy", get(proxy_download))
+        .route("/api/setup/bootstrap.sh", get(bootstrap_sh))
+        .route("/api/setup/bootstrap.ps1", get(bootstrap_ps1))
 }

@@ -1,57 +1,34 @@
 # agent-meter-proxy installer for Windows PowerShell
+# Full auto: downloads MSI wizard (CA + proxy + service + env vars)
+#
 # Usage:
-#   irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
+#   irm http://localhost:8081/api/setup/bootstrap.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "dnorio/agent-meter"
-$Binary = "agent-meter-proxy"
-$InstallDir = "$env:USERPROFILE\.local\bin"
+$BaseUrl = if ($env:AGENT_METER_BASE_URL) { $env:AGENT_METER_BASE_URL } else { "http://localhost:8081" }
 
-# Detect architecture
-$Arch = if ([System.Environment]::Is64BitOperatingSystem) { "x86_64" } else { "unknown" }
-if ($Arch -eq "unknown") {
-    Write-Error "Unsupported architecture"
-    exit 1
-}
+# Detect architecture (ARM64 vs x64)
+$IsArm64 = $false
+if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { $IsArm64 = $true }
+if ($env:PROCESSOR_IDENTIFIER -match "ARM64") { $IsArm64 = $true }
 
-# Get latest version
-if (-not $env:AGENT_METER_VERSION) {
-    $Release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest"
-    $Version = $Release.tag_name
-} else {
-    $Version = $env:AGENT_METER_VERSION
-}
+$MsiFormat = if ($IsArm64) { "msi-arm64" } else { "msi" }
+$MsiLabel = if ($IsArm64) { "ARM64" } else { "x64" }
 
-Write-Host "Installing $Binary $Version for windows/$Arch..."
+Write-Host "==> Instalador MSI agent-meter-proxy ($MsiLabel)..." -ForegroundColor Cyan
+Write-Host "    O wizard instala CA, proxy, servico Windows e HTTPS_PROXY automaticamente."
 
-$Asset = "$Binary-windows-$Arch.exe"
-$Url = "https://github.com/$Repo/releases/download/$Version/$Asset"
-$Dest = Join-Path $InstallDir "$Binary.exe"
+$DownloadUrl = "$BaseUrl/api/setup/proxy?os=windows&format=$MsiFormat"
+$TempMsi = Join-Path $env:TEMP "agent-meter-proxy-setup.msi"
 
-# Create directory
-New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+Write-Host "    Baixando de $DownloadUrl ..."
+Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempMsi -UseBasicParsing -MaximumRedirection 5
 
-# Download
-Write-Host "  Downloading $Url..."
-Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing
-
-Write-Host "  Installed to $Dest"
-
-# Check PATH
-$UserPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($UserPath -notlike "*$InstallDir*") {
-    Write-Host ""
-    Write-Host "  Adding $InstallDir to user PATH..."
-    [Environment]::SetEnvironmentVariable("PATH", "$InstallDir;$UserPath", "User")
-    $env:PATH = "$InstallDir;$env:PATH"
-    Write-Host "  Done. Restart your terminal to use '$Binary' from any directory."
-}
+Write-Host "    Executando wizard MSI..."
+Start-Process "msiexec.exe" -ArgumentList "/i `"$TempMsi`"" -Wait
 
 Write-Host ""
-Write-Host "✓ $Binary $Version installed!" -ForegroundColor Green
-Write-Host ""
-Write-Host "  Next steps:"
-Write-Host "    $Binary setup          # Generate & install CA certificate"
-Write-Host "    $Binary start          # Start the proxy"
-Write-Host "    $Binary wrap cursor .  # Launch Cursor with telemetry"
+Write-Host "✓ Instalacao concluida. Reinicie o Cursor." -ForegroundColor Green
+Write-Host "  Proxy:     http://127.0.0.1:8898"
+Write-Host "  Collector: $BaseUrl"
