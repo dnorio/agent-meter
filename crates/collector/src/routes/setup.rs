@@ -145,13 +145,16 @@ Baixar certificado CA (.crt)
 </div></div></div>
 <div class="step"><div class="step-num">②</div><div class="step-content"><div class="step-title">Siga o assistente — pronto</div>
 <div class="step-desc">O wizard instala tudo: EULA, pasta, <strong>certificado CA</strong>, <code>HTTPS_PROXY</code>, <strong>serviço Windows</strong> e atalho. Reinicie o Cursor ao final. Zero comandos manuais.</div></div></div>
-<div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Prefere portable?</div>
+<div class="step"><div class="step-num">③</div><div class="step-content"><div class="step-title">Portable (ZIP)</div>
 <div class="download-options">
-<a href="/api/setup/proxy?os=windows&format=x64" class="download-option"><span class="format">EXE x64</span><span class="desc">Sem instalar</span></a>
-<a href="/api/setup/proxy?os=windows&format=arm64" class="download-option"><span class="format">EXE ARM64</span><span class="desc">Sem instalar</span></a>
+<a href="/api/setup/proxy?os=windows&format=zip-x64" class="download-option"><span class="format">ZIP x64</span><span class="desc">Exe + README + setup</span></a>
+<a href="/api/setup/proxy?os=windows&format=zip-arm64" class="download-option"><span class="format">ZIP ARM64</span><span class="desc">Exe + README + setup</span></a>
 </div>
-<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>setx HTTPS_PROXY "http://127.0.0.1:8898"
-setx HTTP_PROXY "http://127.0.0.1:8898"</code></div><p class="step-note">⚠️ Só para a versão portable. Reinicie o Cursor após configurar.</p></div></div>
+<p class="step-desc">Extraia, rode <code>setup-portable.ps1</code> e depois <code>agent-meter-proxy.exe start</code>. Ou use o EXE solto abaixo.</p>
+<div class="download-options">
+<a href="/api/setup/proxy?os=windows&format=x64" class="download-option"><span class="format">EXE x64</span><span class="desc">Só o binário</span></a>
+<a href="/api/setup/proxy?os=windows&format=arm64" class="download-option"><span class="format">EXE ARM64</span><span class="desc">Só o binário</span></a>
+</div></div></div>
 </div>
 
 <div id="instructions-mac" class="instructions" style="display:none">
@@ -189,6 +192,10 @@ setx HTTP_PROXY "http://127.0.0.1:8898"</code></div><p class="step-note">⚠️ 
 <h2>📋 Releases</h2>
 <p>Histórico de versões:</p>
 <div class="releases-list">
+<div class="release-item">
+<div class="release-header"><span class="release-version">v1.2.4</span><span class="release-date">30 Jun 2026</span></div>
+<div class="release-notes"><ul><li>MSI com wizard completo (EULA, feature tree, pasta)</li><li>ZIP portable Windows x64/ARM64</li><li>Correção: MSIs antigos eram silent (wixl) — agora ProductUI.wxs</li></ul></div>
+</div>
 <div class="release-item">
 <div class="release-header"><span class="release-version">v1.2.3</span><span class="release-date">28 Jun 2026</span></div>
 <div class="release-notes"><ul><li>Setup page com UI melhorada</li><li>Downloads alinhados aos assets reais do GitHub Releases</li><li>Detecção automática de OS</li></ul></div>
@@ -267,17 +274,24 @@ async fn setup_page() -> Html<&'static str> {
     Html(SETUP_HTML)
 }
 
+/// Published GitHub Release tag for agent-meter-proxy installers.
+const PROXY_RELEASE_TAG: &str = "agent-meter-proxy-v1.2.4";
+const PROXY_VERSION: &str = "1.2.4";
+
 /// Map (os, format) to published GitHub Release asset filename.
-fn resolve_proxy_asset(os: &str, format: &str) -> Option<&'static str> {
+fn resolve_proxy_asset(os: &str, format: &str) -> Option<String> {
+    let v = PROXY_VERSION;
     match (os, format) {
-        ("windows", "msi" | "msi-x64") => Some("agent-meter-proxy-1.2.3-x64.msi"),
-        ("windows", "msi-arm64" | "msi_arm64") => Some("agent-meter-proxy-1.2.3-arm64.msi"),
-        ("windows", "x64") => Some("agent-meter-proxy-windows-x86_64.exe"),
-        ("windows", "arm64") => Some("agent-meter-proxy-windows-aarch64.exe"),
-        ("mac", "arm64") => Some("agent-meter-proxy-darwin-aarch64"),
-        ("mac", "x64") => Some("agent-meter-proxy-darwin-x86_64"),
-        ("linux", "x64") => Some("agent-meter-proxy-linux-x86_64"),
-        ("linux", "arm64") => Some("agent-meter-proxy-linux-aarch64"),
+        ("windows", "msi" | "msi-x64") => Some(format!("agent-meter-proxy-{v}-x64.msi")),
+        ("windows", "msi-arm64" | "msi_arm64") => Some(format!("agent-meter-proxy-{v}-arm64.msi")),
+        ("windows", "zip" | "zip-x64") => Some(format!("agent-meter-proxy-{v}-windows-x64.zip")),
+        ("windows", "zip-arm64") => Some(format!("agent-meter-proxy-{v}-windows-arm64.zip")),
+        ("windows", "x64") => Some("agent-meter-proxy-windows-x86_64.exe".into()),
+        ("windows", "arm64") => Some("agent-meter-proxy-windows-aarch64.exe".into()),
+        ("mac", "arm64") => Some("agent-meter-proxy-darwin-aarch64".into()),
+        ("mac", "x64") => Some("agent-meter-proxy-darwin-x86_64".into()),
+        ("linux", "x64") => Some("agent-meter-proxy-linux-x86_64".into()),
+        ("linux", "arm64") => Some("agent-meter-proxy-linux-aarch64".into()),
         _ => None,
     }
 }
@@ -318,9 +332,8 @@ async fn proxy_download(headers: HeaderMap, Query(query): Query<ProxyQuery>) -> 
         }
     }
 
-    // GitHub Releases base URL (update when releasing)
+    // GitHub Releases base URL
     const GITHUB_RELEASES: &str = "https://github.com/dnorio/agent-meter/releases/download";
-    const VERSION: &str = "agent-meter-proxy-v1.2.3";
 
     let Some(filename) = resolve_proxy_asset(os.as_str(), format.as_str()) else {
         return Response::builder()
@@ -332,7 +345,7 @@ async fn proxy_download(headers: HeaderMap, Query(query): Query<ProxyQuery>) -> 
             .unwrap();
     };
 
-    let download_url = format!("{}/{}/{}", GITHUB_RELEASES, VERSION, filename);
+    let download_url = format!("{}/{}/{}", GITHUB_RELEASES, PROXY_RELEASE_TAG, filename);
 
     Response::builder()
         .header("Content-Type", "application/octet-stream")
@@ -463,6 +476,28 @@ body { background: var(--setup-bg); min-height: 100vh; margin: 0; font-family: s
 
 <div class="version-card">
 <div class="version-header">
+<span class="version-tag">v1.2.4</span>
+<span class="version-date">30 Jun 2026</span>
+</div>
+<ul class="version-changes">
+<li>MSI wizard completo (EULA, feature tree, pasta, CA, serviço)</li>
+<li>ZIP portable Windows x64/ARM64</li>
+<li>Correção: v1.2.3 MSIs eram silent (wixl) — republicados com ProductUI.wxs</li>
+</ul>
+<div class="downloads-grid">
+<a href="/api/setup/proxy?os=windows&format=msi" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">MSI</span></a>
+<a href="/api/setup/proxy?os=windows&format=msi-arm64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">ARM64</span><span class="format-badge">MSI</span></a>
+<a href="/api/setup/proxy?os=windows&format=zip-x64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">ZIP</span></a>
+<a href="/api/setup/proxy?os=windows&format=zip-arm64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">ARM64</span><span class="format-badge">ZIP</span></a>
+<a href="/api/setup/proxy?os=mac&format=arm64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Apple Silicon</span><span class="format-badge">BIN</span></a>
+<a href="/api/setup/proxy?os=mac&format=x64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Intel</span><span class="format-badge">BIN</span></a>
+<a href="/api/setup/proxy?os=linux&format=x64" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">BIN</span></a>
+<a href="/api/setup/proxy?os=linux&format=arm64" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">ARM64</span><span class="format-badge">BIN</span></a>
+</div>
+</div>
+
+<div class="version-card">
+<div class="version-header">
 <span class="version-tag">v1.2.3</span>
 <span class="version-date">28 Jun 2026</span>
 </div>
@@ -470,17 +505,10 @@ body { background: var(--setup-bg); min-height: 100vh; margin: 0; font-family: s
 <li>Setup page com UI melhorada</li>
 <li>Downloads alinhados aos assets reais do GitHub Releases</li>
 <li>Detecção automática de OS (Apple Silicon vs Intel)</li>
-<li>Instalador MSI com wizard (EULA, pasta, CA, serviço, atalho)</li>
 </ul>
 <div class="downloads-grid">
-<a href="/api/setup/proxy?os=windows&format=msi" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">MSI</span></a>
-<a href="/api/setup/proxy?os=windows&format=msi-arm64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">ARM64</span><span class="format-badge">MSI</span></a>
 <a href="/api/setup/proxy?os=windows&format=x64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">x64</span><span class="format-badge">EXE</span></a>
 <a href="/api/setup/proxy?os=windows&format=arm64" class="download-item"><span class="os-icon">🪟</span><span class="os-name">Windows</span><span class="os-arch">ARM64</span><span class="format-badge">EXE</span></a>
-<a href="/api/setup/proxy?os=mac&format=arm64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Apple Silicon</span><span class="format-badge">BIN</span></a>
-<a href="/api/setup/proxy?os=mac&format=x64" class="download-item"><span class="os-icon">🍎</span><span class="os-name">macOS</span><span class="os-arch">Intel</span><span class="format-badge">BIN</span></a>
-<a href="/api/setup/proxy?os=linux&format=x64" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">x64</span><span class="format-badge">BIN</span></a>
-<a href="/api/setup/proxy?os=linux&format=arm64" class="download-item"><span class="os-icon">🐧</span><span class="os-name">Linux</span><span class="os-arch">ARM64</span><span class="format-badge">BIN</span></a>
 </div>
 </div>
 

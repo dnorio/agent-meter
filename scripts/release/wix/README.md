@@ -7,8 +7,8 @@ Two installer definitions live here:
 | `ProductUI.wxs` | WiX v5 + `WixToolset.UI.wixext` + `WixToolset.Util.wixext` (**Windows only**) | Full **wizard** MSI | License/EULA page, folder selection, branded banner/dialog, custom feature tree with optional CA install, env vars, Windows service and desktop shortcut. Built in CI on `windows-latest`. |
 | `Product.wixl.wxs` | `wixl` / `msitools` (**Linux**) | Minimal silent MSI | Fallback only. No wizard UI (wixl cannot render WixUI dialogs). |
 
-The published release MSIs (`agent-meter-proxy-1.2.3-x64.msi`,
-`agent-meter-proxy-1.2.3-arm64.msi`) come from **`ProductUI.wxs`** via the
+The published release MSIs (`agent-meter-proxy-1.2.4-x64.msi`,
+`agent-meter-proxy-1.2.4-arm64.msi`) come from **`ProductUI.wxs`** via the
 `package-windows` job in `.github/workflows/release-agent-meter-proxy.yml`.
 
 ## Wizard flow (ProductUI.wxs)

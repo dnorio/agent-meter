@@ -30,11 +30,17 @@
   <?ifndef ProxyExe ?>
     <?define ProxyExe = "agent-meter-proxy-windows-x86_64.exe" ?>
   <?endif?>
+  <?ifndef UtilCA ?>
+    <?define UtilCA = "Wix4UtilCA_X64" ?>
+  <?endif?>
+  <?ifndef UtilQuietExec ?>
+    <?define UtilQuietExec = "WixQuietExec64" ?>
+  <?endif?>
 
   <Package
     Name="agent-meter-proxy"
     Manufacturer="DNOR"
-    Version="1.2.3.0"
+    Version="1.2.4.0"
     UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
     Scope="perMachine"
     Compressed="yes"
@@ -42,7 +48,7 @@
 
     <SummaryInformation
       Manufacturer="DNOR"
-      Description="agent-meter-proxy 1.2.3 — AI IDE/CLI telemetry proxy installer" />
+      Description="agent-meter-proxy 1.2.4 — AI IDE/CLI telemetry proxy installer" />
 
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"
@@ -169,24 +175,24 @@
                   Property="DoInstallCA"
                   Value="&quot;[INSTALLFOLDER]agent-meter-proxy.exe&quot; setup" />
     <CustomAction Id="DoInstallCA"
-                  BinaryRef="Wix4UtilCA_X64"
-                  DllEntry="WixQuietExec64"
+                  BinaryRef="$(var.UtilCA)"
+                  DllEntry="$(var.UtilQuietExec)"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
     <!-- 2) Install + start the Windows service -->
     <CustomAction Id="SetSvcInstall"
                   Property="DoSvcInstall"
-                  Value="&quot;[System64Folder]sc.exe&quot; create agent-meter-proxy binPath= &quot;\&quot;[INSTALLFOLDER]agent-meter-proxy.exe\&quot; start --listen 127.0.0.1:8898 --collector http://localhost:8081:4318&quot; start= auto DisplayName= &quot;agent-meter-proxy&quot;" />
+                  Value="&quot;[System64Folder]sc.exe&quot; create agent-meter-proxy binPath= &quot;\&quot;[INSTALLFOLDER]agent-meter-proxy.exe\&quot; start --listen 127.0.0.1:8898 --collector http://localhost:8081&quot; start= auto DisplayName= &quot;agent-meter-proxy&quot;" />
     <CustomAction Id="DoSvcInstall"
-                  BinaryRef="Wix4UtilCA_X64"
-                  DllEntry="WixQuietExec64"
+                  BinaryRef="$(var.UtilCA)"
+                  DllEntry="$(var.UtilQuietExec)"
                   Execute="deferred" Impersonate="no" Return="ignore" />
     <CustomAction Id="SetSvcStart"
                   Property="DoSvcStart"
                   Value="&quot;[System64Folder]sc.exe&quot; start agent-meter-proxy" />
     <CustomAction Id="DoSvcStart"
-                  BinaryRef="Wix4UtilCA_X64"
-                  DllEntry="WixQuietExec64"
+                  BinaryRef="$(var.UtilCA)"
+                  DllEntry="$(var.UtilQuietExec)"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
     <!-- 3) Uninstall: stop + delete service -->
@@ -194,15 +200,15 @@
                   Property="DoSvcStop"
                   Value="&quot;[System64Folder]sc.exe&quot; stop agent-meter-proxy" />
     <CustomAction Id="DoSvcStop"
-                  BinaryRef="Wix4UtilCA_X64"
-                  DllEntry="WixQuietExec64"
+                  BinaryRef="$(var.UtilCA)"
+                  DllEntry="$(var.UtilQuietExec)"
                   Execute="deferred" Impersonate="no" Return="ignore" />
     <CustomAction Id="SetSvcDelete"
                   Property="DoSvcDelete"
                   Value="&quot;[System64Folder]sc.exe&quot; delete agent-meter-proxy" />
     <CustomAction Id="DoSvcDelete"
-                  BinaryRef="Wix4UtilCA_X64"
-                  DllEntry="WixQuietExec64"
+                  BinaryRef="$(var.UtilCA)"
+                  DllEntry="$(var.UtilQuietExec)"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
     <InstallExecuteSequence>
