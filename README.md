@@ -97,6 +97,9 @@ curl -X POST http://127.0.0.1:8081/events/tool-call \
 }
 ```
 
+> **Running on WSL?** See the step-by-step
+> [WSL + Copilot quickstart](docs/QUICKSTART-WSL-COPILOT.md).
+
 ---
 
 ## Pages
