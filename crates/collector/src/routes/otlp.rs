@@ -1,6 +1,11 @@
-use axum::{extract::{ConnectInfo, State}, http::HeaderMap, routing::post, Json, Router};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::{
+    extract::{ConnectInfo, State},
+    http::HeaderMap,
+    routing::post,
+    Json, Router,
+};
 use std::net::SocketAddr;
 
 use crate::app::AppState;
@@ -27,11 +32,18 @@ async fn post_traces(
             StatusCode::TOO_MANY_REQUESTS,
             [("retry-after", "60")],
             "rate limit exceeded",
-        ).into_response();
+        )
+            .into_response();
     }
 
     let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
-    match otlp::handle_trace_request(&body, content_type, Some(&client_ip), user_agent, state.ingest.as_ref()) {
+    match otlp::handle_trace_request(
+        &body,
+        content_type,
+        Some(&client_ip),
+        user_agent,
+        state.ingest.as_ref(),
+    ) {
         Ok(results) => Json(results).into_response(),
         Err(e) => e.into_response(),
     }

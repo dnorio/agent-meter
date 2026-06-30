@@ -5,11 +5,11 @@ use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
-use agent_meter_db::Database;
 use crate::config::Config;
 use crate::middleware::rate_limit::RateLimiter;
 use crate::routes;
 use crate::services::ingest_buffer::IngestBuffer;
+use agent_meter_db::Database;
 
 #[derive(Clone)]
 pub struct AppState {

@@ -19,7 +19,10 @@ async fn post_tool_call(
             .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
     }
     if event.user_agent.is_none() {
-        event.user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+        event.user_agent = headers
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
     }
     let insert = event_service::to_insert(event);
     let record = state.db.insert_tool_call(&insert).await?;

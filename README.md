@@ -1,167 +1,85 @@
 # agent-meter
 
-**Observability and FinOps for AI-powered development workflows.**
+**Observability & FinOps for AI-powered development — in a single self-hosted binary.**
 
-Track every LLM call, tool invocation, and token spent across all your IDEs and AI agents — in one self-hosted dashboard.
+Track every LLM call, tool invocation, conversation and token spent across all your
+IDEs and AI agents. No accounts, no cloud, no database to provision: one binary, a
+local SQLite file, and a dashboard on `localhost`.
 
 <p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" alt="agent-meter dashboard" width="700">
+  <img src="docs/assets/screenshot-dashboard.png" alt="agent-meter dashboard" width="720">
 </p>
 
 ---
 
-## Why agent-meter?
+## Quick start
 
-AI coding assistants are powerful but opaque. Teams using multiple IDEs and agents have no unified view of:
-
-- **How much** they're spending on LLM tokens (per model, per day, per developer)
-- **Which tools** are being called most frequently (and which are failing)
-- **What models** are being used across different agents
-- **How long** AI interactions take end-to-end
-
-agent-meter solves this with a lightweight, self-hosted collector that aggregates telemetry from every IDE and CLI tool in your workflow.
-
----
-
-## Supported IDEs & Tools
-
-| IDE / Tool | Capture Method | Setup | Data Quality |
-|------------|---------------|-------|:------------:|
-| **VS Code** (GitHub Copilot) | OTLP Native | 2 lines in `settings.json` | ★★★★★ |
-| **Cursor** | HTTPS Proxy | `cursor-metered .` | ★★★★☆ |
-| **Eclipse** (GitHub Copilot) | HTTPS Proxy | `./start_proxy.sh --setup` | ★★★★☆ |
-| **Copilot CLI** (`gh copilot`) | HTTPS Proxy | Wrapper script | ★★★★☆ |
-| **Claude Code** (Anthropic CLI) | HTTPS Proxy | Env vars | ★★★★☆ |
-| **Codex CLI** (OpenAI) | HTTPS Proxy | Env vars | ★★★★☆ |
-| **OpenCode** | REST Direct | Env vars | ★★★★★ |
-| **Antigravity** | REST Direct | Env vars | ★★★★★ |
-| Custom agents | REST Direct | `POST /events/tool-call` | ★★★★★ |
-
-> **The proxy approach is fully agnostic.** Any CLI or IDE that makes HTTPS calls to AI APIs (Anthropic, OpenAI, GitHub Copilot) is captured automatically — no per-tool plugin required.
-
-→ **[Full setup guide](docs/capture-setup.md)** — per-IDE configuration, troubleshooting, and architecture details.
-
----
-
-## Quick Start
-
-### Docker Compose (recommended)
+### Try it in 10 seconds (with synthetic data)
 
 ```bash
+agent-meter demo
+# → seeds synthetic conversations and opens http://127.0.0.1:8081
+```
+
+`demo` is the fastest way to see what agent-meter looks like — it generates
+realistic activity (multiple agents, models, tools, errors) so every page has
+something to show. It never collects real data and won't re-seed if a database
+already has data (use `--force` to reseed).
+
+### Run for real
+
+```bash
+agent-meter serve
+# → http://127.0.0.1:8081  (UI + REST API)
+# → http://127.0.0.1:4318  (OTLP receiver)
+```
+
+State is stored in `agent-meter.db` (SQLite) in the working directory — zero
+configuration required.
+
+### Install
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
+```
+
+### Build from source
+
+```bash
+# Prerequisites: Rust 1.75+
 git clone https://github.com/dnorio/agent-meter.git
-cd agent-meter-worktree/apps/agent-meter
-
-# Start PostgreSQL + collector
-docker compose up -d
-
-# Collector is now listening:
-#   :3000  — Web UI + REST API
-#   :4318  — OTLP receiver (VS Code)
-```
-
-### From Source
-
-```bash
-# Prerequisites: Rust 1.75+, PostgreSQL 15+
-cargo install sqlx-cli
-
-export DATABASE_URL="postgres://localhost/agent_meter"
-sqlx database create && sqlx migrate run
-
-cargo run -p collector
-# → http://localhost:3000
-```
-
-### First Telemetry in 60 Seconds
-
-1. Start the collector (above)
-2. Add to VS Code `settings.json`:
-   ```json
-   {
-     "github.copilot.chat.otel.enabled": true,
-     "github.copilot.chat.otel.otlpEndpoint": "http://localhost:4318"
-   }
-   ```
-3. Start a Copilot chat → data appears on the dashboard immediately.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      DATA SOURCES                                 │
-├─────────────┬────────────────┬────────────────┬─────────────────┤
-│  VS Code    │  Cursor/Eclipse│  CLI Tools     │  Custom Agents  │
-│  (OTLP)    │  (mitmproxy)   │  (mitmproxy)   │  (REST API)     │
-│  :4318      │  :8898/:8899   │  :8898/:8899   │  :3000          │
-└──────┬──────┴───────┬────────┴───────┬────────┴────────┬────────┘
-       │              │                │                 │
-       ▼              ▼                ▼                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   agent-meter collector                           │
-│                                                                  │
-│  OTLP Receiver → IDE Detection → Conversation Grouping → Cost   │
-│                                                                  │
-│  PostgreSQL ←─── Events / Conversations / Cost / Alerts          │
-│                                                                  │
-│  Web UI: Dashboard · Conversations · Cost · Alerts · Reports     │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-Three capture methods:
-
-1. **OTLP Native** — VS Code sends OpenTelemetry spans directly (zero overhead)
-2. **HTTPS Proxy** — mitmproxy intercepts AI API traffic for Cursor, Eclipse, and CLIs
-3. **REST Direct** — Agents post events via `curl` / HTTP client
-
----
-
-## CLI Support
-
-The HTTPS proxy technique is **transport-level** — it intercepts HTTP requests regardless of whether they come from a GUI IDE or a terminal CLI. This means:
-
-| CLI Tool | API Endpoint | Works with Proxy? |
-|----------|-------------|:-----------------:|
-| `gh copilot suggest/explain` | api.githubcopilot.com | ✅ |
-| `claude` (Anthropic CLI) | api.anthropic.com | ✅ |
-| `codex` (OpenAI CLI) | api.openai.com | ✅ |
-| Any HTTPS-based AI CLI | Any AI API | ✅ |
-
-**Setup is identical**: set `HTTPS_PROXY=http://127.0.0.1:8898` and `SSL_CERT_FILE=~/.mitmproxy/mitmproxy-ca-cert.pem`.
-
-A dedicated wrapper exists for Copilot CLI:
-
-```bash
-# Metered Copilot CLI (auto-configures proxy)
-./eclipse-proxy/copilot-cli-metered.sh suggest "how to list k8s pods"
+cd agent-meter
+cargo run -p agent-meter-collector -- demo   # or: serve
 ```
 
 ---
 
-## API Reference
+## Sending data
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/events/tool-call` | Ingest a tool call event |
-| `GET` | `/api/conversations` | List conversations (paginated) |
-| `GET` | `/api/conversations/:id` | Conversation detail |
-| `GET` | `/api/conversations/:id/timeline` | Span waterfall |
-| `GET` | `/reports/top-tools` | Most-used tools |
-| `GET` | `/reports/top-tasks` | Top tasks by activity |
-| `GET` | `/reports/top-mcp-servers` | Most active MCP servers |
-| `GET` | `/reports/cost-daily` | Daily cost breakdown |
-| `GET` | `/reports/cost-by-model` | Cost by model |
-| `GET` | `/health` | Health check |
+agent-meter accepts telemetry three ways:
 
-### Example: Send a Tool Call Event
+| Method | Source | How |
+|--------|--------|-----|
+| **REST** | Any agent / script | `POST /events/tool-call` (JSON) |
+| **OTLP** | VS Code (GitHub Copilot), any OTel exporter | Point the OTLP HTTP exporter at `:4318` |
+| **HTTPS proxy** | Cursor, Eclipse, Claude Code, Codex CLI | mitmproxy addons in [`eclipse-proxy/`](eclipse-proxy/) |
+
+### Example — REST ingest
 
 ```bash
-curl -X POST http://localhost:3000/events/tool-call \
+curl -X POST http://127.0.0.1:8081/events/tool-call \
   -H "Content-Type: application/json" \
   -d '{
+    "event_id": "11111111-1111-4111-8111-111111111111",
     "tool_name": "read_file",
     "mcp_server": "filesystem",
+    "agent": "cursor",
+    "model": "gpt-4o",
+    "conversation_id": "demo-1",
     "started_at": "2026-01-15T10:00:00Z",
     "ended_at": "2026-01-15T10:00:01Z",
     "ok": true,
@@ -170,73 +88,98 @@ curl -X POST http://localhost:3000/events/tool-call \
   }'
 ```
 
+### Example — VS Code (OTLP)
+
+```json
+{
+  "github.copilot.chat.otel.enabled": true,
+  "github.copilot.chat.otel.otlpEndpoint": "http://127.0.0.1:4318"
+}
+```
+
 ---
 
-## Project Structure
+## Pages
+
+| Page | What it shows |
+|------|---------------|
+| **Dashboard** (`/`) | KPIs, activity over time, top tools/models |
+| **Conversations** (`/conversations`) | Sessions grouped by `conversation_id`, with drill-down |
+| **Timeline** (`/conversations/:id/timeline`) | Per-conversation waterfall of tool calls |
+| **Reports** (`/reports`) | Top tools, MCP servers, usage breakdowns |
+| **Cost** (`/cost`) | Token usage and cost summary |
+
+---
+
+## API reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/events/tool-call` | Ingest a tool-call event |
+| `POST` | `/v1/traces` | OTLP trace ingest (port `:4318`) |
+| `GET` | `/api/conversations` | List conversations (paginated) |
+| `GET` | `/api/conversations/:id/timeline` | Conversation timeline (events + summary) |
+| `GET` | `/reports/top-tools` | Most-used tools |
+| `GET` | `/reports/top-mcp-servers` | Most active MCP servers |
+| `GET` | `/api/cost/summary` | Token & cost summary |
+| `GET` | `/health` | Health check |
+
+---
+
+## Configuration
+
+All settings have sensible defaults; override via environment variables or a TOML
+file (`--config agent-meter.toml`, see [`agent-meter.example.toml`](agent-meter.example.toml)).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_METER_HOST` | `127.0.0.1` | Bind address |
+| `AGENT_METER_PORT` | `8081` | UI + REST port |
+| `AGENT_METER_OTLP_PORT` | `4318` | OTLP receiver port |
+| `DATABASE_URL` | `sqlite://agent-meter.db` | SQLite by default; `postgres://…` also supported |
+| `AGENT_METER_NO_OPEN` | _(unset)_ | Set to skip auto-opening the browser on `serve` |
+| `RUST_LOG` | `info` | Log level |
+
+> **PostgreSQL is optional.** Point `DATABASE_URL` at a `postgres://` URL if you
+> want a shared/server deployment; SQLite is the zero-config default.
+
+---
+
+## Project structure
 
 ```
-apps/agent-meter/
+agent-meter/
 ├── crates/
-│   ├── collector/          # Axum HTTP server (REST API + OTLP + Web UI)
+│   ├── collector/          # Axum HTTP server (REST API + OTLP + embedded Web UI)
 │   │   ├── src/
-│   │   │   ├── routes/     # API endpoints
-│   │   │   ├── otlp/       # OTLP receiver + IDE detection
-│   │   │   └── services/   # Business logic (conversations, cost)
-│   │   └── ui/             # HTML pages (design system)
-│   ├── cli/                # CLI client (WIP)
-│   └── mcp-wrapper/        # MCP wrapper proxy (WIP)
-├── cursor-proxy/           # mitmproxy addon for Cursor + Claude Code + Codex CLI
-├── eclipse-proxy/          # mitmproxy addon for Eclipse + Copilot CLI
-├── migrations/             # SQLx PostgreSQL migrations
-├── docs/                   # Extended documentation
-├── docker-compose.yml      # Local development stack
-├── Dockerfile              # Multi-stage ARM64 build
-└── deploy.sh               # Kubernetes deployment script
+│   │   │   ├── routes/      # API + page handlers
+│   │   │   ├── otlp/        # OTLP receiver + IDE detection
+│   │   │   ├── services/    # Event mapping, ingest buffer
+│   │   │   └── demo.rs      # Synthetic data generator (`demo` command)
+│   │   └── ui/              # HTML pages + static assets (embedded in the binary)
+│   ├── db/                  # Database trait + SQLite & Postgres implementations
+│   ├── cli/                 # CLI client
+│   ├── proxy/               # HTTPS proxy helpers
+│   └── mcp-wrapper/         # MCP wrapper proxy
+├── eclipse-proxy/           # mitmproxy addon (Eclipse + Copilot CLI)
+├── sdk/                     # Client SDKs (Node, Python)
+├── migrations/              # Postgres migrations (optional backend)
+├── docs/                    # Documentation
+├── install.sh / install.ps1 # Install scripts
+└── docker-compose.standalone.yml
 ```
 
 ---
 
-## Security & Privacy
+## Privacy
 
-| Concern | Approach |
-|---------|----------|
-| **Prompt content** | Not stored by default. Opt-in via `captureContent: true` |
-| **Auth tokens** | Never stored. Only a prefix hash for session grouping |
-| **Network exposure** | Proxy listens on `127.0.0.1` only. All data stays local |
-| **CA certificates** | Unique per installation. Removable at any time |
-| **Data residency** | Self-hosted. No external telemetry or phone-home |
-
----
-
-## Documentation
-
-- **[Capture Setup Guide](docs/capture-setup.md)** — Per-IDE installation and troubleshooting
-- **[OTEL Integration](docs/agent-meter-otel.md)** — OpenTelemetry protocol details
-- **[WSL Setup](docs/agent-meter-wsl-vscode.md)** — Windows Subsystem for Linux configuration
-- **In-app docs** — Available at `/docs` in the Web UI
-
----
-
-## Deploy
-
-```bash
-# Kubernetes (ARM64 cluster)
-./deploy.sh
-
-# Requires: Docker buildx, registry access, KUBECONFIG
-```
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/my-feature`
-3. Run tests: `cargo test`
-4. Submit a Pull Request
+- **Local-first.** Binds to `127.0.0.1` and stores everything in a local SQLite
+  file. No external telemetry, no phone-home.
+- **No auth tokens stored.** The collector records tool-call metadata, not your
+  API credentials.
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE) © agent-meter contributors

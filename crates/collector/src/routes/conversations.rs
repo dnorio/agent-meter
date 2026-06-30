@@ -18,8 +18,10 @@ use crate::errors::AppError;
 async fn page() -> impl IntoResponse {
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/html; charset=utf-8"),
-         (header::CACHE_CONTROL, "no-store")],
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
         include_str!("../../ui/conversations.html"),
     )
 }
@@ -27,8 +29,10 @@ async fn page() -> impl IntoResponse {
 async fn detail_page() -> impl IntoResponse {
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/html; charset=utf-8"),
-         (header::CACHE_CONTROL, "no-store")],
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
         include_str!("../../ui/timeline.html"),
     )
 }
@@ -91,5 +95,8 @@ pub fn router() -> Router<AppState> {
         .route("/conversations", get(page))
         .route("/conversations/:conversation_id/timeline", get(detail_page))
         .route("/api/conversations", get(list))
-        .route("/api/conversations/:conversation_id/timeline", get(get_timeline))
+        .route(
+            "/api/conversations/:conversation_id/timeline",
+            get(get_timeline),
+        )
 }

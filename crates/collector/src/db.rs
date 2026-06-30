@@ -7,9 +7,7 @@ pub async fn connect(database_url: &str) -> Result<PgPool, sqlx::Error> {
         .connect(database_url)
         .await?;
 
-    sqlx::query("SELECT 1")
-        .execute(&pool)
-        .await?;
+    sqlx::query("SELECT 1").execute(&pool).await?;
 
     tracing::info!("connected to PostgreSQL");
     Ok(pool)

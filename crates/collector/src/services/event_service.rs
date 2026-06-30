@@ -14,8 +14,10 @@ pub fn to_insert(event: ToolCallEvent) -> InsertToolCall {
 
     let estimated_input =
         token_estimator::estimate_input_tokens(event.request_bytes, event.estimated_input_tokens);
-    let estimated_output =
-        token_estimator::estimate_output_tokens(event.response_bytes, event.estimated_output_tokens);
+    let estimated_output = token_estimator::estimate_output_tokens(
+        event.response_bytes,
+        event.estimated_output_tokens,
+    );
     let estimated_total = token_estimator::estimate_total(estimated_input, estimated_output);
 
     InsertToolCall {

@@ -26,23 +26,30 @@ impl IntoResponse for AppError {
         let (status, message) = match &self {
             AppError::Database(e) => {
                 tracing::error!(error = %e, "database error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".into(),
+                )
             }
-            AppError::Db(e) => {
-                match e {
-                    agent_meter_db::DbError::NotFound => (StatusCode::NOT_FOUND, "Not found".into()),
-                    agent_meter_db::DbError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
-                    agent_meter_db::DbError::Internal(msg) => {
-                        tracing::error!(error = %msg, "db layer error");
-                        (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
-                    }
+            AppError::Db(e) => match e {
+                agent_meter_db::DbError::NotFound => (StatusCode::NOT_FOUND, "Not found".into()),
+                agent_meter_db::DbError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
+                agent_meter_db::DbError::Internal(msg) => {
+                    tracing::error!(error = %msg, "db layer error");
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Internal server error".into(),
+                    )
                 }
-            }
+            },
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::Internal(msg) => {
                 tracing::error!(error = %msg, "internal error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".into(),
+                )
             }
         };
 

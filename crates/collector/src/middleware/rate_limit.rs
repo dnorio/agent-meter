@@ -63,10 +63,7 @@ impl RateLimiter {
 }
 
 /// Axum middleware layer for rate limiting ingest endpoints.
-pub async fn rate_limit_ingest(
-    req: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn rate_limit_ingest(req: Request<Body>, next: Next) -> Response {
     // Only rate-limit the OTLP ingest path
     let path = req.uri().path();
     if !path.starts_with("/v1/traces") && !path.starts_with("/events/tool-call") {
@@ -94,14 +91,12 @@ pub async fn rate_limit_ingest(
                 );
                 resp
             }
-            Err(()) => {
-                (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    [("retry-after", "60")],
-                    "rate limit exceeded",
-                )
-                    .into_response()
-            }
+            Err(()) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                [("retry-after", "60")],
+                "rate limit exceeded",
+            )
+                .into_response(),
         }
     } else {
         // No limiter configured — pass through

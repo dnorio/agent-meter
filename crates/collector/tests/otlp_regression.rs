@@ -15,29 +15,49 @@
 ///   4. Claude Code            (execute_tool + chat; service.name=claude)
 ///   5. Codex CLI              (execute_tool; service.name=codex)
 ///   6. MCP OTel semconv       (tools/call <tool>; novo padrão)
-
-use agent_meter_collector::{app, config::Config, db};
-use agent_meter_db::{Database, PostgresDb};
+use agent_meter_collector::{app, config::Config};
+use agent_meter_db::{Database, SqliteDb};
 use reqwest::Client;
 use serde_json::Value;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio_util::sync::CancellationToken;
+
+static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+async fn make_db() -> Arc<dyn Database> {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("am-test-otlp-{nanos}-{n}.db"));
+    let url = format!("sqlite://{}", path.display());
+    let db = SqliteDb::connect(&url)
+        .await
+        .unwrap_or_else(|e| panic!("sqlite connect: {e}"));
+    db.migrate()
+        .await
+        .unwrap_or_else(|e| panic!("sqlite migrate: {e}"));
+    Arc::new(db)
+}
 
 async fn setup() -> (String, Client) {
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://agent_meter:agent_meter@localhost:54321/agent_meter".into()
-    });
-    let pool = db::connect(&database_url).await.unwrap();
+    let db = make_db().await;
     let config = Config::from_env();
-    let db: Arc<dyn Database> = Arc::new(PostgresDb::from_pool(pool.clone()));
-    let app = app::build_otlp(config, pool, db);
+    let app = app::build_otlp(config, db, CancellationToken::new());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let base_url = format!("http://{}", addr);
     tokio::spawn(async move {
-        axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-            .await
-            .unwrap()
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .unwrap()
     });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     (base_url, Client::new())
@@ -47,8 +67,7 @@ fn load_fixture(name: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
         .join(name);
-    std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("failed to load fixture {name}: {e}"))
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to load fixture {name}: {e}"))
 }
 
 async fn post_otlp(base_url: &str, client: &Client, fixture: &str) -> Vec<Value> {
@@ -77,8 +96,8 @@ fn infer_ua_from_fixture(fixture: &str) -> &'static str {
         f if f.starts_with("cursor") => "cursor/0.48.0 (darwin arm64)",
         f if f.starts_with("eclipse") => "eclipse/2026-03 jdt-language-server",
         f if f.starts_with("claude") => "claude-code/1.0.0 (linux arm64)",
-        f if f.starts_with("codex")  => "codex/0.1.0 (linux amd64)",
-        f if f.starts_with("mcp")    => "my-agent/1.0.0",
+        f if f.starts_with("codex") => "codex/0.1.0 (linux amd64)",
+        f if f.starts_with("mcp") => "my-agent/1.0.0",
         _ => "unknown-agent/1.0",
     }
 }
@@ -91,7 +110,11 @@ fn infer_ua_from_fixture(fixture: &str) -> &'static str {
 async fn test_otlp_vscode_copilot_execute_tool() {
     let (base_url, client) = setup().await;
     let events = post_otlp(&base_url, &client, "vscode_copilot_execute_tool.json").await;
-    assert_eq!(events.len(), 1, "expected 1 event from VS Code execute_tool fixture");
+    assert_eq!(
+        events.len(),
+        1,
+        "expected 1 event from VS Code execute_tool fixture"
+    );
     let e = &events[0];
     assert_eq!(e["tool_name"], "run_in_terminal", "tool_name mismatch");
 }
@@ -100,9 +123,16 @@ async fn test_otlp_vscode_copilot_execute_tool() {
 async fn test_otlp_vscode_copilot_chat() {
     let (base_url, client) = setup().await;
     let events = post_otlp(&base_url, &client, "vscode_copilot_chat.json").await;
-    assert_eq!(events.len(), 1, "expected 1 event from VS Code chat fixture");
+    assert_eq!(
+        events.len(),
+        1,
+        "expected 1 event from VS Code chat fixture"
+    );
     let e = &events[0];
-    assert_eq!(e["tool_name"], "llm_chat", "chat spans should produce tool_name=llm_chat");
+    assert_eq!(
+        e["tool_name"], "llm_chat",
+        "chat spans should produce tool_name=llm_chat"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -110,7 +140,11 @@ async fn test_otlp_eclipse_copilot_execute_tool_and_chat() {
     let (base_url, client) = setup().await;
     // fixture has 1 execute_tool + 1 chat span
     let events = post_otlp(&base_url, &client, "eclipse_copilot_execute_tool.json").await;
-    assert_eq!(events.len(), 2, "eclipse fixture should produce 2 events (tool + chat)");
+    assert_eq!(
+        events.len(),
+        2,
+        "eclipse fixture should produce 2 events (tool + chat)"
+    );
 
     let tool_event = events.iter().find(|e| e["tool_name"] != "llm_chat");
     let chat_event = events.iter().find(|e| e["tool_name"] == "llm_chat");
@@ -128,7 +162,11 @@ async fn test_otlp_cursor_execute_tool_and_chat() {
     let (base_url, client) = setup().await;
     // fixture has 1 execute_tool + 1 chat span
     let events = post_otlp(&base_url, &client, "cursor_execute_tool.json").await;
-    assert_eq!(events.len(), 2, "cursor fixture should produce 2 events (tool + chat)");
+    assert_eq!(
+        events.len(),
+        2,
+        "cursor fixture should produce 2 events (tool + chat)"
+    );
 
     let tool_event = events.iter().find(|e| e["tool_name"] != "llm_chat");
     let chat_event = events.iter().find(|e| e["tool_name"] == "llm_chat");
@@ -146,7 +184,11 @@ async fn test_otlp_claude_code_execute_tool_and_chat() {
     let (base_url, client) = setup().await;
     // fixture has 1 execute_tool (bash) + 1 chat span
     let events = post_otlp(&base_url, &client, "claude_code_execute_tool.json").await;
-    assert_eq!(events.len(), 2, "claude-code fixture should produce 2 events");
+    assert_eq!(
+        events.len(),
+        2,
+        "claude-code fixture should produce 2 events"
+    );
 
     let tool_event = events.iter().find(|e| e["tool_name"] != "llm_chat");
     assert!(tool_event.is_some(), "should have a bash tool event");
@@ -175,10 +217,14 @@ async fn test_otlp_mcp_semconv_tools_call() {
     let (base_url, client) = setup().await;
     // fixture has 2 tools/call spans (get-weather, read_file)
     let events = post_otlp(&base_url, &client, "mcp_semconv_tools_call.json").await;
-    assert_eq!(events.len(), 2, "MCP semconv fixture should produce 2 events (2 tools/call spans)");
+    assert_eq!(
+        events.len(),
+        2,
+        "MCP semconv fixture should produce 2 events (2 tools/call spans)"
+    );
 
     let weather = events.iter().find(|e| e["tool_name"] == "get-weather");
-    let read    = events.iter().find(|e| e["tool_name"] == "read_file");
+    let read = events.iter().find(|e| e["tool_name"] == "read_file");
     assert!(weather.is_some(), "get-weather event missing");
     assert!(read.is_some(), "read_file event missing");
 }
@@ -199,7 +245,10 @@ async fn test_otlp_empty_body_returns_empty() {
         .unwrap();
     assert!(resp.status().is_success(), "empty resourceSpans should 200");
     let events: Vec<Value> = resp.json().await.unwrap();
-    assert!(events.is_empty(), "empty resourceSpans should produce 0 events");
+    assert!(
+        events.is_empty(),
+        "empty resourceSpans should produce 0 events"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

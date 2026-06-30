@@ -40,14 +40,22 @@ pub fn handle_trace_request(
     user_agent: Option<&str>,
     buffer: Option<&IngestBuffer>,
 ) -> Result<Vec<serde_json::Value>, AppError> {
-    if content_type.map(|ct| ct.contains("application/json")).unwrap_or(false) {
+    if content_type
+        .map(|ct| ct.contains("application/json"))
+        .unwrap_or(false)
+    {
         return handle_trace_request_json(body, client_ip, user_agent, buffer);
     }
     handle_trace_request_proto(body, client_ip, user_agent, buffer)
 }
 
 /// Parse OTLP JSON (format sent by VS Code / OpenTelemetry JS SDK).
-fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: Option<&str>, buffer: Option<&IngestBuffer>) -> Result<Vec<serde_json::Value>, AppError> {
+fn handle_trace_request_json(
+    body: &[u8],
+    client_ip: Option<&str>,
+    user_agent: Option<&str>,
+    buffer: Option<&IngestBuffer>,
+) -> Result<Vec<serde_json::Value>, AppError> {
     let root: serde_json::Value = serde_json::from_slice(body)
         .map_err(|e| AppError::Validation(format!("failed to decode OTLP JSON: {e}")))?;
 
@@ -59,7 +67,8 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
     };
 
     for rs in resource_spans {
-        let resource_attrs = rs.pointer("/resource/attributes")
+        let resource_attrs = rs
+            .pointer("/resource/attributes")
             .and_then(|v| v.as_array())
             .map(|a| a.as_slice())
             .unwrap_or(&[]);
@@ -70,7 +79,9 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
         let ide = infer_ide(user_agent, service_name.as_deref());
 
         let scope_spans = rs.get("scopeSpans").and_then(|v| v.as_array());
-        let Some(scope_spans) = scope_spans else { continue };
+        let Some(scope_spans) = scope_spans else {
+            continue;
+        };
 
         for ss in scope_spans {
             let spans = ss.get("spans").and_then(|v| v.as_array());
@@ -81,8 +92,19 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
 
                 // VS Code sends: "execute_tool <tool_name>", "chat <model>", "invoke_agent <agent>"
                 if span_name.starts_with("execute_tool") {
-                    let tool_hint = span_name.strip_prefix("execute_tool").map(|s| s.trim()).filter(|s| !s.is_empty());
-                    match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
+                    let tool_hint = span_name
+                        .strip_prefix("execute_tool")
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    match map_tool_call_json(
+                        span,
+                        service_name.as_deref(),
+                        session_id.as_deref(),
+                        ide.as_deref(),
+                        client_ip,
+                        user_agent,
+                        tool_hint,
+                    ) {
                         Ok(event) => {
                             persist_event(buffer, event, &mut results, "JSON OTLP tool_call");
                         }
@@ -90,8 +112,19 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                     }
                 } else if span_name.starts_with("chat") {
                     // "chat <model>" spans: LLM completion with token accounting
-                    let model_hint = span_name.strip_prefix("chat").map(|s| s.trim()).filter(|s| !s.is_empty());
-                    match map_chat_span_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, model_hint) {
+                    let model_hint = span_name
+                        .strip_prefix("chat")
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    match map_chat_span_json(
+                        span,
+                        service_name.as_deref(),
+                        session_id.as_deref(),
+                        ide.as_deref(),
+                        client_ip,
+                        user_agent,
+                        model_hint,
+                    ) {
                         Ok(event) => {
                             persist_event(buffer, event, &mut results, "JSON OTLP chat");
                         }
@@ -99,11 +132,24 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                     }
                 } else if span_name.starts_with("invoke_agent") {
                     // "invoke_agent <agent_name>" — agent session boundary, ignore for now
-                } else if span_name.starts_with("tools/call") || span_name.starts_with("tools/notify") {
+                } else if span_name.starts_with("tools/call")
+                    || span_name.starts_with("tools/notify")
+                {
                     // MCP OTel semconv (new standard): span name = "tools/call <tool_name>"
                     // see: opentelemetry.io/docs/specs/semconv/gen-ai/mcp/
-                    let tool_hint = span_name.strip_prefix("tools/call").map(|s| s.trim()).filter(|s| !s.is_empty());
-                    match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
+                    let tool_hint = span_name
+                        .strip_prefix("tools/call")
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    match map_tool_call_json(
+                        span,
+                        service_name.as_deref(),
+                        session_id.as_deref(),
+                        ide.as_deref(),
+                        client_ip,
+                        user_agent,
+                        tool_hint,
+                    ) {
                         Ok(event) => {
                             persist_event(buffer, event, &mut results, "JSON OTLP mcp tools/call");
                         }
@@ -114,7 +160,15 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                     // These are HTTP client calls to GitHub Copilot API endpoints
                     let (tool_name, is_chat) = classify_copilot_http_span(span);
                     if is_chat {
-                        match map_chat_span_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, None) {
+                        match map_chat_span_json(
+                            span,
+                            service_name.as_deref(),
+                            session_id.as_deref(),
+                            ide.as_deref(),
+                            client_ip,
+                            user_agent,
+                            None,
+                        ) {
                             Ok(mut event) => {
                                 event.tool_name = tool_name;
                                 persist_event(buffer, event, &mut results, "copilot HTTP chat");
@@ -122,7 +176,15 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                             Err(e) => warn!("failed to map copilot HTTP chat span: {e}"),
                         }
                     } else {
-                        match map_tool_call_json(span, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, Some(&tool_name)) {
+                        match map_tool_call_json(
+                            span,
+                            service_name.as_deref(),
+                            session_id.as_deref(),
+                            ide.as_deref(),
+                            client_ip,
+                            user_agent,
+                            Some(&tool_name),
+                        ) {
                             Ok(event) => {
                                 persist_event(buffer, event, &mut results, "copilot HTTP tool");
                             }
@@ -131,8 +193,15 @@ fn handle_trace_request_json(body: &[u8], client_ip: Option<&str>, user_agent: O
                     }
                 } else {
                     // truly unknown span — skip silently for non-copilot services
-                    if service_name.as_deref().map(|s| s.contains("copilot") || s.contains("eclipse")).unwrap_or(false) {
-                        warn!("unknown OTLP span name from copilot service (json): {}", span_name);
+                    if service_name
+                        .as_deref()
+                        .map(|s| s.contains("copilot") || s.contains("eclipse"))
+                        .unwrap_or(false)
+                    {
+                        warn!(
+                            "unknown OTLP span name from copilot service (json): {}",
+                            span_name
+                        );
                     }
                 }
             }
@@ -157,7 +226,11 @@ fn map_tool_call_json(
     // Tool name: attribute → span name suffix → fallback to raw span name
     let tool_name = json_attr_str(attrs_slice, "gen_ai.tool.name")
         .or_else(|| tool_name_hint.map(|s| s.to_string()))
-        .or_else(|| span.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .or_else(|| {
+            span.get("name")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        })
         .ok_or("missing tool name")?;
 
     let agent_name = json_attr_str(attrs_slice, "gen_ai.agent.name")
@@ -167,20 +240,35 @@ fn map_tool_call_json(
         .or_else(|| json_attr_str(attrs_slice, "mcp.server"))
         .or_else(|| infer_mcp_server_from_tool(&tool_name));
 
-    let start_ns: i64 = span.get("startTimeUnixNano")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<i64>().ok()).or_else(|| v.as_i64()))
+    let start_ns: i64 = span
+        .get("startTimeUnixNano")
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<i64>().ok())
+                .or_else(|| v.as_i64())
+        })
         .ok_or("missing startTimeUnixNano")?;
-    let end_ns: i64 = span.get("endTimeUnixNano")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<i64>().ok()).or_else(|| v.as_i64()))
+    let end_ns: i64 = span
+        .get("endTimeUnixNano")
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<i64>().ok())
+                .or_else(|| v.as_i64())
+        })
         .ok_or("missing endTimeUnixNano")?;
 
     let start = chrono::DateTime::from_timestamp_nanos(start_ns);
     let end = chrono::DateTime::from_timestamp_nanos(end_ns);
 
-    let status_code = span.pointer("/status/code").and_then(|v| v.as_i64()).unwrap_or(0);
+    let status_code = span
+        .pointer("/status/code")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
     let ok = status_code != 2;
     let error = if !ok {
-        span.pointer("/status/message").and_then(|v| v.as_str()).map(|s| s.to_string())
+        span.pointer("/status/message")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
     } else {
         None
     };
@@ -198,13 +286,16 @@ fn map_tool_call_json(
         .or_else(|| json_attr_str(attrs_slice, "gen_ai.request.model"));
     // Conversation/thread ID from multiple possible attributes + traceId fallback
     // mcp.session.id is the MCP OTel semconv session identifier (tools/call spans)
-    let trace_id = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let trace_id = span
+        .get("traceId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let conversation_id = json_attr_str(attrs_slice, "gen_ai.conversation.id")
         .or_else(|| json_attr_str(attrs_slice, "copilot_chat.chat_session_id"))
         .or_else(|| json_attr_str(attrs_slice, "copilot.conversation.id"))
         .or_else(|| json_attr_str(attrs_slice, "thread.id"))
         .or_else(|| json_attr_str(attrs_slice, "gen_ai.thread.id"))
-        .or_else(|| json_attr_str(attrs_slice, "mcp.session.id"))  // MCP OTel semconv
+        .or_else(|| json_attr_str(attrs_slice, "mcp.session.id")) // MCP OTel semconv
         .or_else(|| session_id.map(|s| s.to_string()))
         .or(trace_id);
     let response_bytes = json_attr_int(attrs_slice, "gen_ai.response.bytes");
@@ -213,37 +304,62 @@ fn map_tool_call_json(
     // Tool arguments (input) and result (output) — sent by some agents/IDEs
     // GenAI semantic convention draft: gen_ai.tool.call.id, gen_ai.tool.output
     // Also check copilot-specific and generic keys
-    let tool_arguments: Option<serde_json::Value> = json_attr_str(attrs_slice, "gen_ai.tool.call.arguments")
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.tool.input"))
-        .or_else(|| json_attr_str(attrs_slice, "tool.input"))
-        .and_then(|s| serde_json::from_str(&s).ok());
+    let tool_arguments: Option<serde_json::Value> =
+        json_attr_str(attrs_slice, "gen_ai.tool.call.arguments")
+            .or_else(|| json_attr_str(attrs_slice, "gen_ai.tool.input"))
+            .or_else(|| json_attr_str(attrs_slice, "tool.input"))
+            .and_then(|s| serde_json::from_str(&s).ok());
 
-    let tool_result: Option<String> = json_attr_str(attrs_slice, "gen_ai.tool.call.result")  // MCP OTel semconv (new)
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.tool.output"))
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.tool.result"))
-        .or_else(|| json_attr_str(attrs_slice, "tool.output"))
-        .map(|s| truncate_str(s, 8 * 1024));
+    let tool_result: Option<String> =
+        json_attr_str(attrs_slice, "gen_ai.tool.call.result") // MCP OTel semconv (new)
+            .or_else(|| json_attr_str(attrs_slice, "gen_ai.tool.output"))
+            .or_else(|| json_attr_str(attrs_slice, "gen_ai.tool.result"))
+            .or_else(|| json_attr_str(attrs_slice, "tool.output"))
+            .map(|s| truncate_str(s, 8 * 1024));
 
     let user_prompt = extract_clean_user_prompt_json(attrs_slice);
 
     let mut metadata = serde_json::json!({});
-    if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
-    if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
-    if let Some(a) = &agent_name { metadata["agent"] = serde_json::json!(a); }
+    if let Some(svc) = service_name {
+        metadata["service_name"] = serde_json::json!(svc);
+    }
+    if let Some(sid) = session_id {
+        metadata["session_id"] = serde_json::json!(sid);
+    }
+    if let Some(a) = &agent_name {
+        metadata["agent"] = serde_json::json!(a);
+    }
 
     // T-332: deep telemetry fields for map_tool_call_json
-    let trace_id = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let span_id = span.get("spanId").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let parent_span_id = span.get("parentSpanId").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let trace_id = span
+        .get("traceId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let span_id = span
+        .get("spanId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let parent_span_id = span
+        .get("parentSpanId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let tool_call_id = json_attr_str(attrs_slice, "gen_ai.tool.call.id");
     let reasoning_tokens = json_attr_int(attrs_slice, "gen_ai.usage.reasoning_tokens");
     let finish_reason: Option<String> = json_attr_str(attrs_slice, "gen_ai.response.finish_reason")
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.response.finish_reasons")
-            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok()
-                .and_then(|v| v.into_iter().next())
-                .or_else(|| serde_json::from_str::<serde_json::Value>(&s).ok()
-                    .and_then(|v| v.as_array()?.first()?.as_str().map(|s| s.to_string())))));
-    let request_max_tokens = json_attr_int(attrs_slice, "gen_ai.request.max_tokens").map(|t| t as i32);
+        .or_else(|| {
+            json_attr_str(attrs_slice, "gen_ai.response.finish_reasons").and_then(|s| {
+                serde_json::from_str::<Vec<String>>(&s)
+                    .ok()
+                    .and_then(|v| v.into_iter().next())
+                    .or_else(|| {
+                        serde_json::from_str::<serde_json::Value>(&s)
+                            .ok()
+                            .and_then(|v| v.as_array()?.first()?.as_str().map(|s| s.to_string()))
+                    })
+            })
+        });
+    let request_max_tokens =
+        json_attr_int(attrs_slice, "gen_ai.request.max_tokens").map(|t| t as i32);
     let request_temperature = json_attr_float(attrs_slice, "gen_ai.request.temperature");
     let llm_system = json_attr_str(attrs_slice, "gen_ai.system");
 
@@ -252,7 +368,9 @@ fn map_tool_call_json(
         task_id: None,
         repo: None,
         branch: None,
-        ide: ide.map(|s| s.to_string()).or_else(|| Some("copilot-vscode".into())),
+        ide: ide
+            .map(|s| s.to_string())
+            .or_else(|| Some("copilot-vscode".into())),
         agent: agent_name,
         skill: None,
         mcp_server,
@@ -301,20 +419,35 @@ fn map_chat_span_json(
     let attrs = span.get("attributes").and_then(|v| v.as_array());
     let attrs_slice: &[serde_json::Value] = attrs.map(|a| a.as_slice()).unwrap_or(&[]);
 
-    let start_ns: i64 = span.get("startTimeUnixNano")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<i64>().ok()).or_else(|| v.as_i64()))
+    let start_ns: i64 = span
+        .get("startTimeUnixNano")
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<i64>().ok())
+                .or_else(|| v.as_i64())
+        })
         .ok_or("missing startTimeUnixNano")?;
-    let end_ns: i64 = span.get("endTimeUnixNano")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<i64>().ok()).or_else(|| v.as_i64()))
+    let end_ns: i64 = span
+        .get("endTimeUnixNano")
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<i64>().ok())
+                .or_else(|| v.as_i64())
+        })
         .ok_or("missing endTimeUnixNano")?;
 
     let start = chrono::DateTime::from_timestamp_nanos(start_ns);
     let end = chrono::DateTime::from_timestamp_nanos(end_ns);
 
-    let status_code = span.pointer("/status/code").and_then(|v| v.as_i64()).unwrap_or(0);
+    let status_code = span
+        .pointer("/status/code")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
     let ok = status_code != 2;
     let error = if !ok {
-        span.pointer("/status/message").and_then(|v| v.as_str()).map(|s| s.to_string())
+        span.pointer("/status/message")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
     } else {
         None
     };
@@ -331,7 +464,10 @@ fn map_chat_span_json(
         .or_else(|| json_attr_str(attrs_slice, "gen_ai.request.model"))
         .or_else(|| model_hint.map(|s| s.to_string()));
     let system = json_attr_str(attrs_slice, "gen_ai.system");
-    let trace_id = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let trace_id = span
+        .get("traceId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let conversation_id = json_attr_str(attrs_slice, "gen_ai.conversation.id")
         .or_else(|| json_attr_str(attrs_slice, "copilot_chat.chat_session_id"))
         .or_else(|| json_attr_str(attrs_slice, "copilot.conversation.id"))
@@ -343,10 +479,15 @@ fn map_chat_span_json(
     // Use gen_ai.system as mcp_server equivalent for LLM provider grouping
     let mcp_server = system.or_else(|| {
         model.as_ref().map(|m| {
-            if m.contains("claude") { "anthropic".to_string() }
-            else if m.contains("gpt") || m.contains("o1") || m.contains("o3") { "openai".to_string() }
-            else if m.contains("gemini") { "google".to_string() }
-            else { "unknown".to_string() }
+            if m.contains("claude") {
+                "anthropic".to_string()
+            } else if m.contains("gpt") || m.contains("o1") || m.contains("o3") {
+                "openai".to_string()
+            } else if m.contains("gemini") {
+                "google".to_string()
+            } else {
+                "unknown".to_string()
+            }
         })
     });
 
@@ -356,21 +497,42 @@ fn map_chat_span_json(
     let user_prompt = extract_clean_user_prompt_json(attrs_slice);
 
     let mut metadata = serde_json::json!({ "span_type": "chat" });
-    if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
-    if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
+    if let Some(svc) = service_name {
+        metadata["service_name"] = serde_json::json!(svc);
+    }
+    if let Some(sid) = session_id {
+        metadata["session_id"] = serde_json::json!(sid);
+    }
 
     // T-332: deep telemetry for map_chat_span_json
-    let trace_id_val = span.get("traceId").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let span_id = span.get("spanId").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let parent_span_id = span.get("parentSpanId").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let trace_id_val = span
+        .get("traceId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let span_id = span
+        .get("spanId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let parent_span_id = span
+        .get("parentSpanId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let reasoning_tokens = json_attr_int(attrs_slice, "gen_ai.usage.reasoning_tokens");
     let finish_reason: Option<String> = json_attr_str(attrs_slice, "gen_ai.response.finish_reason")
-        .or_else(|| json_attr_str(attrs_slice, "gen_ai.response.finish_reasons")
-            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok()
-                .and_then(|v| v.into_iter().next())
-                .or_else(|| serde_json::from_str::<serde_json::Value>(&s).ok()
-                    .and_then(|v| v.as_array()?.first()?.as_str().map(|s| s.to_string())))));
-    let request_max_tokens = json_attr_int(attrs_slice, "gen_ai.request.max_tokens").map(|t| t as i32);
+        .or_else(|| {
+            json_attr_str(attrs_slice, "gen_ai.response.finish_reasons").and_then(|s| {
+                serde_json::from_str::<Vec<String>>(&s)
+                    .ok()
+                    .and_then(|v| v.into_iter().next())
+                    .or_else(|| {
+                        serde_json::from_str::<serde_json::Value>(&s)
+                            .ok()
+                            .and_then(|v| v.as_array()?.first()?.as_str().map(|s| s.to_string()))
+                    })
+            })
+        });
+    let request_max_tokens =
+        json_attr_int(attrs_slice, "gen_ai.request.max_tokens").map(|t| t as i32);
     let request_temperature = json_attr_float(attrs_slice, "gen_ai.request.temperature");
     let llm_system = json_attr_str(attrs_slice, "gen_ai.system");
     // conversation_id already falls back to trace_id above
@@ -384,7 +546,9 @@ fn map_chat_span_json(
         task_id: None,
         repo: None,
         branch: None,
-        ide: ide.map(|s| s.to_string()).or_else(|| Some("copilot-vscode".into())),
+        ide: ide
+            .map(|s| s.to_string())
+            .or_else(|| Some("copilot-vscode".into())),
         agent: agent_name,
         skill: None,
         mcp_server,
@@ -438,13 +602,33 @@ fn infer_mcp_server_from_tool(tool_name: &str) -> Option<String> {
     }
     // VS Code built-in tools
     let builtin = [
-        "run_in_terminal", "read_file", "replace_string_in_file", "create_file",
-        "grep_search", "file_search", "list_dir", "semantic_search", "get_errors",
-        "manage_todo_list", "view_image", "run_in_terminal", "get_terminal_output",
-        "kill_terminal", "send_to_terminal", "vscode_askQuestions", "vscode_listCodeUsages",
-        "vscode_renameSymbol", "multi_replace_string_in_file", "tool_search", "runSubagent",
-        "open_browser_page", "click_element", "hover_element", "navigate_page",
-        "screenshot_page", "read_page",
+        "run_in_terminal",
+        "read_file",
+        "replace_string_in_file",
+        "create_file",
+        "grep_search",
+        "file_search",
+        "list_dir",
+        "semantic_search",
+        "get_errors",
+        "manage_todo_list",
+        "view_image",
+        "run_in_terminal",
+        "get_terminal_output",
+        "kill_terminal",
+        "send_to_terminal",
+        "vscode_askQuestions",
+        "vscode_listCodeUsages",
+        "vscode_renameSymbol",
+        "multi_replace_string_in_file",
+        "tool_search",
+        "runSubagent",
+        "open_browser_page",
+        "click_element",
+        "hover_element",
+        "navigate_page",
+        "screenshot_page",
+        "read_page",
     ];
     if builtin.contains(&tool_name) {
         return Some("vscode-builtin".to_string());
@@ -462,16 +646,25 @@ fn infer_mcp_server_from_tool(tool_name: &str) -> Option<String> {
 
 /// Truncate a string at max_bytes on a valid UTF-8 boundary.
 fn truncate_str(s: String, max_bytes: usize) -> String {
-    if s.len() <= max_bytes { return s; }
+    if s.len() <= max_bytes {
+        return s;
+    }
     let mut end = max_bytes;
-    while !s.is_char_boundary(end) { end -= 1; }
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
     format!("{}…[truncated]", &s[..end])
 }
 
 fn json_attr_str(attrs: &[serde_json::Value], key: &str) -> Option<String> {
-    attrs.iter()
+    attrs
+        .iter()
         .find(|kv| kv.get("key").and_then(|k| k.as_str()) == Some(key))
-        .and_then(|kv| kv.pointer("/value/stringValue").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .and_then(|kv| {
+            kv.pointer("/value/stringValue")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        })
 }
 
 /// Finds the first message with role="user" among indexed prompt attributes
@@ -495,7 +688,9 @@ fn parse_first_human_text(raw: &str) -> Option<String> {
 
     for msg in arr {
         let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
-        if role != "user" { continue; }
+        if role != "user" {
+            continue;
+        }
 
         // Format 1: "parts" array (Copilot/Gemini format)
         // VS Code Copilot sends multiple parts per user message:
@@ -543,11 +738,14 @@ fn parse_first_human_text(raw: &str) -> Option<String> {
         // Format 3: Anthropic block array
         if let Some(blocks) = msg.get("content").and_then(|c| c.as_array()) {
             // Skip if first block is tool_result (agentic loop turn)
-            let first_type = blocks.first()
+            let first_type = blocks
+                .first()
                 .and_then(|b| b.get("type"))
                 .and_then(|t| t.as_str())
                 .unwrap_or("");
-            if first_type == "tool_result" { continue; }
+            if first_type == "tool_result" {
+                continue;
+            }
 
             for block in blocks {
                 if block.get("type").and_then(|t| t.as_str()) == Some("text") {
@@ -704,7 +902,11 @@ fn extract_user_request_tag(content: &str) -> Option<String> {
     let after_start = start_idx + START.len();
     let end_idx = content[after_start..].find(END)?;
     let text = content[after_start..after_start + end_idx].trim();
-    if text.is_empty() || is_noise_prompt(text) { None } else { Some(text.to_string()) }
+    if text.is_empty() || is_noise_prompt(text) {
+        None
+    } else {
+        Some(text.to_string())
+    }
 }
 
 /// Extracts LLM response text from output/completion attributes.
@@ -745,8 +947,11 @@ fn extract_response_text(attrs: &[serde_json::Value]) -> Option<String> {
                         // Gemini parts format
                         if let Some(parts) = msg.get("parts").and_then(|p| p.as_array()) {
                             for part in parts {
-                                if let Some(text) = part.get("content").and_then(|c| c.as_str())
-                                    .or_else(|| part.get("text").and_then(|t| t.as_str())) {
+                                if let Some(text) = part
+                                    .get("content")
+                                    .and_then(|c| c.as_str())
+                                    .or_else(|| part.get("text").and_then(|t| t.as_str()))
+                                {
                                     if !text.is_empty() {
                                         return Some(truncate_str(text.to_string(), 8 * 1024));
                                     }
@@ -777,38 +982,64 @@ fn extract_response_text(attrs: &[serde_json::Value]) -> Option<String> {
 }
 
 fn json_attr_int(attrs: &[serde_json::Value], key: &str) -> Option<i64> {
-    attrs.iter()
+    attrs
+        .iter()
         .find(|kv| kv.get("key").and_then(|k| k.as_str()) == Some(key))
         .and_then(|kv| {
             let v = kv.get("value")?;
-            v.get("intValue").and_then(|i| {
-                // OTLP JSON spec: int64 is serialized as string in protobuf3 JSON mapping
-                i.as_i64().or_else(|| i.as_str().and_then(|s| s.parse::<i64>().ok()))
-            })
-                .or_else(|| v.get("doubleValue").and_then(|d| d.as_f64()).map(|f| f as i64))
-                .or_else(|| v.get("stringValue").and_then(|s| s.as_str()).and_then(|s| s.parse::<i64>().ok()))
+            v.get("intValue")
+                .and_then(|i| {
+                    // OTLP JSON spec: int64 is serialized as string in protobuf3 JSON mapping
+                    i.as_i64()
+                        .or_else(|| i.as_str().and_then(|s| s.parse::<i64>().ok()))
+                })
+                .or_else(|| {
+                    v.get("doubleValue")
+                        .and_then(|d| d.as_f64())
+                        .map(|f| f as i64)
+                })
+                .or_else(|| {
+                    v.get("stringValue")
+                        .and_then(|s| s.as_str())
+                        .and_then(|s| s.parse::<i64>().ok())
+                })
         })
 }
 
 fn json_attr_float(attrs: &[serde_json::Value], key: &str) -> Option<f64> {
-    attrs.iter()
+    attrs
+        .iter()
         .find(|kv| kv.get("key").and_then(|k| k.as_str()) == Some(key))
         .and_then(|kv| {
             let v = kv.get("value")?;
-            v.get("doubleValue").and_then(|d| d.as_f64())
+            v.get("doubleValue")
+                .and_then(|d| d.as_f64())
                 .or_else(|| v.get("intValue").and_then(|i| i.as_i64()).map(|i| i as f64))
-                .or_else(|| v.get("stringValue").and_then(|s| s.as_str()).and_then(|s| s.parse::<f64>().ok()))
+                .or_else(|| {
+                    v.get("stringValue")
+                        .and_then(|s| s.as_str())
+                        .and_then(|s| s.parse::<f64>().ok())
+                })
         })
 }
 
-fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: Option<&str>, buffer: Option<&IngestBuffer>) -> Result<Vec<serde_json::Value>, AppError> {
+fn handle_trace_request_proto(
+    body: &[u8],
+    client_ip: Option<&str>,
+    user_agent: Option<&str>,
+    buffer: Option<&IngestBuffer>,
+) -> Result<Vec<serde_json::Value>, AppError> {
     let req = ExportTraceServiceRequest::decode(body)
         .map_err(|e| AppError::Validation(format!("failed to decode OTLP protobuf: {e}")))?;
 
     let mut results = Vec::new();
 
     for rs in &req.resource_spans {
-        let resource_attrs = rs.resource.as_ref().map(|r| &r.attributes[..]).unwrap_or(&[]);
+        let resource_attrs = rs
+            .resource
+            .as_ref()
+            .map(|r| &r.attributes[..])
+            .unwrap_or(&[]);
         let service_name = get_attr_str(resource_attrs, "service.name");
         let session_id = get_attr_str(resource_attrs, "session.id");
         let ide = infer_ide(user_agent, service_name.as_deref());
@@ -816,16 +1047,42 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
         for ss in &rs.scope_spans {
             for span in &ss.spans {
                 if span.name.starts_with("execute_tool") {
-                    let tool_hint = span.name.strip_prefix("execute_tool").map(|s| s.trim()).filter(|s| !s.is_empty());
-                    match map_tool_call(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
+                    let tool_hint = span
+                        .name
+                        .strip_prefix("execute_tool")
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    match map_tool_call(
+                        span,
+                        resource_attrs,
+                        service_name.as_deref(),
+                        session_id.as_deref(),
+                        ide.as_deref(),
+                        client_ip,
+                        user_agent,
+                        tool_hint,
+                    ) {
                         Ok(event) => {
                             persist_event(buffer, event, &mut results, "OTLP tool_call");
                         }
                         Err(e) => warn!("failed to map OTLP execute_tool span: {e}"),
                     }
                 } else if span.name.starts_with("chat") {
-                    let model_hint = span.name.strip_prefix("chat").map(|s| s.trim()).filter(|s| !s.is_empty());
-                    match map_chat_span_proto(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, model_hint) {
+                    let model_hint = span
+                        .name
+                        .strip_prefix("chat")
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    match map_chat_span_proto(
+                        span,
+                        resource_attrs,
+                        service_name.as_deref(),
+                        session_id.as_deref(),
+                        ide.as_deref(),
+                        client_ip,
+                        user_agent,
+                        model_hint,
+                    ) {
                         Ok(event) => {
                             persist_event(buffer, event, &mut results, "OTLP chat");
                         }
@@ -833,31 +1090,76 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
                     }
                 } else if span.name.starts_with("invoke_agent") {
                     // agent session boundary — skip
-                } else if span.name.starts_with("tools/call") || span.name.starts_with("tools/notify") {
+                } else if span.name.starts_with("tools/call")
+                    || span.name.starts_with("tools/notify")
+                {
                     // MCP OTel semconv (new standard): span name = "tools/call <tool_name>"
-                    let tool_hint = span.name.strip_prefix("tools/call").map(|s| s.trim()).filter(|s| !s.is_empty());
-                    match map_tool_call(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, tool_hint) {
+                    let tool_hint = span
+                        .name
+                        .strip_prefix("tools/call")
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    match map_tool_call(
+                        span,
+                        resource_attrs,
+                        service_name.as_deref(),
+                        session_id.as_deref(),
+                        ide.as_deref(),
+                        client_ip,
+                        user_agent,
+                        tool_hint,
+                    ) {
                         Ok(event) => {
                             persist_event(buffer, event, &mut results, "OTLP mcp tools/call");
                         }
                         Err(e) => warn!("failed to map OTLP tools/call span: {e}"),
                     }
-                } else if is_copilot_http_span_proto(span) || is_eclipse_service_http_span(span, service_name.as_deref()) {
+                } else if is_copilot_http_span_proto(span)
+                    || is_eclipse_service_http_span(span, service_name.as_deref())
+                {
                     // HTTP spans from javaagent (approach 3: eclipse.ini instrumentation)
                     // Accept both: copilot-URL spans AND any HTTP span from eclipse service
                     let (tool_name, is_chat) = classify_copilot_http_span_proto(span);
                     if is_chat {
-                        match map_chat_span_proto(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, None) {
+                        match map_chat_span_proto(
+                            span,
+                            resource_attrs,
+                            service_name.as_deref(),
+                            session_id.as_deref(),
+                            ide.as_deref(),
+                            client_ip,
+                            user_agent,
+                            None,
+                        ) {
                             Ok(mut event) => {
                                 event.tool_name = tool_name;
-                                persist_event(buffer, event, &mut results, "copilot HTTP chat (proto)");
+                                persist_event(
+                                    buffer,
+                                    event,
+                                    &mut results,
+                                    "copilot HTTP chat (proto)",
+                                );
                             }
                             Err(e) => warn!("failed to map copilot HTTP chat span (proto): {e}"),
                         }
                     } else {
-                        match map_tool_call(span, resource_attrs, service_name.as_deref(), session_id.as_deref(), ide.as_deref(), client_ip, user_agent, Some(&tool_name)) {
+                        match map_tool_call(
+                            span,
+                            resource_attrs,
+                            service_name.as_deref(),
+                            session_id.as_deref(),
+                            ide.as_deref(),
+                            client_ip,
+                            user_agent,
+                            Some(&tool_name),
+                        ) {
                             Ok(event) => {
-                                persist_event(buffer, event, &mut results, "copilot HTTP tool (proto)");
+                                persist_event(
+                                    buffer,
+                                    event,
+                                    &mut results,
+                                    "copilot HTTP tool (proto)",
+                                );
                             }
                             Err(e) => warn!("failed to map copilot HTTP tool span (proto): {e}"),
                         }
@@ -865,8 +1167,13 @@ fn handle_trace_request_proto(body: &[u8], client_ip: Option<&str>, user_agent: 
                 } else {
                     // truly unknown span — only warn if it looks relevant
                     let svc = service_name.as_deref().unwrap_or("");
-                    if (svc.contains("copilot") || svc.contains("eclipse")) && !is_generic_http_method(&span.name) {
-                        warn!("unknown OTLP span name from copilot service (proto): {}", span.name);
+                    if (svc.contains("copilot") || svc.contains("eclipse"))
+                        && !is_generic_http_method(&span.name)
+                    {
+                        warn!(
+                            "unknown OTLP span name from copilot service (proto): {}",
+                            span.name
+                        );
                     }
                 }
             }
@@ -923,38 +1230,63 @@ fn map_tool_call(
         .or_else(|| get_attr_str(&span.attributes, "copilot.conversation.id"))
         .or_else(|| get_attr_str(&span.attributes, "thread.id"))
         .or_else(|| get_attr_str(&span.attributes, "gen_ai.thread.id"))
-        .or_else(|| get_attr_str(&span.attributes, "mcp.session.id"))  // MCP OTel semconv
+        .or_else(|| get_attr_str(&span.attributes, "mcp.session.id")) // MCP OTel semconv
         .or_else(|| session_id.map(|s| s.to_string()));
 
     let user_prompt = extract_clean_user_prompt_proto(&span.attributes);
 
     let mut metadata = serde_json::json!({});
-    if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
-    if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
-    if let Some(agent) = &agent_name { metadata["agent"] = serde_json::json!(agent); }
+    if let Some(svc) = service_name {
+        metadata["service_name"] = serde_json::json!(svc);
+    }
+    if let Some(sid) = session_id {
+        metadata["session_id"] = serde_json::json!(sid);
+    }
+    if let Some(agent) = &agent_name {
+        metadata["agent"] = serde_json::json!(agent);
+    }
 
-    let tool_arguments: Option<serde_json::Value> = get_attr_str(&span.attributes, "gen_ai.tool.call.arguments")
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.tool.input"))
-        .or_else(|| get_attr_str(&span.attributes, "tool.input"))
-        .and_then(|s| serde_json::from_str(&s).ok());
+    let tool_arguments: Option<serde_json::Value> =
+        get_attr_str(&span.attributes, "gen_ai.tool.call.arguments")
+            .or_else(|| get_attr_str(&span.attributes, "gen_ai.tool.input"))
+            .or_else(|| get_attr_str(&span.attributes, "tool.input"))
+            .and_then(|s| serde_json::from_str(&s).ok());
 
-    let tool_result: Option<String> = get_attr_str(&span.attributes, "gen_ai.tool.call.result")  // MCP OTel semconv (new)
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.tool.output"))
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.tool.result"))
-        .or_else(|| get_attr_str(&span.attributes, "tool.output"))
-        .map(|s| truncate_str(s, 8192));
+    let tool_result: Option<String> =
+        get_attr_str(&span.attributes, "gen_ai.tool.call.result") // MCP OTel semconv (new)
+            .or_else(|| get_attr_str(&span.attributes, "gen_ai.tool.output"))
+            .or_else(|| get_attr_str(&span.attributes, "gen_ai.tool.result"))
+            .or_else(|| get_attr_str(&span.attributes, "tool.output"))
+            .map(|s| truncate_str(s, 8192));
 
     // T-332: deep telemetry for map_tool_call proto
-    let trace_id = if span.trace_id.is_empty() { None } else { Some(hex::encode(&span.trace_id)) };
-    let span_id = if span.span_id.is_empty() { None } else { Some(hex::encode(&span.span_id)) };
-    let parent_span_id = if span.parent_span_id.is_empty() { None } else { Some(hex::encode(&span.parent_span_id)) };
+    let trace_id = if span.trace_id.is_empty() {
+        None
+    } else {
+        Some(hex::encode(&span.trace_id))
+    };
+    let span_id = if span.span_id.is_empty() {
+        None
+    } else {
+        Some(hex::encode(&span.span_id))
+    };
+    let parent_span_id = if span.parent_span_id.is_empty() {
+        None
+    } else {
+        Some(hex::encode(&span.parent_span_id))
+    };
     let tool_call_id = get_attr_str(&span.attributes, "gen_ai.tool.call.id");
     let reasoning_tokens = get_attr_int(&span.attributes, "gen_ai.usage.reasoning_tokens");
-    let finish_reason = get_attr_str(&span.attributes, "gen_ai.response.finish_reason")
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.response.finish_reasons")
-            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok()
-                .and_then(|v| v.into_iter().next())));
-    let request_max_tokens = get_attr_int(&span.attributes, "gen_ai.request.max_tokens").map(|t| t as i32);
+    let finish_reason =
+        get_attr_str(&span.attributes, "gen_ai.response.finish_reason").or_else(|| {
+            get_attr_str(&span.attributes, "gen_ai.response.finish_reasons").and_then(|s| {
+                serde_json::from_str::<Vec<String>>(&s)
+                    .ok()
+                    .and_then(|v| v.into_iter().next())
+            })
+        });
+    let request_max_tokens =
+        get_attr_int(&span.attributes, "gen_ai.request.max_tokens").map(|t| t as i32);
     let request_temperature = get_attr_float(&span.attributes, "gen_ai.request.temperature");
     let llm_system = get_attr_str(&span.attributes, "gen_ai.system");
 
@@ -963,7 +1295,9 @@ fn map_tool_call(
         task_id: None,
         repo: None,
         branch: None,
-        ide: ide.map(|s| s.to_string()).or_else(|| Some("copilot-vscode".into())),
+        ide: ide
+            .map(|s| s.to_string())
+            .or_else(|| Some("copilot-vscode".into())),
         agent: agent_name,
         skill: None,
         mcp_server,
@@ -1015,7 +1349,11 @@ fn map_chat_span_proto(
     let start = chrono::DateTime::from_timestamp_nanos(span.start_time_unix_nano as i64);
     let end = chrono::DateTime::from_timestamp_nanos(span.end_time_unix_nano as i64);
     let ok = span.status.as_ref().map(|s| s.code != 2).unwrap_or(true);
-    let error = if !ok { span.status.as_ref().map(|s| s.message.clone()) } else { None };
+    let error = if !ok {
+        span.status.as_ref().map(|s| s.message.clone())
+    } else {
+        None
+    };
 
     let input_tokens = get_attr_int(&span.attributes, "gen_ai.usage.input_tokens")
         .or_else(|| get_attr_int(&span.attributes, "gen_ai.usage.prompt_tokens"));
@@ -1038,42 +1376,80 @@ fn map_chat_span_proto(
         .or_else(|| service_name.map(|s| s.to_string()));
     let mcp_server = system.or_else(|| {
         model.as_ref().map(|m| {
-            if m.contains("claude") { "anthropic".to_string() }
-            else if m.contains("gpt") || m.contains("o1") || m.contains("o3") { "openai".to_string() }
-            else if m.contains("gemini") { "google".to_string() }
-            else { "unknown".to_string() }
+            if m.contains("claude") {
+                "anthropic".to_string()
+            } else if m.contains("gpt") || m.contains("o1") || m.contains("o3") {
+                "openai".to_string()
+            } else if m.contains("gemini") {
+                "google".to_string()
+            } else {
+                "unknown".to_string()
+            }
         })
     });
     let user_prompt = extract_clean_user_prompt_proto(&span.attributes);
     let mut metadata = serde_json::json!({ "span_type": "chat" });
-    if let Some(svc) = service_name { metadata["service_name"] = serde_json::json!(svc); }
-    if let Some(sid) = session_id { metadata["session_id"] = serde_json::json!(sid); }
+    if let Some(svc) = service_name {
+        metadata["service_name"] = serde_json::json!(svc);
+    }
+    if let Some(sid) = session_id {
+        metadata["session_id"] = serde_json::json!(sid);
+    }
 
     // T-332: deep telemetry for map_chat_span_proto
-    let trace_id = if span.trace_id.is_empty() { None } else { Some(hex::encode(&span.trace_id)) };
-    let span_id_val = if span.span_id.is_empty() { None } else { Some(hex::encode(&span.span_id)) };
-    let parent_span_id = if span.parent_span_id.is_empty() { None } else { Some(hex::encode(&span.parent_span_id)) };
+    let trace_id = if span.trace_id.is_empty() {
+        None
+    } else {
+        Some(hex::encode(&span.trace_id))
+    };
+    let span_id_val = if span.span_id.is_empty() {
+        None
+    } else {
+        Some(hex::encode(&span.span_id))
+    };
+    let parent_span_id = if span.parent_span_id.is_empty() {
+        None
+    } else {
+        Some(hex::encode(&span.parent_span_id))
+    };
     let reasoning_tokens = get_attr_int(&span.attributes, "gen_ai.usage.reasoning_tokens");
-    let finish_reason = get_attr_str(&span.attributes, "gen_ai.response.finish_reason")
-        .or_else(|| get_attr_str(&span.attributes, "gen_ai.response.finish_reasons")
-            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok()
-                .and_then(|v| v.into_iter().next())));
-    let request_max_tokens = get_attr_int(&span.attributes, "gen_ai.request.max_tokens").map(|t| t as i32);
+    let finish_reason =
+        get_attr_str(&span.attributes, "gen_ai.response.finish_reason").or_else(|| {
+            get_attr_str(&span.attributes, "gen_ai.response.finish_reasons").and_then(|s| {
+                serde_json::from_str::<Vec<String>>(&s)
+                    .ok()
+                    .and_then(|v| v.into_iter().next())
+            })
+        });
+    let request_max_tokens =
+        get_attr_int(&span.attributes, "gen_ai.request.max_tokens").map(|t| t as i32);
     let request_temperature = get_attr_float(&span.attributes, "gen_ai.request.temperature");
     let llm_system = get_attr_str(&span.attributes, "gen_ai.system");
 
     Ok(ToolCallEvent {
         event_id: uuid::Uuid::new_v4(),
-        task_id: None, repo: None, branch: None,
-        ide: ide.map(|s| s.to_string()).or_else(|| Some("antigravity".into())),
-        agent: agent_name, skill: None, mcp_server,
+        task_id: None,
+        repo: None,
+        branch: None,
+        ide: ide
+            .map(|s| s.to_string())
+            .or_else(|| Some("antigravity".into())),
+        agent: agent_name,
+        skill: None,
+        mcp_server,
         tool_name: "llm_chat".to_string(),
-        started_at: start, ended_at: end, ok, error,
-        request_bytes: None, response_bytes: None,
+        started_at: start,
+        ended_at: end,
+        ok,
+        error,
+        request_bytes: None,
+        response_bytes: None,
         estimated_input_tokens: input_tokens.map(|t| t as i32),
         estimated_output_tokens: output_tokens.map(|t| t as i32),
-        request_sha256: None, response_sha256: None,
-        metadata: Some(metadata), model,
+        request_sha256: None,
+        response_sha256: None,
+        metadata: Some(metadata),
+        model,
         cached_tokens: cached_tokens.map(|t| t as i32),
         conversation_id,
         client_ip: client_ip.map(|s| s.to_string()),
@@ -1094,7 +1470,8 @@ fn map_chat_span_proto(
 }
 
 fn get_attr_str(attrs: &[KeyValue], key: &str) -> Option<String> {
-    attrs.iter()
+    attrs
+        .iter()
         .find(|kv| kv.key == key)
         .and_then(|kv| kv.value.as_ref())
         .and_then(|v| match &v.value {
@@ -1104,7 +1481,8 @@ fn get_attr_str(attrs: &[KeyValue], key: &str) -> Option<String> {
 }
 
 fn get_attr_int(attrs: &[KeyValue], key: &str) -> Option<i64> {
-    attrs.iter()
+    attrs
+        .iter()
         .find(|kv| kv.key == key)
         .and_then(|kv| kv.value.as_ref())
         .and_then(|v| match &v.value {
@@ -1114,7 +1492,8 @@ fn get_attr_int(attrs: &[KeyValue], key: &str) -> Option<i64> {
 }
 
 fn get_attr_float(attrs: &[KeyValue], key: &str) -> Option<f64> {
-    attrs.iter()
+    attrs
+        .iter()
         .find(|kv| kv.key == key)
         .and_then(|kv| kv.value.as_ref())
         .and_then(|v| match &v.value {
@@ -1146,16 +1525,22 @@ fn is_copilot_http_span(span: &serde_json::Value, span_name: &str) -> bool {
 
     for attr in attrs {
         let key = attr.get("key").and_then(|k| k.as_str()).unwrap_or("");
-        if matches!(key, "http.url" | "url.full" | "server.address" | "http.target") {
-            let val = attr.get("value")
+        if matches!(
+            key,
+            "http.url" | "url.full" | "server.address" | "http.target"
+        ) {
+            let val = attr
+                .get("value")
                 .and_then(|v| v.get("stringValue"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             let lower = val.to_lowercase();
-            if lower.contains("copilot") || lower.contains("githubcopilot")
+            if lower.contains("copilot")
+                || lower.contains("githubcopilot")
                 || lower.contains("api.github.com/copilot")
                 || lower.contains("copilot-proxy")
-                || lower.contains("default.exp-tas.com") // Copilot experiment service
+                || lower.contains("default.exp-tas.com")
+            // Copilot experiment service
             {
                 return true;
             }
@@ -1168,23 +1553,28 @@ fn is_copilot_http_span(span: &serde_json::Value, span_name: &str) -> bool {
 /// Returns (tool_name, is_chat).
 fn classify_copilot_http_span(span: &serde_json::Value) -> (String, bool) {
     let attrs = span.get("attributes").and_then(|v| v.as_array());
-    let url = attrs.and_then(|a| {
-        a.iter().find_map(|attr| {
-            let key = attr.get("key").and_then(|k| k.as_str()).unwrap_or("");
-            if matches!(key, "http.url" | "url.full" | "http.target") {
-                attr.get("value")
-                    .and_then(|v| v.get("stringValue"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
-            }
+    let url = attrs
+        .and_then(|a| {
+            a.iter().find_map(|attr| {
+                let key = attr.get("key").and_then(|k| k.as_str()).unwrap_or("");
+                if matches!(key, "http.url" | "url.full" | "http.target") {
+                    attr.get("value")
+                        .and_then(|v| v.get("stringValue"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                } else {
+                    None
+                }
+            })
         })
-    }).unwrap_or_default();
+        .unwrap_or_default();
 
     let lower = url.to_lowercase();
 
-    if lower.contains("/chat/completions") || lower.contains("/conversation") || lower.contains("/responses") {
+    if lower.contains("/chat/completions")
+        || lower.contains("/conversation")
+        || lower.contains("/responses")
+    {
         ("llm_chat".to_string(), true)
     } else if lower.contains("/completions") {
         ("copilot_completions".to_string(), false)
@@ -1215,8 +1605,17 @@ fn is_generic_http_method(name: &str) -> bool {
     let upper = name.to_uppercase();
     matches!(
         upper.as_str(),
-        "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS"
-            | "HTTP GET" | "HTTP POST" | "HTTP PUT" | "HTTP DELETE"
+        "GET"
+            | "POST"
+            | "PUT"
+            | "DELETE"
+            | "PATCH"
+            | "HEAD"
+            | "OPTIONS"
+            | "HTTP GET"
+            | "HTTP POST"
+            | "HTTP PUT"
+            | "HTTP DELETE"
     )
 }
 
@@ -1234,13 +1633,17 @@ fn is_copilot_http_span_proto(span: &Span) -> bool {
     }
 
     for kv in &span.attributes {
-        if matches!(kv.key.as_str(), "http.url" | "url.full" | "server.address" | "http.target") {
+        if matches!(
+            kv.key.as_str(),
+            "http.url" | "url.full" | "server.address" | "http.target"
+        ) {
             if let Some(val) = kv.value.as_ref().and_then(|v| match &v.value {
                 Some(any_value::Value::StringValue(s)) => Some(s.as_str()),
                 _ => None,
             }) {
                 let lower = val.to_lowercase();
-                if lower.contains("copilot") || lower.contains("githubcopilot")
+                if lower.contains("copilot")
+                    || lower.contains("githubcopilot")
                     || lower.contains("api.github.com/copilot")
                     || lower.contains("copilot-proxy")
                     || lower.contains("default.exp-tas.com")
@@ -1255,20 +1658,27 @@ fn is_copilot_http_span_proto(span: &Span) -> bool {
 
 /// Proto version: classifies Copilot HTTP span.
 fn classify_copilot_http_span_proto(span: &Span) -> (String, bool) {
-    let url = span.attributes.iter().find_map(|kv| {
-        if matches!(kv.key.as_str(), "http.url" | "url.full" | "http.target") {
-            kv.value.as_ref().and_then(|v| match &v.value {
-                Some(any_value::Value::StringValue(s)) => Some(s.clone()),
-                _ => None,
-            })
-        } else {
-            None
-        }
-    }).unwrap_or_default();
+    let url = span
+        .attributes
+        .iter()
+        .find_map(|kv| {
+            if matches!(kv.key.as_str(), "http.url" | "url.full" | "http.target") {
+                kv.value.as_ref().and_then(|v| match &v.value {
+                    Some(any_value::Value::StringValue(s)) => Some(s.clone()),
+                    _ => None,
+                })
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
 
     let lower = url.to_lowercase();
 
-    if lower.contains("/chat/completions") || lower.contains("/conversation") || lower.contains("/responses") {
+    if lower.contains("/chat/completions")
+        || lower.contains("/conversation")
+        || lower.contains("/responses")
+    {
         ("llm_chat".to_string(), true)
     } else if lower.contains("/completions") {
         ("copilot_completions".to_string(), false)

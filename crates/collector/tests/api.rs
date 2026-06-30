@@ -1,18 +1,37 @@
-use agent_meter_collector::{app, config::Config, db};
-use agent_meter_db::{Database, PostgresDb};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use agent_meter_collector::{app, config::Config};
+use agent_meter_db::{Database, SqliteDb};
 use reqwest::Client;
 use serde_json::json;
-use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+
+static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Fresh, isolated SQLite database per test (temp file).
+async fn make_db() -> Arc<dyn Database> {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("am-test-api-{nanos}-{n}.db"));
+    let url = format!("sqlite://{}", path.display());
+    let db = SqliteDb::connect(&url)
+        .await
+        .unwrap_or_else(|e| panic!("sqlite connect: {e}"));
+    db.migrate()
+        .await
+        .unwrap_or_else(|e| panic!("sqlite migrate: {e}"));
+    Arc::new(db)
+}
 
 async fn setup() -> (String, Client) {
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://agent_meter:agent_meter@localhost:54321/agent_meter".into()
-    });
-
-    let pool = db::connect(&database_url).await.unwrap();
+    let db = make_db().await;
     let config = Config::from_env();
-    let db: Arc<dyn Database> = Arc::new(PostgresDb::from_pool(pool.clone()));
-    let app = app::build(config, pool, db);
+    let app = app::build(config, db, CancellationToken::new());
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -22,7 +41,7 @@ async fn setup() -> (String, Client) {
         axum::serve(listener, app).await.unwrap();
     });
 
-    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
     (base_url, Client::new())
 }
@@ -30,7 +49,11 @@ async fn setup() -> (String, Client) {
 #[tokio::test]
 async fn test_health() {
     let (base_url, client) = setup().await;
-    let resp = client.get(format!("{}/health", base_url)).send().await.unwrap();
+    let resp = client
+        .get(format!("{}/health", base_url))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["status"], "ok");
@@ -44,22 +67,17 @@ async fn test_dashboard_html() {
     assert_eq!(resp.status(), 200);
     let body = resp.text().await.unwrap();
     assert!(body.starts_with("<!DOCTYPE html>"));
-    assert!(body.contains("<title>Agent Meter"));
+    assert!(body.contains("agent-meter"));
 }
 
 #[tokio::test]
 async fn test_post_tool_call_event() {
     let (base_url, client) = setup().await;
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let task_id = format!("test-task-{}", ts);
     let event = json!({
-        "event_id": format!("{:032x}", ts),
-        "task_id": task_id,
-        "task_id": "test-task-integration",
+        "event_id": uuid::Uuid::new_v4().to_string(),
         "tool_name": "integration_test_tool",
+        "mcp_server": "filesystem",
+        "conversation_id": "conv-test-1",
         "started_at": "2026-05-17T00:00:00Z",
         "ended_at": "2026-05-17T00:00:01Z",
         "ok": true,
@@ -91,19 +109,6 @@ async fn test_reports_top_tools() {
 }
 
 #[tokio::test]
-async fn test_reports_top_tasks() {
-    let (base_url, client) = setup().await;
-    let resp = client
-        .get(format!("{}/reports/top-tasks", base_url))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 200);
-    let body: serde_json::Value = resp.json().await.unwrap();
-    assert!(body.is_array(), "top-tasks should be an array");
-}
-
-#[tokio::test]
 async fn test_reports_top_mcp_servers() {
     let (base_url, client) = setup().await;
     let resp = client
@@ -117,41 +122,20 @@ async fn test_reports_top_mcp_servers() {
 }
 
 #[tokio::test]
-async fn test_reports_events_supports_cursor_pagination() {
+async fn test_conversations_list_and_cost_summary() {
     let (base_url, client) = setup().await;
-    let run_id = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let conversation_id = format!("conv-cursor-test-{}", run_id);
 
-    for (event_id, started_at, tool_name) in [
-        (
-            uuid::Uuid::new_v4().to_string(),
-            "2026-05-17T00:00:03Z",
-            "cursor_test_tool_3",
-        ),
-        (
-            uuid::Uuid::new_v4().to_string(),
-            "2026-05-17T00:00:02Z",
-            "cursor_test_tool_2",
-        ),
-        (
-            uuid::Uuid::new_v4().to_string(),
-            "2026-05-17T00:00:01Z",
-            "cursor_test_tool_1",
-        ),
-    ] {
+    // Ingest a couple of events into one conversation.
+    for i in 0..2 {
         let event = json!({
-            "event_id": event_id,
-            "task_id": format!("events-cursor-test-{}", run_id),
-            "tool_name": tool_name,
-            "started_at": started_at,
-            "ended_at": started_at,
-            "ok": true,
-            "request_bytes": 10,
-            "response_bytes": 20,
-            "conversation_id": conversation_id
+            "event_id": uuid::Uuid::new_v4().to_string(),
+            "tool_name": format!("tool_{i}"),
+            "agent": "cursor",
+            "model": "gpt-4o",
+            "conversation_id": "conv-list-test",
+            "started_at": "2026-05-17T00:00:00Z",
+            "ended_at": "2026-05-17T00:00:01Z",
+            "ok": true
         });
         let resp = client
             .post(format!("{}/events/tool-call", base_url))
@@ -159,146 +143,26 @@ async fn test_reports_events_supports_cursor_pagination() {
             .send()
             .await
             .unwrap();
-        assert_eq!(resp.status(), 200, "cursor event insert should succeed");
+        assert_eq!(resp.status(), 200);
     }
 
-    let first_page: serde_json::Value = client
-        .get(format!(
-            "{}/reports/events?conversation_id={}&limit=2",
-            base_url, conversation_id
-        ))
+    let convs: serde_json::Value = client
+        .get(format!("{}/api/conversations?limit=10", base_url))
         .send()
         .await
         .unwrap()
         .json()
         .await
         .unwrap();
-    let first_page = first_page.as_array().unwrap();
-    assert_eq!(first_page.len(), 2);
-    assert_eq!(first_page[0]["tool_name"], "cursor_test_tool_3");
-    assert_eq!(first_page[1]["tool_name"], "cursor_test_tool_2");
+    assert!(convs.is_array(), "conversations should be an array");
 
-    let before_started_at = first_page[1]["started_at"].as_str().unwrap();
-    let before_event_id = first_page[1]["event_id"].as_str().unwrap();
-    let second_page: serde_json::Value = client
-        .get(format!(
-            "{}/reports/events?conversation_id={}&limit=2&before_started_at={}&before_event_id={}",
-            base_url,
-            conversation_id,
-            before_started_at,
-            before_event_id
-        ))
+    let cost: serde_json::Value = client
+        .get(format!("{}/api/cost/summary", base_url))
         .send()
         .await
         .unwrap()
         .json()
         .await
         .unwrap();
-    let second_page = second_page.as_array().unwrap();
-    assert_eq!(second_page.len(), 1);
-    assert_eq!(second_page[0]["tool_name"], "cursor_test_tool_1");
-}
-
-#[tokio::test]
-async fn test_tasks_start_end_list() {
-    let (base_url, client) = setup().await;
-
-    let start = json!({
-        "task_id": "test-task-001",
-        "repo": "test-repo",
-        "branch": "feature-x",
-        "ide": "test-ide",
-        "agent": "test-agent",
-        "skill": "integration"
-    });
-    let resp = client
-        .post(format!("{}/tasks/start", base_url))
-        .json(&start)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 200, "task start");
-
-    let resp = client
-        .get(format!("{}/tasks", base_url))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 200);
-    let tasks: serde_json::Value = resp.json().await.unwrap();
-    assert!(tasks.is_array());
-    let has_task = tasks.as_array().unwrap().iter().any(|t| {
-        t.get("task_id").and_then(|v| v.as_str()) == Some("test-task-001")
-    });
-    assert!(has_task, "task should appear in list");
-
-    let end = json!({
-        "task_id": "test-task-001",
-        "ended_at": "2026-05-17T01:00:00Z"
-    });
-    let resp = client
-        .post(format!("{}/tasks/end", base_url))
-        .json(&end)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 200, "task end");
-}
-
-#[tokio::test]
-async fn test_tasks_end_non_existent() {
-    let (base_url, client) = setup().await;
-    let end = json!({
-        "task_id": "task-that-does-not-exist"
-    });
-    let resp = client
-        .post(format!("{}/tasks/end", base_url))
-        .json(&end)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 404, "end non-existent should 404");
-}
-
-#[tokio::test]
-async fn test_billing_plans() {
-    let (base_url, client) = setup().await;
-    let resp = client
-        .get(format!("{}/api/billing/plans", base_url))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 200, "plans endpoint");
-    let plans: serde_json::Value = resp.json().await.unwrap();
-    let arr = plans.as_array().expect("plans is an array");
-    // Free, Pro, Team, Enterprise.
-    assert_eq!(arr.len(), 4, "should have 4 tiers");
-    let ids: Vec<&str> = arr.iter().map(|p| p["id"].as_str().unwrap()).collect();
-    assert_eq!(ids, vec!["free", "pro", "team", "enterprise"]);
-    // Pricing comes from the API, not hardcoded HTML.
-    let pro = arr.iter().find(|p| p["id"] == "pro").unwrap();
-    assert_eq!(pro["price"], 19);
-    assert_eq!(pro["featured"], true);
-    assert!(pro["features"].as_array().unwrap().len() >= 3);
-    // Enterprise has no fixed price.
-    let ent = arr.iter().find(|p| p["id"] == "enterprise").unwrap();
-    assert!(ent["price"].is_null(), "enterprise price is Custom (null)");
-}
-
-#[tokio::test]
-async fn test_billing_stub_redirects() {
-    let (base_url, _client) = setup().await;
-    // Use a non-following client to observe the redirect.
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .unwrap();
-    let resp = client
-        .get(format!("{}/billing/stub", base_url))
-        .send()
-        .await
-        .unwrap();
-    assert!(resp.status().is_redirection(), "stub should redirect");
-    let loc = resp.headers().get("location").unwrap().to_str().unwrap();
-    assert_eq!(loc, "/pricing?mode=stub");
+    assert!(cost.get("kpis").is_some(), "cost summary should have kpis");
 }

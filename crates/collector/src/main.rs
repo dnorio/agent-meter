@@ -10,7 +10,10 @@ use agent_meter_db::{Database, PostgresDb, SqliteDb};
 async fn connect_db(database_url: &str) -> anyhow::Result<Arc<dyn Database>> {
     if database_url.starts_with("sqlite:") {
         let sqlite_db = SqliteDb::connect(database_url).await?;
-        sqlite_db.migrate().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        sqlite_db
+            .migrate()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(Arc::new(sqlite_db))
     } else {
         let pool = db::connect(database_url).await?;
@@ -21,7 +24,11 @@ async fn connect_db(database_url: &str) -> anyhow::Result<Arc<dyn Database>> {
 }
 
 #[derive(Parser)]
-#[command(name = "agent-meter", version, about = "AI agent observability & FinOps collector")]
+#[command(
+    name = "agent-meter",
+    version,
+    about = "AI agent observability & FinOps collector"
+)]
 struct Cli {
     /// Path to config file (TOML). Env vars override file values.
     #[arg(short, long, env = "AGENT_METER_CONFIG")]
@@ -35,6 +42,18 @@ struct Cli {
 enum Command {
     /// Start the collector server (default)
     Serve,
+    /// Seed synthetic data and start the server (showcase mode)
+    Demo {
+        /// Number of synthetic conversations to generate
+        #[arg(long, default_value_t = 6)]
+        conversations: usize,
+        /// Tool-call events per conversation
+        #[arg(long, default_value_t = 10)]
+        events: usize,
+        /// Seed again even if the database already has data
+        #[arg(long)]
+        force: bool,
+    },
     /// Run database migrations
     Migrate,
     /// Print version and build info
@@ -59,6 +78,20 @@ async fn main() -> anyhow::Result<()> {
             let db = connect_db(&cfg.database_url).await?;
             run(cfg, db).await
         }
+        Command::Demo {
+            conversations,
+            events,
+            force,
+        } => {
+            let db = connect_db(&cfg.database_url).await?;
+            if force || !agent_meter_collector::demo::has_data(&db).await {
+                let n = agent_meter_collector::demo::seed(&db, conversations, events).await?;
+                println!("✓ seeded {n} synthetic events across {conversations} conversations");
+            } else {
+                println!("• database already has data — starting without re-seeding (use --force to reseed)");
+            }
+            run(cfg, db).await
+        }
         Command::Migrate => {
             let _db = connect_db(&cfg.database_url).await?;
             println!("✓ Migrations applied successfully");
@@ -68,7 +101,11 @@ async fn main() -> anyhow::Result<()> {
             println!(
                 "agent-meter {} ({})",
                 env!("CARGO_PKG_VERSION"),
-                if cfg!(debug_assertions) { "debug" } else { "release" }
+                if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                }
             );
             Ok(())
         }
@@ -77,13 +114,14 @@ async fn main() -> anyhow::Result<()> {
             println!("Database: {}", mask_url(&cfg.database_url));
             if cfg.database_url.starts_with("sqlite:") {
                 let sqlite_db = SqliteDb::connect(&cfg.database_url).await?;
-                sqlite_db.health_check().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+                sqlite_db
+                    .health_check()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
                 println!("✓ SQLite connection OK");
             } else {
                 let pool = db::connect(&cfg.database_url).await?;
-                let row: (i32,) = sqlx::query_as("SELECT 1")
-                    .fetch_one(&pool)
-                    .await?;
+                let row: (i32,) = sqlx::query_as("SELECT 1").fetch_one(&pool).await?;
                 println!("✓ Database connection OK (test query returned {})", row.0);
             }
             Ok(())

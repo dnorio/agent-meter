@@ -164,9 +164,7 @@ async fn cost_over_time(
     Ok(Json(json!(results)))
 }
 
-async fn distinct_models(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<String>>, AppError> {
+async fn distinct_models(State(state): State<AppState>) -> Result<Json<Vec<String>>, AppError> {
     let models = state.db.distinct_models().await?;
     Ok(Json(models))
 }
@@ -183,7 +181,9 @@ async fn events_feed(
         model: params.model,
         conversation_id: params.conversation_id,
         before_started_at: parse_dt(&params.before_started_at),
-        before_event_id: params.before_event_id.as_deref()
+        before_event_id: params
+            .before_event_id
+            .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok()),
         limit: params.limit.unwrap_or(50).min(200),
         offset: params.offset.unwrap_or(0),

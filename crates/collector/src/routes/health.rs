@@ -37,7 +37,11 @@ async fn readiness(State(state): State<AppState>) -> Json<Value> {
 async fn status_otlp(State(state): State<AppState>) -> Json<Value> {
     let cap = state.ingest.as_ref().map(|b| b.capacity()).unwrap_or(0);
     let queued = state.ingest.as_ref().map(|b| b.queued()).unwrap_or(0);
-    let pct_used = if cap > 0 { (queued as f64 / cap as f64 * 100.0).round() as u32 } else { 0 };
+    let pct_used = if cap > 0 {
+        (queued as f64 / cap as f64 * 100.0).round() as u32
+    } else {
+        0
+    };
     let status = if pct_used > 90 { "degraded" } else { "ok" };
     Json(json!({"status": status, "capacity": cap, "queued": queued, "pct_used": pct_used}))
 }

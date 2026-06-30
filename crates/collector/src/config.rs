@@ -11,21 +11,6 @@ pub struct Config {
     pub otel_endpoint: Option<String>,
     pub otel_service_name: String,
     pub log_level: String,
-
-    // Auth
-    pub session_secret: String,
-    pub public_url: String,
-    pub github_client_id: Option<String>,
-    pub github_client_secret: Option<String>,
-
-    // API Key enforcement
-    pub require_api_key: bool,
-
-    // Billing (Stripe)
-    pub stripe_secret_key: Option<String>,
-    pub stripe_webhook_secret: Option<String>,
-    pub stripe_price_pro: Option<String>,
-    pub stripe_price_team: Option<String>,
 }
 
 /// TOML file schema (all fields optional — env vars fill the gaps)
@@ -34,9 +19,7 @@ pub struct Config {
 struct FileConfig {
     server: ServerSection,
     database: DatabaseSection,
-    auth: AuthSection,
     telemetry: TelemetrySection,
-    billing: BillingSection,
 }
 
 #[derive(Deserialize, Default)]
@@ -55,29 +38,10 @@ struct DatabaseSection {
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
-struct AuthSection {
-    session_secret: Option<String>,
-    public_url: Option<String>,
-    github_client_id: Option<String>,
-    github_client_secret: Option<String>,
-    require_api_key: Option<bool>,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(default)]
 struct TelemetrySection {
     log_level: Option<String>,
     otel_endpoint: Option<String>,
     service_name: Option<String>,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(default)]
-struct BillingSection {
-    stripe_secret_key: Option<String>,
-    stripe_webhook_secret: Option<String>,
-    stripe_price_pro: Option<String>,
-    stripe_price_team: Option<String>,
 }
 
 impl Config {
@@ -125,46 +89,6 @@ impl Config {
                 .ok()
                 .or(file.telemetry.log_level)
                 .unwrap_or_else(|| "info".into()),
-
-            session_secret: env::var("SESSION_SECRET")
-                .ok()
-                .or(file.auth.session_secret)
-                .unwrap_or_else(|| "change-me-in-production-please-32bytes".into()),
-            public_url: env::var("PUBLIC_URL")
-                .ok()
-                .or(file.auth.public_url)
-                .unwrap_or_else(|| "http://localhost:8081".into()),
-            github_client_id: env::var("GITHUB_CLIENT_ID")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .or(file.auth.github_client_id),
-            github_client_secret: env::var("GITHUB_CLIENT_SECRET")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .or(file.auth.github_client_secret),
-
-            require_api_key: env::var("REQUIRE_API_KEY")
-                .ok()
-                .map(|v| v == "1" || v == "true")
-                .or(file.auth.require_api_key)
-                .unwrap_or(false),
-
-            stripe_secret_key: env::var("STRIPE_SECRET_KEY")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .or(file.billing.stripe_secret_key),
-            stripe_webhook_secret: env::var("STRIPE_WEBHOOK_SECRET")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .or(file.billing.stripe_webhook_secret),
-            stripe_price_pro: env::var("STRIPE_PRICE_PRO")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .or(file.billing.stripe_price_pro),
-            stripe_price_team: env::var("STRIPE_PRICE_TEAM")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .or(file.billing.stripe_price_team),
         }
     }
 }

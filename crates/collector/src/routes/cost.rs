@@ -31,12 +31,11 @@ async fn summary_handler(
     State(state): State<AppState>,
     Query(p): Query<CostParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let to = p
-        .to
-        .as_deref()
-        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(Utc::now);
+    let to =
+        p.to.as_deref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(Utc::now);
     let from = p
         .from
         .as_deref()
@@ -46,7 +45,11 @@ async fn summary_handler(
 
     let summary = state
         .db
-        .cost_summary(&CostQuery { from, to, model: p.model })
+        .cost_summary(&CostQuery {
+            from,
+            to,
+            model: p.model,
+        })
         .await?;
     Ok((
         [(header::CACHE_CONTROL, "public, max-age=60")],

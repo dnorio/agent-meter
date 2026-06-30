@@ -34,12 +34,18 @@ impl IngestBuffer {
     }
 
     /// Send an event to the buffer. Returns Err if the channel is full or closed.
-    pub async fn send(&self, event: ToolCallEvent) -> Result<(), mpsc::error::SendError<ToolCallEvent>> {
+    pub async fn send(
+        &self,
+        event: ToolCallEvent,
+    ) -> Result<(), mpsc::error::SendError<ToolCallEvent>> {
         self.tx.send(event).await
     }
 
     /// Try to send without waiting (for fire-and-forget paths).
-    pub fn try_send(&self, event: ToolCallEvent) -> Result<(), mpsc::error::TrySendError<ToolCallEvent>> {
+    pub fn try_send(
+        &self,
+        event: ToolCallEvent,
+    ) -> Result<(), mpsc::error::TrySendError<ToolCallEvent>> {
         self.tx.try_send(event)
     }
 
@@ -59,7 +65,10 @@ async fn buffer_worker(
     db: Arc<dyn Database>,
     cancel: CancellationToken,
 ) {
-    info!("ingest_buffer: worker started (batch={}, flush={}ms)", BATCH_SIZE, FLUSH_INTERVAL_MS);
+    info!(
+        "ingest_buffer: worker started (batch={}, flush={}ms)",
+        BATCH_SIZE, FLUSH_INTERVAL_MS
+    );
     let mut batch: Vec<ToolCallEvent> = Vec::with_capacity(BATCH_SIZE);
 
     loop {

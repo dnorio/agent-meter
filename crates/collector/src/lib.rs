@@ -1,6 +1,7 @@
 pub mod app;
 pub mod config;
 pub mod db;
+pub mod demo;
 pub mod errors;
 pub mod middleware;
 pub mod models;
@@ -16,7 +17,10 @@ use axum::serve;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
-pub async fn run(config: config::Config, db: Arc<dyn agent_meter_db::Database>) -> anyhow::Result<()> {
+pub async fn run(
+    config: config::Config,
+    db: Arc<dyn agent_meter_db::Database>,
+) -> anyhow::Result<()> {
     let _otel_provider = telemetry::init_telemetry(&config);
 
     let token = CancellationToken::new();
@@ -39,7 +43,10 @@ pub async fn run(config: config::Config, db: Arc<dyn agent_meter_db::Database>) 
     let ui_url = format!("http://127.0.0.1:{}", config.port);
     eprintln!("\n  agent-meter is running");
     eprintln!("  ▸ Dashboard:     {ui_url}");
-    eprintln!("  ▸ OTLP receiver: http://127.0.0.1:{}/v1/traces", config.otlp_port);
+    eprintln!(
+        "  ▸ OTLP receiver: http://127.0.0.1:{}/v1/traces",
+        config.otlp_port
+    );
     eprintln!("  ▸ Press Ctrl+C to stop\n");
     if std::env::var("AGENT_METER_NO_OPEN").is_err() {
         let url = ui_url.clone();
@@ -65,9 +72,12 @@ pub async fn run(config: config::Config, db: Arc<dyn agent_meter_db::Database>) 
     });
 
     let otlp_handle = tokio::spawn(async move {
-        if let Err(e) = serve(otlp_listener, otlp_app.into_make_service_with_connect_info::<SocketAddr>())
-            .with_graceful_shutdown(async move { otlp_token.cancelled().await })
-            .await
+        if let Err(e) = serve(
+            otlp_listener,
+            otlp_app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move { otlp_token.cancelled().await })
+        .await
         {
             tracing::error!(error = %e, "OTLP server failed");
         }

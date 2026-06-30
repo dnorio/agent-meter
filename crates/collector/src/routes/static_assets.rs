@@ -13,16 +13,43 @@ const FAVICON_SVG: &str = include_str!("../../ui/_static/favicon.svg");
 const NOT_FOUND_HTML: &str = include_str!("../../ui/404.html");
 
 fn css(body: &'static str) -> Response {
-    ([(header::CONTENT_TYPE, "text/css; charset=utf-8"),
-      (header::CACHE_CONTROL, "public, max-age=3600, stale-while-revalidate=86400")], body).into_response()
+    (
+        [
+            (header::CONTENT_TYPE, "text/css; charset=utf-8"),
+            (
+                header::CACHE_CONTROL,
+                "public, max-age=3600, stale-while-revalidate=86400",
+            ),
+        ],
+        body,
+    )
+        .into_response()
 }
 fn js(body: &'static str) -> Response {
-    ([(header::CONTENT_TYPE, "application/javascript; charset=utf-8"),
-      (header::CACHE_CONTROL, "public, max-age=3600, stale-while-revalidate=86400")], body).into_response()
+    (
+        [
+            (
+                header::CONTENT_TYPE,
+                "application/javascript; charset=utf-8",
+            ),
+            (
+                header::CACHE_CONTROL,
+                "public, max-age=3600, stale-while-revalidate=86400",
+            ),
+        ],
+        body,
+    )
+        .into_response()
 }
 fn svg(body: &'static str) -> Response {
-    ([(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8"),
-      (header::CACHE_CONTROL, "public, max-age=86400, immutable")], body).into_response()
+    (
+        [
+            (header::CONTENT_TYPE, "image/svg+xml; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=86400, immutable"),
+        ],
+        body,
+    )
+        .into_response()
 }
 
 pub async fn not_found_page() -> (axum::http::StatusCode, Html<&'static str>) {
@@ -43,9 +70,14 @@ pub fn router() -> Router<crate::app::AppState> {
 }
 
 async fn robots_txt() -> Response {
-    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"),
-      (header::CACHE_CONTROL, "public, max-age=86400")],
-     "User-agent: *\nAllow: /\n\nSitemap: http://localhost:8081/sitemap.xml\n").into_response()
+    (
+        [
+            (header::CONTENT_TYPE, "text/plain; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        "User-agent: *\nAllow: /\n\nSitemap: http://localhost:8081/sitemap.xml\n",
+    )
+        .into_response()
 }
 
 async fn sitemap_xml() -> Response {
@@ -65,7 +97,12 @@ async fn sitemap_xml() -> Response {
   <url><loc>http://localhost:8081/status</loc><changefreq>daily</changefreq><priority>0.5</priority></url>
   <url><loc>http://localhost:8081/login</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
 </urlset>"#;
-    ([(header::CONTENT_TYPE, "application/xml; charset=utf-8"),
-      (header::CACHE_CONTROL, "public, max-age=86400")],
-     xml).into_response()
+    (
+        [
+            (header::CONTENT_TYPE, "application/xml; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        xml,
+    )
+        .into_response()
 }
