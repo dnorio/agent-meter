@@ -74,8 +74,33 @@ async fn get_timeline(
         .filter_map(|r| r.estimated_total_tokens)
         .map(|t| t as i64)
         .sum();
+    let total_tokens_in: i64 = rows
+        .iter()
+        .filter_map(|r| r.estimated_input_tokens)
+        .map(|t| t as i64)
+        .sum();
+    let total_tokens_out: i64 = rows
+        .iter()
+        .filter_map(|r| r.estimated_output_tokens)
+        .map(|t| t as i64)
+        .sum();
+    let total_usd_cost: f64 = rows.iter().filter_map(|r| r.usd_cost).sum();
     let total_duration_ms: i64 = rows.iter().map(|r| r.duration_ms as i64).sum();
     let error_count = rows.iter().filter(|r| !r.ok).count();
+
+    // Expose `tokens_in`/`tokens_out` aliases per event so the timeline UI
+    // (which expects those names) renders token counts correctly.
+    let events: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            let mut v = serde_json::to_value(r).unwrap_or(Value::Null);
+            if let Value::Object(ref mut m) = v {
+                m.insert("tokens_in".into(), json!(r.estimated_input_tokens));
+                m.insert("tokens_out".into(), json!(r.estimated_output_tokens));
+            }
+            v
+        })
+        .collect();
 
     Ok(Json(json!({
         "conversation_id": conversation_id,
@@ -85,8 +110,11 @@ async fn get_timeline(
         "started_at": started_at,
         "ended_at": ended_at,
         "total_tokens": total_tokens,
+        "total_tokens_in": total_tokens_in,
+        "total_tokens_out": total_tokens_out,
+        "total_usd_cost": total_usd_cost,
         "total_duration_ms": total_duration_ms,
-        "events": rows,
+        "events": events,
     })))
 }
 

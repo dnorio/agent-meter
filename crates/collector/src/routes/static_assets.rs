@@ -84,18 +84,10 @@ async fn sitemap_xml() -> Response {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>http://localhost:8081/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
-  <url><loc>http://localhost:8081/pricing</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>http://localhost:8081/quickstart</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>http://localhost:8081/vs</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>http://localhost:8081/vs/helicone</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>http://localhost:8081/vs/datadog</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>http://localhost:8081/vs/langsmith</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>http://localhost:8081/docs</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>http://localhost:8081/leaderboard</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>http://localhost:8081/conversations</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:8081/reports</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
   <url><loc>http://localhost:8081/cost</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
-  <url><loc>http://localhost:8081/conversations</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
-  <url><loc>http://localhost:8081/status</loc><changefreq>daily</changefreq><priority>0.5</priority></url>
-  <url><loc>http://localhost:8081/login</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>http://localhost:8081/docs</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
 </urlset>"#;
     (
         [

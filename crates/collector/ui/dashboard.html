@@ -55,15 +55,11 @@
       <div class="am-nav-section">Observability</div>
       <a class="am-nav-link active" href="/"><svg class="am-icon"><use href="/_static/icons.svg#i-dashboard"/></svg><span>Dashboard</span></a>
       <a class="am-nav-link" href="/conversations"><svg class="am-icon"><use href="/_static/icons.svg#i-conversations"/></svg><span>Conversations</span></a>
-      <a class="am-nav-link" href="/cost"><svg class="am-icon"><use href="/_static/icons.svg#i-cost"/></svg><span>Cost</span></a>
-      <a class="am-nav-link" href="/alerts"><svg class="am-icon"><use href="/_static/icons.svg#i-alerts"/></svg><span>Alerts</span></a>
-      <a class="am-nav-link" href="/tasks"><svg class="am-icon"><use href="/_static/icons.svg#i-tasks"/></svg><span>Tasks</span></a>
       <a class="am-nav-link" href="/reports"><svg class="am-icon"><use href="/_static/icons.svg#i-reports"/></svg><span>Reports</span></a>
-      <a class="am-nav-link" href="/setup"><svg class="am-icon"><use href="/_static/icons.svg#i-settings"/></svg><span>Setup</span></a>
+      <a class="am-nav-link" href="/cost"><svg class="am-icon"><use href="/_static/icons.svg#i-cost"/></svg><span>Cost</span></a>
       <div class="am-nav-section">Resources</div>
       <a class="am-nav-link" href="/docs"><svg class="am-icon"><use href="/_static/icons.svg#i-docs"/></svg><span>Documentation</span></a>
-      <a class="am-nav-link" href="/pricing"><svg class="am-icon"><use href="/_static/icons.svg#i-pricing"/></svg><span>Pricing</span></a>
-      <a class="am-nav-link" href="https://github.com/dnorio/agent-meter"><svg class="am-icon"><use href="/_static/icons.svg#i-github"/></svg><span>GitHub</span></a>
+      <a class="am-nav-link" href="https://github.com/dnorio/agent-meter" target="_blank" rel="noopener"><svg class="am-icon"><use href="/_static/icons.svg#i-github"/></svg><span>GitHub</span></a>
     </nav>
     <div class="am-sidebar-footer">
       <button class="am-btn am-btn-ghost am-btn-icon" onclick="amToggleTheme()" title="Toggle theme">
@@ -87,7 +83,7 @@
       <div id="searchResults" class="am-search-dropdown" style="display:none"></div>
     </div>
     <div class="am-topbar-actions" id="amUserSlot">
-      <a class="am-btn am-btn-secondary am-btn-sm" href="/login">Sign in</a>
+      <a class="am-btn am-btn-ghost am-btn-sm" href="https://github.com/dnorio/agent-meter" target="_blank" rel="noopener" title="GitHub"><svg class="am-icon"><use href="/_static/icons.svg#i-github"/></svg></a>
     </div>
   </header>
 
@@ -110,10 +106,6 @@
         <select id="modelFilter">
           <option value="">All models</option>
         </select>
-      </div>
-      <div class="am-btn-group" style="margin-left:auto">
-        <button class="am-btn am-btn-ghost am-btn-sm" id="btnExportEvents" title="Export events as CSV"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-external"/></svg>CSV</button>
-        <button class="am-btn am-btn-ghost am-btn-sm" id="btnExportCost" title="Export cost as CSV"><svg class="am-icon-sm"><use href="/_static/icons.svg#i-dollar"/></svg>Cost CSV</button>
       </div>
     </div>
 
@@ -593,16 +585,6 @@ modelSelect.addEventListener('change', () => {
   refresh();
 });
 
-// CSV export buttons
-document.getElementById('btnExportEvents').addEventListener('click', () => {
-  const url = `/api/export/events.csv?from=${periodSince(CURRENT_PERIOD)}${modelParam()}`;
-  window.open(url, '_blank');
-});
-document.getElementById('btnExportCost').addEventListener('click', () => {
-  const url = `/api/export/cost.csv?from=${periodSince(CURRENT_PERIOD)}${modelParam()}`;
-  window.open(url, '_blank');
-});
-
 async function loadModels() {
   try {
     const models = await fetchJSON('/reports/models');
@@ -666,18 +648,6 @@ setInterval(() => { loadHealth(); refresh(); }, 30000);
   }
 
   function esc(s) { return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-})();
-</script>
-<script>
-(function(){
-  fetch('/api/stats/public').then(r=>r.json()).then(d=>{
-    const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n);
-    document.getElementById('spEvents').textContent=fmt(d.total_events||0);
-    document.getElementById('spModels').textContent=String(d.distinct_models||0);
-    document.getElementById('spIDEs').textContent=String(d.distinct_ides||0);
-    document.getElementById('spCost').textContent='$'+Number(d.total_usd_tracked||0).toFixed(0);
-    document.getElementById('socialProof').style.display='flex';
-  }).catch(()=>{});
 })();
 </script>
 </body>

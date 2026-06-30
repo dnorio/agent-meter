@@ -1,64 +1,83 @@
-# agent-meter
+<div align="center">
 
-**Observability & FinOps for AI-powered development — in a single self-hosted binary.**
+# 📊 agent-meter
 
-Track every LLM call, tool invocation, conversation and token spent across all your
-IDEs and AI agents. No accounts, no cloud, no database to provision: one binary, a
-local SQLite file, and a dashboard on `localhost`.
+### Observability & FinOps for AI-powered development — in a single self-hosted binary.
 
-<p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" alt="agent-meter dashboard" width="720">
-</p>
+Track every **LLM call**, **tool invocation**, **conversation** and **token** spent
+across all your IDEs and AI agents. No accounts, no cloud, no database to provision:
+**one binary**, a local **SQLite** file, and a dashboard on `localhost`.
+
+[![CI](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)
+![Single binary](https://img.shields.io/badge/deploy-single%20binary-success.svg)
+![Local-first](https://img.shields.io/badge/privacy-local--first-brightgreen.svg)
+
+<br/>
+
+<img src="docs/assets/dashboard.png" alt="agent-meter dashboard" width="860">
+
+</div>
 
 ---
 
-## Quick start
+## ✨ Why agent-meter
 
-### Try it in 10 seconds (with synthetic data)
+- **One binary, zero setup.** Embedded Web UI + REST API + OTLP receiver + SQLite. No services to wire up.
+- **Local-first & private.** Binds to `127.0.0.1`, stores everything in a local file, never phones home.
+- **Multi-agent by design.** Cursor, VS Code / GitHub Copilot, Claude Code, Codex CLI, Eclipse, OpenCode — all in one place.
+- **FinOps built in.** Token and USD cost attribution by model, by day, with burn-rate and per-session breakdowns.
+- **Trace-level drill-down.** Every conversation has a waterfall timeline of tool calls, prompts, latencies and errors.
 
-```bash
-agent-meter demo
-# → seeds synthetic conversations and opens http://127.0.0.1:8081
-```
+---
 
-`demo` is the fastest way to see what agent-meter looks like — it generates
-realistic activity (multiple agents, models, tools, errors) so every page has
-something to show. It never collects real data and won't re-seed if a database
-already has data (use `--force` to reseed).
+## 🚀 Quick start
 
-### Run for real
+> The fastest path that works today is running from source with Rust 1.75+.
 
 ```bash
-agent-meter serve
+git clone https://github.com/dnorio/agent-meter.git
+cd agent-meter
+
+# 1) See it instantly, with realistic synthetic data
+cargo run -p agent-meter-collector -- demo
+# → seeds sample conversations and opens http://127.0.0.1:8081
+
+# 2) Run for real (ingest your own events)
+cargo run -p agent-meter-collector -- serve
 # → http://127.0.0.1:8081  (UI + REST API)
 # → http://127.0.0.1:4318  (OTLP receiver)
 ```
 
-State is stored in `agent-meter.db` (SQLite) in the working directory — zero
-configuration required.
+`demo` generates realistic activity (multiple agents, models, tools, costs and
+errors) so every page has something to show. It never collects real data and
+won't re-seed a database that already has data — pass `--force` to reseed.
 
-### Install
+State lives in `agent-meter.db` (SQLite) in the working directory. **Zero
+configuration required.**
 
-```bash
-# Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | bash
-
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
-```
-
-### Build from source
-
-```bash
-# Prerequisites: Rust 1.75+
-git clone https://github.com/dnorio/agent-meter.git
-cd agent-meter
-cargo run -p agent-meter-collector -- demo   # or: serve
-```
+> 📦 **Prebuilt binaries** for Linux/macOS/Windows ship with the first tagged
+> release — see [Releases](https://github.com/dnorio/agent-meter/releases).
 
 ---
 
-## Sending data
+## 🖼️ Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><b>Dashboard</b> — KPIs, calls over time, top tools & MCP servers<br/><img src="docs/assets/dashboard.png" alt="Dashboard" width="100%"></td>
+    <td width="50%"><b>Conversations</b> — every agent session as a trace<br/><img src="docs/assets/conversations.png" alt="Conversations" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><b>Timeline</b> — per-session waterfall of tool calls<br/><img src="docs/assets/timeline.png" alt="Conversation timeline" width="100%"></td>
+    <td width="50%"><b>Cost</b> — token & USD attribution by model and day<br/><img src="docs/assets/cost.png" alt="Cost attribution" width="100%"></td>
+  </tr>
+</table>
+
+---
+
+## 📡 Sending data
 
 agent-meter accepts telemetry three ways:
 
@@ -83,12 +102,12 @@ curl -X POST http://127.0.0.1:8081/events/tool-call \
     "started_at": "2026-01-15T10:00:00Z",
     "ended_at": "2026-01-15T10:00:01Z",
     "ok": true,
-    "request_bytes": 1200,
-    "response_bytes": 30000
+    "estimated_input_tokens": 1200,
+    "estimated_output_tokens": 300
   }'
 ```
 
-### Example — VS Code (OTLP)
+### Example — VS Code (GitHub Copilot via OTLP)
 
 ```json
 {
@@ -97,24 +116,25 @@ curl -X POST http://127.0.0.1:8081/events/tool-call \
 }
 ```
 
-> **Running on WSL?** See the step-by-step
-> [WSL + Copilot quickstart](docs/QUICKSTART-WSL-COPILOT.md).
+> 🐧 **Running on WSL?** Follow the step-by-step
+> [WSL + Copilot quickstart](docs/QUICKSTART-WSL-COPILOT.md) to capture live
+> Copilot activity from another machine.
 
 ---
 
-## Pages
+## 📑 Pages
 
-| Page | What it shows |
-|------|---------------|
-| **Dashboard** (`/`) | KPIs, activity over time, top tools/models |
-| **Conversations** (`/conversations`) | Sessions grouped by `conversation_id`, with drill-down |
-| **Timeline** (`/conversations/:id/timeline`) | Per-conversation waterfall of tool calls |
-| **Reports** (`/reports`) | Top tools, MCP servers, usage breakdowns |
-| **Cost** (`/cost`) | Token usage and cost summary |
+| Page | Route | What it shows |
+|------|-------|---------------|
+| **Dashboard** | `/` | KPIs, calls over time, top tools & MCP servers |
+| **Conversations** | `/conversations` | Agent sessions grouped by `conversation_id`, with drill-down |
+| **Timeline** | `/conversations/:id/timeline` | Per-conversation waterfall of tool calls |
+| **Reports** | `/reports` | Query-able tiles; every tile is also a JSON endpoint |
+| **Cost** | `/cost` | Token usage and USD attribution by model and day |
 
 ---
 
-## API reference
+## 🔌 API reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -122,14 +142,15 @@ curl -X POST http://127.0.0.1:8081/events/tool-call \
 | `POST` | `/v1/traces` | OTLP trace ingest (port `:4318`) |
 | `GET` | `/api/conversations` | List conversations (paginated) |
 | `GET` | `/api/conversations/:id/timeline` | Conversation timeline (events + summary) |
+| `GET` | `/reports/calls-over-time` | Time-series of tool calls |
 | `GET` | `/reports/top-tools` | Most-used tools |
 | `GET` | `/reports/top-mcp-servers` | Most active MCP servers |
-| `GET` | `/api/cost/summary` | Token & cost summary |
+| `GET` | `/api/cost/summary` | Token & USD cost summary |
 | `GET` | `/health` | Health check |
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 All settings have sensible defaults; override via environment variables or a TOML
 file (`--config agent-meter.toml`, see [`agent-meter.example.toml`](agent-meter.example.toml)).
@@ -140,20 +161,24 @@ file (`--config agent-meter.toml`, see [`agent-meter.example.toml`](agent-meter.
 | `AGENT_METER_PORT` | `8081` | UI + REST port |
 | `AGENT_METER_OTLP_PORT` | `4318` | OTLP receiver port |
 | `DATABASE_URL` | `sqlite://agent-meter.db` | SQLite by default; `postgres://…` also supported |
-| `AGENT_METER_NO_OPEN` | _(unset)_ | Set to skip auto-opening the browser on `serve` |
+| `AGENT_METER_NO_OPEN` | _(unset)_ | Set to skip auto-opening the browser |
 | `RUST_LOG` | `info` | Log level |
 
-> **PostgreSQL is optional.** Point `DATABASE_URL` at a `postgres://` URL if you
-> want a shared/server deployment; SQLite is the zero-config default.
+> **PostgreSQL is optional.** Point `DATABASE_URL` at a `postgres://` URL for a
+> shared/server deployment; SQLite is the zero-config default.
+
+> **Cost estimates.** When a client doesn't send an explicit cost, agent-meter
+> estimates USD from token counts using approximate public per-model list prices,
+> so the FinOps views always have a sensible number.
 
 ---
 
-## Project structure
+## 🗂️ Project structure
 
 ```
 agent-meter/
 ├── crates/
-│   ├── collector/          # Axum HTTP server (REST API + OTLP + embedded Web UI)
+│   ├── collector/           # Axum HTTP server (REST API + OTLP + embedded Web UI)
 │   │   ├── src/
 │   │   │   ├── routes/      # API + page handlers
 │   │   │   ├── otlp/        # OTLP receiver + IDE detection
@@ -168,21 +193,18 @@ agent-meter/
 ├── sdk/                     # Client SDKs (Node, Python)
 ├── migrations/              # Postgres migrations (optional backend)
 ├── docs/                    # Documentation
-├── install.sh / install.ps1 # Install scripts
 └── docker-compose.standalone.yml
 ```
 
 ---
 
-## Privacy
+## 🔒 Privacy
 
-- **Local-first.** Binds to `127.0.0.1` and stores everything in a local SQLite
-  file. No external telemetry, no phone-home.
-- **No auth tokens stored.** The collector records tool-call metadata, not your
-  API credentials.
+- **Local-first.** Binds to `127.0.0.1` and stores everything in a local SQLite file. No external telemetry, no phone-home.
+- **No credentials stored.** The collector records tool-call metadata, not your API keys.
 
 ---
 
-## License
+## 📄 License
 
 [MIT](LICENSE) © agent-meter contributors

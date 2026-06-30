@@ -152,8 +152,9 @@ pub async fn seed(
         let conv_id = format!("demo-conv-{:02}", c + 1);
         let prompt = PROMPTS[c % PROMPTS.len()];
 
-        // start each conversation somewhere in the last ~4 days
-        let mut cursor = now - Duration::minutes(rng.range(30, 5760));
+        // spread conversations across the last ~20h so the default 24h
+        // dashboard view (and the hourly "calls over time" chart) look full
+        let mut cursor = now - Duration::minutes(rng.range(15, 1140));
 
         for _ in 0..events_per {
             let tool = TOOLS[rng.below(TOOLS.len())];

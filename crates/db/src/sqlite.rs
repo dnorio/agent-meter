@@ -169,6 +169,39 @@ fn parse_dt(s: &str) -> chrono::DateTime<chrono::Utc> {
         })
 }
 
+/// Best-effort USD cost estimate from token counts and model name.
+///
+/// Rates are approximate public list prices in USD per 1M tokens
+/// (input, output) and are only meant to give the FinOps views a sensible
+/// number when an explicit `usd_cost` is not supplied by the client.
+fn estimate_usd(model: Option<&str>, input_tokens: Option<i32>, output_tokens: Option<i32>) -> f64 {
+    let m = model.unwrap_or("").to_ascii_lowercase();
+    let (in_rate, out_rate) = if m.contains("gpt-4o-mini") {
+        (0.15, 0.60)
+    } else if m.contains("gpt-4o") || m.contains("gpt-4.1") {
+        (2.50, 10.00)
+    } else if m.contains("o3-mini") || m.contains("o1-mini") {
+        (1.10, 4.40)
+    } else if m.contains("o3") || m.contains("o1") {
+        (10.00, 40.00)
+    } else if m.contains("opus") {
+        (15.00, 75.00)
+    } else if m.contains("haiku") {
+        (0.80, 4.00)
+    } else if m.contains("sonnet") || m.contains("claude") {
+        (3.00, 15.00)
+    } else if m.contains("flash") {
+        (0.075, 0.30)
+    } else if m.contains("gemini") {
+        (1.25, 5.00)
+    } else {
+        (1.00, 3.00)
+    };
+    let input = input_tokens.unwrap_or(0).max(0) as f64;
+    let output = output_tokens.unwrap_or(0).max(0) as f64;
+    (input / 1_000_000.0) * in_rate + (output / 1_000_000.0) * out_rate
+}
+
 fn parse_dt_opt(s: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
     s.map(|s| parse_dt(s))
 }
@@ -252,7 +285,11 @@ impl Database for SqliteDb {
         .bind(&e.span_id)
         .bind(&e.parent_span_id)
         .bind(&e.tool_call_id)
-        .bind(0.0f64) // usd_cost placeholder — no compute_event_usd in SQLite
+        .bind(estimate_usd(
+            e.model.as_deref(),
+            e.estimated_input_tokens,
+            e.estimated_output_tokens,
+        ))
         .bind(billing_model)
         .fetch_one(&self.pool)
         .await?;
@@ -619,18 +656,102 @@ impl Database for SqliteDb {
             .collect())
     }
 
-    async fn top_tasks(&self, _q: &ReportQuery) -> DbResult<Vec<TopTaskRow>> {
-        // TODO: Implement SQLite version
-        Ok(vec![])
+    async fn top_tasks(&self, q: &ReportQuery) -> DbResult<Vec<TopTaskRow>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                conversation_id AS task_id,
+                COUNT(*) AS tool_calls,
+                SUM(estimated_total_tokens) AS total_estimated_tokens,
+                SUM(duration_ms) AS total_duration_ms,
+                SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS errors,
+                COUNT(DISTINCT tool_name) AS distinct_tools
+            FROM agent_tool_calls
+            WHERE conversation_id IS NOT NULL
+              AND (?1 IS NULL OR started_at >= ?1)
+              AND (?2 IS NULL OR started_at <= ?2)
+              AND (?3 IS NULL OR repo = ?3)
+              AND (?4 IS NULL OR ide = ?4)
+              AND (?5 IS NULL OR agent = ?5)
+              AND (?6 IS NULL OR model = ?6)
+              AND (?7 IS NULL OR skill = ?7)
+            GROUP BY conversation_id
+            ORDER BY tool_calls DESC
+            LIMIT ?8
+            "#,
+        )
+        .bind(q.from.map(|d| d.to_rfc3339()))
+        .bind(q.to.map(|d| d.to_rfc3339()))
+        .bind(&q.repo)
+        .bind(&q.ide)
+        .bind(&q.agent)
+        .bind(&q.model)
+        .bind(&q.skill)
+        .bind(q.limit.unwrap_or(20))
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .iter()
+            .map(|r| TopTaskRow {
+                task_id: r.get("task_id"),
+                tool_calls: r.get("tool_calls"),
+                total_estimated_tokens: r.get("total_estimated_tokens"),
+                total_duration_ms: r.get("total_duration_ms"),
+                errors: r.get("errors"),
+                distinct_tools: r.get("distinct_tools"),
+            })
+            .collect())
     }
 
     async fn calls_over_time(
         &self,
-        _q: &ReportQuery,
-        _bucket: &str,
+        q: &ReportQuery,
+        bucket: &str,
     ) -> DbResult<Vec<CallsBucketRow>> {
-        // TODO: Implement SQLite version
-        Ok(vec![])
+        let fmt = match bucket {
+            "day" => "%Y-%m-%dT00:00:00Z",
+            "minute" => "%Y-%m-%dT%H:%M:00Z",
+            _ => "%Y-%m-%dT%H:00:00Z",
+        };
+        let sql = format!(
+            r#"
+            SELECT
+                strftime('{fmt}', started_at) AS bucket,
+                COUNT(*) AS calls,
+                SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS errors
+            FROM agent_tool_calls
+            WHERE (?1 IS NULL OR started_at >= ?1)
+              AND (?2 IS NULL OR started_at <= ?2)
+              AND (?3 IS NULL OR repo = ?3)
+              AND (?4 IS NULL OR ide = ?4)
+              AND (?5 IS NULL OR agent = ?5)
+              AND (?6 IS NULL OR model = ?6)
+              AND (?7 IS NULL OR skill = ?7)
+            GROUP BY bucket
+            ORDER BY bucket ASC
+            LIMIT 500
+            "#
+        );
+        let rows = sqlx::query(&sql)
+            .bind(q.from.map(|d| d.to_rfc3339()))
+            .bind(q.to.map(|d| d.to_rfc3339()))
+            .bind(&q.repo)
+            .bind(&q.ide)
+            .bind(&q.agent)
+            .bind(&q.model)
+            .bind(&q.skill)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows
+            .iter()
+            .map(|r| CallsBucketRow {
+                bucket: parse_dt(r.get("bucket")),
+                calls: r.get("calls"),
+                errors: r.get("errors"),
+            })
+            .collect())
     }
 
     async fn distinct_models(&self) -> DbResult<Vec<String>> {
