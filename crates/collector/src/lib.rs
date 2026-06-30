@@ -13,24 +13,18 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::serve;
-use sqlx::PgPool;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
-use agent_meter_db::PostgresDb;
-
-pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
+pub async fn run(config: config::Config, db: Arc<dyn agent_meter_db::Database>) -> anyhow::Result<()> {
     let _otel_provider = telemetry::init_telemetry(&config);
-
-    let db: Arc<dyn agent_meter_db::Database> = Arc::new(PostgresDb::from_pool(pool.clone()));
 
     let token = CancellationToken::new();
     let token_clone = token.clone();
     let otlp_token = token.clone();
-    let pricing_token = token.clone();
 
-    let main_app = app::build(config.clone(), pool.clone(), db.clone(), token.clone());
-    let otlp_app = app::build_otlp(config.clone(), pool.clone(), db.clone(), token.clone());
+    let main_app = app::build(config.clone(), db.clone(), token.clone());
+    let otlp_app = app::build_otlp(config.clone(), db.clone(), token.clone());
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
     let otlp_addr: SocketAddr = format!("{}:{}", config.host, config.otlp_port).parse()?;
@@ -41,14 +35,25 @@ pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let otlp_listener = tokio::net::TcpListener::bind(otlp_addr).await?;
 
+    // Friendly standalone banner + open browser to the dashboard.
+    let ui_url = format!("http://127.0.0.1:{}", config.port);
+    eprintln!("\n  agent-meter is running");
+    eprintln!("  ▸ Dashboard:     {ui_url}");
+    eprintln!("  ▸ OTLP receiver: http://127.0.0.1:{}/v1/traces", config.otlp_port);
+    eprintln!("  ▸ Press Ctrl+C to stop\n");
+    if std::env::var("AGENT_METER_NO_OPEN").is_err() {
+        let url = ui_url.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+            open_browser(&url);
+        });
+    }
+
     tokio::spawn(async move {
         signal::ctrl_c().await.ok();
         tracing::info!("shutdown signal received");
         token_clone.cancel();
     });
-
-    // T-360: Background pricing auto-sync (every 24h)
-    services::pricing_updater::spawn_pricing_updater(pool.clone(), pricing_token);
 
     let main_handle = tokio::spawn(async move {
         if let Err(e) = serve(listener, main_app)
@@ -78,4 +83,20 @@ pub async fn run(config: config::Config, pool: PgPool) -> anyhow::Result<()> {
 
     tracing::info!("collector stopped");
     Ok(())
+}
+
+/// Best-effort open of the default browser (Linux/macOS/Windows). Errors ignored.
+fn open_browser(url: &str) {
+    #[cfg(target_os = "linux")]
+    let cmd = ("xdg-open", vec![url]);
+    #[cfg(target_os = "macos")]
+    let cmd = ("open", vec![url]);
+    #[cfg(target_os = "windows")]
+    let cmd = ("cmd", vec!["/C", "start", "", url]);
+
+    let _ = std::process::Command::new(cmd.0)
+        .args(cmd.1)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 }

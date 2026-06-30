@@ -99,7 +99,7 @@ impl Config {
             host: env::var("AGENT_METER_HOST")
                 .ok()
                 .or(file.server.host)
-                .unwrap_or_else(|| "0.0.0.0".into()),
+                .unwrap_or_else(|| "127.0.0.1".into()),
             port: env::var("AGENT_METER_PORT")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -113,9 +113,7 @@ impl Config {
             database_url: env::var("DATABASE_URL")
                 .ok()
                 .or(file.database.url)
-                .unwrap_or_else(|| {
-                    "postgres://agent_meter:agent_meter@localhost:5432/agent_meter".into()
-                }),
+                .unwrap_or_else(|| "sqlite://agent-meter.db".into()),
             otel_endpoint: env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
                 .ok()
                 .or(file.telemetry.otel_endpoint),

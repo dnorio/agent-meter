@@ -2,7 +2,23 @@ use clap::{Parser, Subcommand};
 use std::sync::Arc;
 
 use agent_meter_collector::{config, db, run};
-use agent_meter_db::{Database, SqliteDb};
+use agent_meter_db::{Database, PostgresDb, SqliteDb};
+
+/// Build the backend-agnostic database handle from the configured URL.
+/// SQLite is the default (single-file, zero-config standalone); Postgres is
+/// used when `DATABASE_URL` starts with `postgres:`.
+async fn connect_db(database_url: &str) -> anyhow::Result<Arc<dyn Database>> {
+    if database_url.starts_with("sqlite:") {
+        let sqlite_db = SqliteDb::connect(database_url).await?;
+        sqlite_db.migrate().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        Ok(Arc::new(sqlite_db))
+    } else {
+        let pool = db::connect(database_url).await?;
+        let pg = PostgresDb::from_pool(pool);
+        pg.migrate().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        Ok(Arc::new(pg))
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "agent-meter", version, about = "AI agent observability & FinOps collector")]
@@ -40,30 +56,11 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command.unwrap_or(Command::Serve) {
         Command::Serve => {
-            if cfg.database_url.starts_with("sqlite:") {
-                let sqlite_db = SqliteDb::connect(&cfg.database_url).await?;
-                sqlite_db.migrate().await.map_err(|e| anyhow::anyhow!("{e}"))?;
-                let _db: Arc<dyn Database> = Arc::new(sqlite_db);
-                // For SQLite mode, we don't have a PgPool. Create a dummy connection
-                // that will fail if services try to use it directly.
-                // TODO: Remove pool from AppState once all services use db trait.
-                eprintln!("⚠ SQLite mode: services using pool directly will not work until migrated to db trait");
-                anyhow::bail!("SQLite serve mode requires services migrated to db trait (WIP — use postgres for now)");
-            } else {
-                let pool = db::connect(&cfg.database_url).await?;
-                run(cfg, pool).await
-            }
+            let db = connect_db(&cfg.database_url).await?;
+            run(cfg, db).await
         }
         Command::Migrate => {
-            if cfg.database_url.starts_with("sqlite:") {
-                let sqlite_db = SqliteDb::connect(&cfg.database_url).await?;
-                sqlite_db.migrate().await.map_err(|e| anyhow::anyhow!("{e}"))?;
-            } else {
-                let pool = db::connect(&cfg.database_url).await?;
-                sqlx::migrate!("../../migrations")
-                    .run(&pool)
-                    .await?;
-            }
+            let _db = connect_db(&cfg.database_url).await?;
             println!("✓ Migrations applied successfully");
             Ok(())
         }
