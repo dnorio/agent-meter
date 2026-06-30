@@ -87,6 +87,7 @@
       <a class="am-nav-link" href="/alerts"><svg class="am-icon"><use href="/_static/icons.svg#i-alerts"/></svg><span>Alerts</span></a>
       <a class="am-nav-link" href="/tasks"><svg class="am-icon"><use href="/_static/icons.svg#i-tasks"/></svg><span>Tasks</span></a>
       <a class="am-nav-link" href="/reports"><svg class="am-icon"><use href="/_static/icons.svg#i-reports"/></svg><span>Reports</span></a>
+      <a class="am-nav-link" href="/setup"><svg class="am-icon"><use href="/_static/icons.svg#i-settings"/></svg><span>Setup</span></a>
       <div class="am-nav-section">Resources</div>
       <a class="am-nav-link active" href="/docs"><svg class="am-icon"><use href="/_static/icons.svg#i-docs"/></svg><span>Documentation</span></a>
       <a class="am-nav-link" href="/pricing"><svg class="am-icon"><use href="/_static/icons.svg#i-pricing"/></svg><span>Pricing</span></a>
@@ -131,6 +132,7 @@
         <a href="#cursor">Cursor</a>
         <a href="#eclipse">Eclipse</a>
         <a href="#opencode">OpenCode / Others</a>
+        <a href="/setup">Download & Setup</a>
         <div class="toc-section">CLI Support</div>
         <a href="#copilot-cli">Copilot CLI</a>
         <a href="#claude-code">Claude Code</a>
@@ -314,10 +316,14 @@ graph TD
         <section id="quickstart">
           <h2>Quick Start</h2>
 
+          <div class="callout callout-success">
+            <strong>Need the local proxy?</strong> Download the correct binary from <a href="/setup" style="color:var(--am-accent)">Download & Setup</a> or open the <a href="https://github.com/dnorio/agent-meter/releases/tag/agent-meter-proxy-v1.2.3" style="color:var(--am-accent)">v1.2.3 GitHub release</a>.
+          </div>
+
           <h3>Self-Hosted (Docker Compose)</h3>
           <pre><code># Clone the repository
-git clone https://github.com/nic權/agent-meter
-cd agent-meter
+git clone https://github.com/dnorio/agent-meter.git
+cd agent-meter-worktree/apps/agent-meter
 
 # Start PostgreSQL + collector
 docker compose up -d

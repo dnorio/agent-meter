@@ -117,6 +117,7 @@
       ['alerts', '/alerts', 'i-alerts', 'Alerts'],
       ['tasks', '/tasks', 'i-tasks', 'Tasks'],
       ['reports', '/reports', 'i-reports', 'Reports'],
+      ['setup', '/setup', 'i-settings', 'Setup'],
     ];
     const accountItems = [
       ['settings', '/settings', 'i-settings', 'Settings'],

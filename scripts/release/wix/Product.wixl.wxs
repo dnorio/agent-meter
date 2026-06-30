@@ -1,21 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
     Name="agent-meter-proxy"
-    Manufacturer="DNOR"
+    Language="1033"
     Version="1.2.3.0"
-    UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
-    Scope="perMachine"
-    InstallerVersion="500"
-    Compressed="yes">
+    Manufacturer="DNOR"
+    UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
 
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
-
-    <Feature Id="MainFeature" Title="agent-meter-proxy" Level="1">
-      <ComponentRef Id="MainExecutable" />
-      <ComponentRef Id="ApplicationShortcut" />
-    </Feature>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
@@ -23,7 +18,7 @@
           <Component Id="MainExecutable" Guid="*">
             <File
               Id="AgentMeterProxyExe"
-              Source="$(var.SourceDir)/agent-meter-proxy-windows-x86_64.exe"
+              Source="agent-meter-proxy-windows-x86_64.exe"
               Name="agent-meter-proxy.exe"
               KeyPath="yes" />
           </Component>
@@ -44,5 +39,10 @@
         </Directory>
       </Directory>
     </Directory>
-  </Package>
+
+    <Feature Id="MainFeature" Title="agent-meter-proxy" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+  </Product>
 </Wix>

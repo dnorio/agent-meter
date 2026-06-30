@@ -111,7 +111,7 @@ chmod +x "$DEB_DIR/DEBIAN/prerm"
 # Copyright
 cat > "$DEB_DIR/usr/share/doc/agent-meter-proxy/copyright" <<EOF
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Source: https://github.com/dnor-io/agent-meter
+Source: https://github.com/dnorio/agent-meter
 Copyright: 2024 DNOR
 License: MIT
 EOF
@@ -138,7 +138,7 @@ Version:        $VERSION
 Release:        1%{?dist}
 Summary:        HTTPS proxy for AI IDE & CLI telemetry capture
 License:        MIT
-URL:            https://github.com/dnor-io/agent-meter
+URL:            https://github.com/dnorio/agent-meter
 BuildArch:      $RPM_ARCH
 
 %description
