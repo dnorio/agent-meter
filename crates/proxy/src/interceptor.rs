@@ -5,7 +5,7 @@ use http::{header, Request, Response};
 use http_body_util::BodyExt;
 use hudsucker::{Body, RequestOrResponse};
 use serde_json::{json, Value};
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 use crate::otlp;
 use crate::session::SessionManager;
@@ -97,7 +97,10 @@ impl InterceptorState {
         let mut user_prompt = None;
 
         if let Ok(body_json) = serde_json::from_slice::<Value>(&body_bytes) {
-            model = body_json.get("model").and_then(|v| v.as_str()).map(|s| s.to_string());
+            model = body_json
+                .get("model")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
 
             // Extract user prompt — try messages (Chat/Messages API), then input (Responses API)
             if let Some(messages) = body_json.get("messages").and_then(|v| v.as_array()) {
@@ -118,20 +121,30 @@ impl InterceptorState {
         }
 
         let req_id = format!("{}:{}", parts.method, parts.uri);
-        debug!("[proxy] → {} {} model={:?} prompt={:?}", parts.method, parts.uri, model,
-               user_prompt.as_deref().map(|s| s.chars().take(80).collect::<String>()));
+        debug!(
+            "[proxy] → {} {} model={:?} prompt={:?}",
+            parts.method,
+            parts.uri,
+            model,
+            user_prompt
+                .as_deref()
+                .map(|s| s.chars().take(80).collect::<String>())
+        );
 
         {
             let mut pending = self.pending.lock().unwrap();
-            pending.insert(req_id, PendingRequest {
-                started_ns: otlp::now_ns(),
-                model,
-                user_prompt,
-                session_id,
-                host,
-                path,
-                request_bytes,
-            });
+            pending.insert(
+                req_id,
+                PendingRequest {
+                    started_ns: otlp::now_ns(),
+                    model,
+                    user_prompt,
+                    session_id,
+                    host,
+                    path,
+                    request_bytes,
+                },
+            );
         }
 
         // Reconstruct request with original body
@@ -218,7 +231,13 @@ impl InterceptorState {
 
         info!(
             "[proxy] ← {} {}ms model={} in={} out={} cached={} tools={}",
-            status_code, duration_ms, model, input_tokens, output_tokens, cached_tokens, tool_calls.len()
+            status_code,
+            duration_ms,
+            model,
+            input_tokens,
+            output_tokens,
+            cached_tokens,
+            tool_calls.len()
         );
 
         // Build OTLP span
@@ -311,7 +330,10 @@ fn extract_session_id<T>(req: &Request<T>) -> String {
     }
 
     // Fallback: Bearer token prefix (first 16 chars — stable per login)
-    if let Some(auth) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) {
+    if let Some(auth) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+    {
         if auth.len() > 23 {
             let prefix = &auth[7..23]; // skip "Bearer "
             return format!("token-{prefix}");
@@ -349,17 +371,45 @@ fn clean_prompt(content: &str) -> String {
     let mut s = content.to_string();
 
     // Strip common XML wrappers
-    for tag in &["attachments", "workspace_info", "environment_info", "skill-context", "context",
-                 "repoMemory", "sessionMemory", "userMemory", "securityRequirements",
-                 "operationalSafety", "implementationDiscipline", "communicationStyle",
-                 "toolUseInstructions", "outputFormatting", "memoryInstructions",
-                 "reminderInstructions", "editorContext", "notebookInstructions",
-                 "instructions", "conversation-summary", "workspace_info",
-                 "availableDeferredTools", "parallelizationStrategy", "taskTracking",
-                 "current_datetime", "copilot_instructions", "copilotInstructions",
-                 "fileLinkification", "communicationExamples", "toolSearchInstructions",
-                 "memoryScopes", "memoryGuidelines", "system_reminder", "sql_tables",
-                 "active_selection", "file_context", "reference_data"] {
+    for tag in &[
+        "attachments",
+        "workspace_info",
+        "environment_info",
+        "skill-context",
+        "context",
+        "repoMemory",
+        "sessionMemory",
+        "userMemory",
+        "securityRequirements",
+        "operationalSafety",
+        "implementationDiscipline",
+        "communicationStyle",
+        "toolUseInstructions",
+        "outputFormatting",
+        "memoryInstructions",
+        "reminderInstructions",
+        "editorContext",
+        "notebookInstructions",
+        "instructions",
+        "conversation-summary",
+        "workspace_info",
+        "availableDeferredTools",
+        "parallelizationStrategy",
+        "taskTracking",
+        "current_datetime",
+        "copilot_instructions",
+        "copilotInstructions",
+        "fileLinkification",
+        "communicationExamples",
+        "toolSearchInstructions",
+        "memoryScopes",
+        "memoryGuidelines",
+        "system_reminder",
+        "sql_tables",
+        "active_selection",
+        "file_context",
+        "reference_data",
+    ] {
         let open = format!("<{tag}");
         // Match both <tag> and <tag ...attrs>
         if let Some(start) = s.find(&open) {
@@ -396,8 +446,12 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
 
         // Responses API: input items may have type="message" wrapping role+content
         let msg_type = msg.get("type").and_then(|t| t.as_str()).unwrap_or("");
-        if msg_type == "message" && role != "user" { continue; }
-        if msg_type != "message" && role != "user" { continue; }
+        if msg_type == "message" && role != "user" {
+            continue;
+        }
+        if msg_type != "message" && role != "user" {
+            continue;
+        }
 
         // Format 1: content is a plain string (OpenAI style)
         if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
@@ -411,7 +465,8 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
         // Format 2: content is an array of blocks (Anthropic style / Responses API)
         if let Some(blocks) = msg.get("content").and_then(|c| c.as_array()) {
             // Skip if first block is tool_result (agentic loop turn)
-            let first_type = blocks.first()
+            let first_type = blocks
+                .first()
                 .and_then(|b| b.get("type"))
                 .and_then(|t| t.as_str())
                 .unwrap_or("");
@@ -422,7 +477,8 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
             for block in blocks {
                 let btype = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
                 if btype == "text" || btype == "input_text" {
-                    let text_field = block.get("text")
+                    let text_field = block
+                        .get("text")
                         .or_else(|| block.get("content"))
                         .and_then(|t| t.as_str());
                     if let Some(text) = text_field {
@@ -439,7 +495,9 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
         if let Some(parts) = msg.get("parts").and_then(|p| p.as_array()) {
             // Iterate in reverse — last non-XML part is typically the user prompt
             for part in parts.iter().rev() {
-                if part.get("type").and_then(|t| t.as_str()) != Some("text") { continue; }
+                if part.get("type").and_then(|t| t.as_str()) != Some("text") {
+                    continue;
+                }
                 if let Some(content) = part.get("content").and_then(|c| c.as_str()) {
                     let cleaned = clean_prompt(content);
                     if !cleaned.is_empty() && !is_noise_content(&cleaned) {
@@ -460,8 +518,10 @@ fn is_noise_content(s: &str) -> bool {
         || t.starts_with("Terminals:")
         || t.starts_with("[Terminal")
         || t.starts_with("You are ")
-        || t.to_ascii_lowercase().starts_with("summarize the following")
-        || t.to_ascii_lowercase().starts_with("please write a brief title")
+        || t.to_ascii_lowercase()
+            .starts_with("summarize the following")
+        || t.to_ascii_lowercase()
+            .starts_with("please write a brief title")
 }
 
 fn extract_json_usage(
@@ -480,15 +540,27 @@ fn extract_json_usage(
 
     // Usage (OpenAI format)
     if let Some(usage) = body.get("usage") {
-        *input_tokens = usage.get("prompt_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-        *output_tokens = usage.get("completion_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        *input_tokens = usage
+            .get("prompt_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        *output_tokens = usage
+            .get("completion_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
 
         // Anthropic format
         if *input_tokens == 0 {
-            *input_tokens = usage.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+            *input_tokens = usage
+                .get("input_tokens")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
         }
         if *output_tokens == 0 {
-            *output_tokens = usage.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+            *output_tokens = usage
+                .get("output_tokens")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
         }
         *cached_tokens = usage
             .get("cache_read_input_tokens")
@@ -500,7 +572,10 @@ fn extract_json_usage(
     // Tool calls (OpenAI format)
     if let Some(choices) = body.get("choices").and_then(|v| v.as_array()) {
         if let Some(choice) = choices.first() {
-            if let Some(tcs) = choice.pointer("/message/tool_calls").and_then(|v| v.as_array()) {
+            if let Some(tcs) = choice
+                .pointer("/message/tool_calls")
+                .and_then(|v| v.as_array())
+            {
                 for tc in tcs {
                     if let Some(name) = tc.pointer("/function/name").and_then(|v| v.as_str()) {
                         tool_calls.push(name.to_string());

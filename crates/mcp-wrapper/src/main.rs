@@ -9,8 +9,7 @@ async fn main() -> Result<()> {
         .json()
         .with_target(true)
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -19,10 +18,10 @@ async fn main() -> Result<()> {
         .parse()
         .expect("invalid MCP_WRAPPER_LISTEN");
 
-    let upstream_url = env::var("MCP_UPSTREAM_URL")
-        .unwrap_or_else(|_| "http://localhost:3001".into());
-    let collector_url = env::var("AGENT_METER_COLLECTOR_URL")
-        .unwrap_or_else(|_| "http://localhost:8081".into());
+    let upstream_url =
+        env::var("MCP_UPSTREAM_URL").unwrap_or_else(|_| "http://localhost:3001".into());
+    let collector_url =
+        env::var("AGENT_METER_COLLECTOR_URL").unwrap_or_else(|_| "http://localhost:8081".into());
 
     tracing::info!(
         upstream = %upstream_url,

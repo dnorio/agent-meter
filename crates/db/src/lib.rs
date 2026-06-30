@@ -53,7 +53,11 @@ pub trait Database: Send + Sync + 'static {
     async fn ide_breakdown(&self, params: &ReportQuery) -> DbResult<Vec<IdeBreakdownRow>>;
     async fn error_patterns(&self, params: &ReportQuery) -> DbResult<Vec<ErrorPatternRow>>;
     async fn cost_over_time(&self, params: &ReportQuery) -> DbResult<Vec<CostBucketRow>>;
-    async fn calls_over_time(&self, params: &ReportQuery, bucket: &str) -> DbResult<Vec<CallsBucketRow>>;
+    async fn calls_over_time(
+        &self,
+        params: &ReportQuery,
+        bucket: &str,
+    ) -> DbResult<Vec<CallsBucketRow>>;
     async fn distinct_models(&self) -> DbResult<Vec<String>>;
 
     // ── Leaderboard ─────────────────────────────────────────────────────────
@@ -62,7 +66,10 @@ pub trait Database: Send + Sync + 'static {
     async fn leaderboard_models(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>>;
 
     // ── Conversations ───────────────────────────────────────────────────────
-    async fn list_conversations(&self, params: &ConversationQuery) -> DbResult<Vec<ConversationRow>>;
+    async fn list_conversations(
+        &self,
+        params: &ConversationQuery,
+    ) -> DbResult<Vec<ConversationRow>>;
     async fn conversation_detail(&self, conversation_id: &str) -> DbResult<Vec<ToolCallRow>>;
 
     // ── Cost ────────────────────────────────────────────────────────────────
@@ -74,7 +81,13 @@ pub trait Database: Send + Sync + 'static {
 
     // ── API Keys ────────────────────────────────────────────────────────────
     async fn list_api_keys(&self, org_id: uuid::Uuid) -> DbResult<Vec<ApiKeyRow>>;
-    async fn create_api_key(&self, org_id: uuid::Uuid, name: &str, prefix: &str, hash: &str) -> DbResult<ApiKeyRow>;
+    async fn create_api_key(
+        &self,
+        org_id: uuid::Uuid,
+        name: &str,
+        prefix: &str,
+        hash: &str,
+    ) -> DbResult<ApiKeyRow>;
     async fn revoke_api_key(&self, key_id: uuid::Uuid) -> DbResult<()>;
     async fn find_key_by_prefix(&self, prefix: &str) -> DbResult<Option<ApiKeyMetaRow>>;
 

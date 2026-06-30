@@ -179,7 +179,12 @@ fn parse_dt_opt(s: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
 impl Database for SqliteDb {
     async fn insert_tool_call(&self, e: &InsertToolCall) -> DbResult<ToolCallRow> {
         let billing_model = match e.ide.as_deref() {
-            Some(ide) if ide.to_lowercase().contains("copilot") || ide.to_lowercase().contains("vscode") => "copilot_credit",
+            Some(ide)
+                if ide.to_lowercase().contains("copilot")
+                    || ide.to_lowercase().contains("vscode") =>
+            {
+                "copilot_credit"
+            }
             Some(ide) if ide.to_lowercase().contains("cursor") => "cursor_usage",
             _ => "token",
         };
@@ -284,25 +289,30 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| EventFeedRow {
-            event_id: uuid::Uuid::parse_str(r.get::<&str, _>("event_id")).unwrap_or_default(),
-            tool_name: r.get("tool_name"),
-            model: r.get("model"),
-            started_at: parse_dt(r.get("started_at")),
-            duration_ms: r.get("duration_ms"),
-            ok: r.get::<bool, _>("ok"),
-            estimated_input_tokens: r.get("estimated_input_tokens"),
-            estimated_output_tokens: r.get("estimated_output_tokens"),
-            cached_tokens: r.get("cached_tokens"),
-            agent: r.get("agent"),
-            ide: r.get("ide"),
-            mcp_server: r.get("mcp_server"),
-            conversation_id: r.get("conversation_id"),
-            client_ip: r.get("client_ip"),
-            user_prompt: r.get("user_prompt"),
-            tool_arguments: r.get::<Option<String>, _>("tool_arguments").and_then(|s| serde_json::from_str(&s).ok()),
-            tool_result: r.get("tool_result"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| EventFeedRow {
+                event_id: uuid::Uuid::parse_str(r.get::<&str, _>("event_id")).unwrap_or_default(),
+                tool_name: r.get("tool_name"),
+                model: r.get("model"),
+                started_at: parse_dt(r.get("started_at")),
+                duration_ms: r.get("duration_ms"),
+                ok: r.get::<bool, _>("ok"),
+                estimated_input_tokens: r.get("estimated_input_tokens"),
+                estimated_output_tokens: r.get("estimated_output_tokens"),
+                cached_tokens: r.get("cached_tokens"),
+                agent: r.get("agent"),
+                ide: r.get("ide"),
+                mcp_server: r.get("mcp_server"),
+                conversation_id: r.get("conversation_id"),
+                client_ip: r.get("client_ip"),
+                user_prompt: r.get("user_prompt"),
+                tool_arguments: r
+                    .get::<Option<String>, _>("tool_arguments")
+                    .and_then(|s| serde_json::from_str(&s).ok()),
+                tool_result: r.get("tool_result"),
+            })
+            .collect())
     }
 
     async fn top_tools(&self, q: &ReportQuery) -> DbResult<Vec<TopToolRow>> {
@@ -359,19 +369,22 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| TopToolRow {
-            mcp_server: r.get("mcp_server"),
-            tool_name: r.get("tool_name"),
-            calls: r.get("calls"),
-            total_estimated_tokens: r.get("total_estimated_tokens"),
-            avg_duration_ms: r.get("avg_duration_ms"),
-            errors: r.get("errors"),
-            avg_response_bytes: r.get("avg_response_bytes"),
-            top_model: r.get("top_model"),
-            cached_tokens_total: r.get("cached_tokens_total"),
-            avg_input_tokens: r.get("avg_input_tokens"),
-            avg_output_tokens: r.get("avg_output_tokens"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| TopToolRow {
+                mcp_server: r.get("mcp_server"),
+                tool_name: r.get("tool_name"),
+                calls: r.get("calls"),
+                total_estimated_tokens: r.get("total_estimated_tokens"),
+                avg_duration_ms: r.get("avg_duration_ms"),
+                errors: r.get("errors"),
+                avg_response_bytes: r.get("avg_response_bytes"),
+                top_model: r.get("top_model"),
+                cached_tokens_total: r.get("cached_tokens_total"),
+                avg_input_tokens: r.get("avg_input_tokens"),
+                avg_output_tokens: r.get("avg_output_tokens"),
+            })
+            .collect())
     }
 
     async fn top_agents(&self, q: &ReportQuery) -> DbResult<Vec<TopAgentRow>> {
@@ -405,14 +418,17 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| TopAgentRow {
-            agent: r.get("agent"),
-            calls: r.get("calls"),
-            total_tokens: r.get("total_tokens"),
-            total_usd_cost: r.get("total_usd_cost"),
-            errors: r.get("errors"),
-            conversations: r.get("conversations"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| TopAgentRow {
+                agent: r.get("agent"),
+                calls: r.get("calls"),
+                total_tokens: r.get("total_tokens"),
+                total_usd_cost: r.get("total_usd_cost"),
+                errors: r.get("errors"),
+                conversations: r.get("conversations"),
+            })
+            .collect())
     }
 
     async fn top_mcp_servers(&self, q: &ReportQuery) -> DbResult<Vec<TopMcpServerRow>> {
@@ -444,13 +460,16 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| TopMcpServerRow {
-            mcp_server: r.get("mcp_server"),
-            calls: r.get("calls"),
-            total_estimated_tokens: r.get("total_estimated_tokens"),
-            avg_response_bytes: r.get("avg_response_bytes"),
-            error_rate: r.get("error_rate"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| TopMcpServerRow {
+                mcp_server: r.get("mcp_server"),
+                calls: r.get("calls"),
+                total_estimated_tokens: r.get("total_estimated_tokens"),
+                avg_response_bytes: r.get("avg_response_bytes"),
+                error_rate: r.get("error_rate"),
+            })
+            .collect())
     }
 
     async fn ide_breakdown(&self, q: &ReportQuery) -> DbResult<Vec<IdeBreakdownRow>> {
@@ -477,14 +496,17 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| IdeBreakdownRow {
-            ide: r.get("ide"),
-            calls: r.get("calls"),
-            total_estimated_tokens: r.get("total_estimated_tokens"),
-            errors: r.get("errors"),
-            llm_calls: r.get("llm_calls"),
-            tool_calls_count: r.get("tool_calls_count"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| IdeBreakdownRow {
+                ide: r.get("ide"),
+                calls: r.get("calls"),
+                total_estimated_tokens: r.get("total_estimated_tokens"),
+                errors: r.get("errors"),
+                llm_calls: r.get("llm_calls"),
+                tool_calls_count: r.get("tool_calls_count"),
+            })
+            .collect())
     }
 
     async fn error_patterns(&self, q: &ReportQuery) -> DbResult<Vec<ErrorPatternRow>> {
@@ -552,13 +574,16 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| ErrorPatternRow {
-            error: r.get("error"),
-            occurrences: r.get("occurrences"),
-            tool_name: r.get("tool_name"),
-            model: r.get("model"),
-            last_seen: parse_dt(r.get("last_seen")),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| ErrorPatternRow {
+                error: r.get("error"),
+                occurrences: r.get("occurrences"),
+                tool_name: r.get("tool_name"),
+                model: r.get("model"),
+                last_seen: parse_dt(r.get("last_seen")),
+            })
+            .collect())
     }
 
     async fn cost_over_time(&self, q: &ReportQuery) -> DbResult<Vec<CostBucketRow>> {
@@ -584,11 +609,14 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| CostBucketRow {
-            bucket: parse_dt(r.get("bucket")),
-            total_usd: r.get("total_usd"),
-            calls: r.get("calls"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| CostBucketRow {
+                bucket: parse_dt(r.get("bucket")),
+                total_usd: r.get("total_usd"),
+                calls: r.get("calls"),
+            })
+            .collect())
     }
 
     async fn top_tasks(&self, _q: &ReportQuery) -> DbResult<Vec<TopTaskRow>> {
@@ -596,7 +624,11 @@ impl Database for SqliteDb {
         Ok(vec![])
     }
 
-    async fn calls_over_time(&self, _q: &ReportQuery, _bucket: &str) -> DbResult<Vec<CallsBucketRow>> {
+    async fn calls_over_time(
+        &self,
+        _q: &ReportQuery,
+        _bucket: &str,
+    ) -> DbResult<Vec<CallsBucketRow>> {
         // TODO: Implement SQLite version
         Ok(vec![])
     }
@@ -610,7 +642,11 @@ impl Database for SqliteDb {
         Ok(rows.into_iter().map(|r| r.0).collect())
     }
 
-    async fn leaderboard_agents(&self, _from: &str, _limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+    async fn leaderboard_agents(
+        &self,
+        _from: &str,
+        _limit: i64,
+    ) -> DbResult<Vec<LeaderboardEntry>> {
         Ok(vec![])
     }
 
@@ -618,7 +654,11 @@ impl Database for SqliteDb {
         Ok(vec![])
     }
 
-    async fn leaderboard_models(&self, _from: &str, _limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
+    async fn leaderboard_models(
+        &self,
+        _from: &str,
+        _limit: i64,
+    ) -> DbResult<Vec<LeaderboardEntry>> {
         Ok(vec![])
     }
 
@@ -656,23 +696,26 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| ConversationRow {
-            conversation_id: r.get("conversation_id"),
-            title: r.get("title"),
-            initial_prompt: r.get("initial_prompt"),
-            response_preview: r.get("response_preview"),
-            started_at: parse_dt(r.get("started_at")),
-            ended_at: parse_dt_opt(r.try_get::<&str, _>("ended_at").ok()),
-            total_duration_ms: r.get("total_duration_ms"),
-            event_count: r.get("event_count"),
-            error_count: r.get("error_count"),
-            total_usd_cost: r.get("total_usd_cost"),
-            agent: r.get("agent"),
-            ide: r.get("ide"),
-            model: r.get("model"),
-            total_tokens_in: r.get("total_tokens_in"),
-            total_tokens_out: r.get("total_tokens_out"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| ConversationRow {
+                conversation_id: r.get("conversation_id"),
+                title: r.get("title"),
+                initial_prompt: r.get("initial_prompt"),
+                response_preview: r.get("response_preview"),
+                started_at: parse_dt(r.get("started_at")),
+                ended_at: parse_dt_opt(r.try_get::<&str, _>("ended_at").ok()),
+                total_duration_ms: r.get("total_duration_ms"),
+                event_count: r.get("event_count"),
+                error_count: r.get("error_count"),
+                total_usd_cost: r.get("total_usd_cost"),
+                agent: r.get("agent"),
+                ide: r.get("ide"),
+                model: r.get("model"),
+                total_tokens_in: r.get("total_tokens_in"),
+                total_tokens_out: r.get("total_tokens_out"),
+            })
+            .collect())
     }
 
     async fn conversation_detail(&self, conversation_id: &str) -> DbResult<Vec<ToolCallRow>> {
@@ -737,13 +780,17 @@ impl Database for SqliteDb {
             GROUP BY model ORDER BY usd_cost DESC LIMIT 20
             "#,
         )
-        .bind(&from_str).bind(&to_str).bind(&q.model)
+        .bind(&from_str)
+        .bind(&to_str)
+        .bind(&q.model)
         .fetch_all(&self.pool)
         .await?
         .iter()
         .map(|r| ModelCostRow {
-            model: r.get("model"), events: r.get("events"),
-            tokens_in: r.get("tokens_in"), tokens_out: r.get("tokens_out"),
+            model: r.get("model"),
+            events: r.get("events"),
+            tokens_in: r.get("tokens_in"),
+            tokens_out: r.get("tokens_out"),
             usd_cost: r.get("usd_cost"),
         })
         .collect();
@@ -759,7 +806,9 @@ impl Database for SqliteDb {
             GROUP BY day ORDER BY day
             "#,
         )
-        .bind(&from_str).bind(&to_str).bind(&q.model)
+        .bind(&from_str)
+        .bind(&to_str)
+        .bind(&q.model)
         .fetch_all(&self.pool)
         .await?
         .iter()
@@ -781,17 +830,26 @@ impl Database for SqliteDb {
             GROUP BY billing_model ORDER BY usd_cost DESC
             "#,
         )
-        .bind(&from_str).bind(&to_str).bind(&q.model)
+        .bind(&from_str)
+        .bind(&to_str)
+        .bind(&q.model)
         .fetch_all(&self.pool)
         .await?
         .iter()
         .map(|r| BillingModelBreakdownRow {
-            billing_model: r.get("billing_model"), events: r.get("events"),
-            usd_cost: r.get("usd_cost"), credits: r.get("credits"),
+            billing_model: r.get("billing_model"),
+            events: r.get("events"),
+            usd_cost: r.get("usd_cost"),
+            credits: r.get("credits"),
         })
         .collect();
 
-        Ok(CostSummaryResult { kpis, by_model, by_day, by_billing_model })
+        Ok(CostSummaryResult {
+            kpis,
+            by_model,
+            by_day,
+            by_billing_model,
+        })
     }
 
     async fn list_orgs(&self) -> DbResult<Vec<OrgRow>> {
@@ -801,11 +859,16 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| OrgRow {
-            id: uuid::Uuid::parse_str(r.get::<&str, _>("id")).unwrap_or_default(),
-            slug: r.get("slug"), name: r.get("name"), plan: r.get("plan"),
-            created_at: parse_dt(r.get("created_at")),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| OrgRow {
+                id: uuid::Uuid::parse_str(r.get::<&str, _>("id")).unwrap_or_default(),
+                slug: r.get("slug"),
+                name: r.get("name"),
+                plan: r.get("plan"),
+                created_at: parse_dt(r.get("created_at")),
+            })
+            .collect())
     }
 
     async fn find_org_by_slug(&self, slug: &str) -> DbResult<OrgRow> {
@@ -819,7 +882,9 @@ impl Database for SqliteDb {
 
         Ok(OrgRow {
             id: uuid::Uuid::parse_str(r.get::<&str, _>("id")).unwrap_or_default(),
-            slug: r.get("slug"), name: r.get("name"), plan: r.get("plan"),
+            slug: r.get("slug"),
+            name: r.get("name"),
+            plan: r.get("plan"),
             created_at: parse_dt(r.get("created_at")),
         })
     }
@@ -832,16 +897,26 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| ApiKeyRow {
-            id: uuid::Uuid::parse_str(r.get::<&str, _>("id")).unwrap_or_default(),
-            org_id: uuid::Uuid::parse_str(r.get::<&str, _>("org_id")).unwrap_or_default(),
-            key_prefix: r.get("key_prefix"), name: r.get("name"),
-            created_at: parse_dt(r.get("created_at")),
-            last_used_at: parse_dt_opt(r.try_get::<&str, _>("last_used_at").ok()),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| ApiKeyRow {
+                id: uuid::Uuid::parse_str(r.get::<&str, _>("id")).unwrap_or_default(),
+                org_id: uuid::Uuid::parse_str(r.get::<&str, _>("org_id")).unwrap_or_default(),
+                key_prefix: r.get("key_prefix"),
+                name: r.get("name"),
+                created_at: parse_dt(r.get("created_at")),
+                last_used_at: parse_dt_opt(r.try_get::<&str, _>("last_used_at").ok()),
+            })
+            .collect())
     }
 
-    async fn create_api_key(&self, org_id: uuid::Uuid, name: &str, prefix: &str, hash: &str) -> DbResult<ApiKeyRow> {
+    async fn create_api_key(
+        &self,
+        org_id: uuid::Uuid,
+        name: &str,
+        prefix: &str,
+        hash: &str,
+    ) -> DbResult<ApiKeyRow> {
         let id = uuid::Uuid::new_v4();
         sqlx::query(
             "INSERT INTO api_keys (id, org_id, name, key_prefix, key_hash) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -855,8 +930,12 @@ impl Database for SqliteDb {
         .await?;
 
         Ok(ApiKeyRow {
-            id, org_id, key_prefix: prefix.to_string(), name: name.to_string(),
-            created_at: chrono::Utc::now(), last_used_at: None,
+            id,
+            org_id,
+            key_prefix: prefix.to_string(),
+            name: name.to_string(),
+            created_at: chrono::Utc::now(),
+            last_used_at: None,
         })
     }
 
@@ -869,12 +948,10 @@ impl Database for SqliteDb {
     }
 
     async fn find_key_by_prefix(&self, prefix: &str) -> DbResult<Option<ApiKeyMetaRow>> {
-        let row = sqlx::query(
-            "SELECT id, org_id, key_hash FROM api_keys WHERE key_prefix = ?1",
-        )
-        .bind(prefix)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row = sqlx::query("SELECT id, org_id, key_hash FROM api_keys WHERE key_prefix = ?1")
+            .bind(prefix)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(row.map(|r| ApiKeyMetaRow {
             id: uuid::Uuid::parse_str(r.get::<&str, _>("id")).unwrap_or_default(),
@@ -907,15 +984,18 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| SearchResultRow {
-            conversation_id: r.get("conversation_id"),
-            user_prompt: r.get("user_prompt"),
-            model: r.get("model"),
-            agent: r.get("agent"),
-            tool_name: r.get("tool_name"),
-            started_at: r.try_get::<&str, _>("started_at").ok().map(parse_dt),
-            match_field: r.get("match_field"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| SearchResultRow {
+                conversation_id: r.get("conversation_id"),
+                user_prompt: r.get("user_prompt"),
+                model: r.get("model"),
+                agent: r.get("agent"),
+                tool_name: r.get("tool_name"),
+                started_at: r.try_get::<&str, _>("started_at").ok().map(parse_dt),
+                match_field: r.get("match_field"),
+            })
+            .collect())
     }
 
     async fn migrate(&self) -> DbResult<()> {
@@ -923,9 +1003,7 @@ impl Database for SqliteDb {
     }
 
     async fn health_check(&self) -> DbResult<()> {
-        sqlx::query("SELECT 1")
-            .execute(&self.pool)
-            .await?;
+        sqlx::query("SELECT 1").execute(&self.pool).await?;
         Ok(())
     }
 }
@@ -964,7 +1042,9 @@ fn sqlite_row_to_tool_call(r: &sqlx::sqlite::SqliteRow) -> ToolCallRow {
         client_ip: r.get("client_ip"),
         user_agent: r.get("user_agent"),
         user_prompt: r.get("user_prompt"),
-        tool_arguments: r.get::<Option<String>, _>("tool_arguments").and_then(|s| serde_json::from_str(&s).ok()),
+        tool_arguments: r
+            .get::<Option<String>, _>("tool_arguments")
+            .and_then(|s| serde_json::from_str(&s).ok()),
         tool_result: r.get("tool_result"),
         reasoning_tokens: r.get("reasoning_tokens"),
         finish_reason: r.get("finish_reason"),

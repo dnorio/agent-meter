@@ -1,5 +1,5 @@
-mod interceptor;
 mod ca;
+mod interceptor;
 mod otlp;
 mod session;
 
@@ -8,13 +8,11 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use hudsucker::{
-    certificate_authority::RcgenAuthority,
-    rustls::crypto::aws_lc_rs,
-    Body, HttpHandler, HttpContext, RequestOrResponse,
-    Proxy,
-};
 use http::{Request, Response};
+use hudsucker::{
+    certificate_authority::RcgenAuthority, rustls::crypto::aws_lc_rs, Body, HttpContext,
+    HttpHandler, Proxy, RequestOrResponse,
+};
 use rcgen::{Issuer, KeyPair};
 use tracing_subscriber::fmt;
 
@@ -48,7 +46,12 @@ enum Commands {
         #[arg(short, long, default_value = "127.0.0.1:8898")]
         listen: SocketAddr,
         /// agent-meter collector URL
-        #[arg(short, long, default_value = "http://localhost:4318", env = "AGENT_METER_COLLECTOR_URL")]
+        #[arg(
+            short,
+            long,
+            default_value = "http://localhost:4318",
+            env = "AGENT_METER_COLLECTOR_URL"
+        )]
         collector: String,
         /// Run in foreground (default; use --daemon for background)
         #[arg(long)]
@@ -79,7 +82,11 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Setup { no_install } => cmd_setup(no_install).await,
-        Commands::Start { listen, collector, daemon } => {
+        Commands::Start {
+            listen,
+            collector,
+            daemon,
+        } => {
             if daemon {
                 cmd_start_daemon(listen, collector).await
             } else {
@@ -129,10 +136,9 @@ async fn cmd_start(listen: SocketAddr, collector: String) -> Result<()> {
     let key_pem = std::fs::read_to_string(&key_path).context("reading CA key")?;
     let cert_pem = std::fs::read_to_string(&cert_path).context("reading CA cert")?;
 
-    let key_pair = KeyPair::from_pem(&key_pem)
-        .context("parsing CA key")?;
-    let issuer = Issuer::from_ca_cert_pem(&cert_pem, key_pair)
-        .context("parsing CA cert into Issuer")?;
+    let key_pair = KeyPair::from_pem(&key_pem).context("parsing CA key")?;
+    let issuer =
+        Issuer::from_ca_cert_pem(&cert_pem, key_pair).context("parsing CA cert into Issuer")?;
 
     let ca = RcgenAuthority::new(issuer, 1000, aws_lc_rs::default_provider());
 
@@ -173,7 +179,13 @@ async fn cmd_start_daemon(listen: SocketAddr, collector: String) -> Result<()> {
         use std::process::Command;
         let exe = std::env::current_exe()?;
         let child = Command::new(exe)
-            .args(["start", "--listen", &listen.to_string(), "--collector", &collector])
+            .args([
+                "start",
+                "--listen",
+                &listen.to_string(),
+                "--collector",
+                &collector,
+            ])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -185,7 +197,9 @@ async fn cmd_start_daemon(listen: SocketAddr, collector: String) -> Result<()> {
     #[cfg(not(unix))]
     {
         eprintln!("Daemon mode not supported on this platform.");
-        eprintln!("Use: start /b agent-meter-proxy start --listen {listen} --collector {collector}");
+        eprintln!(
+            "Use: start /b agent-meter-proxy start --listen {listen} --collector {collector}"
+        );
         Ok(())
     }
 }
@@ -276,10 +290,15 @@ async fn cmd_stop() -> Result<()> {
         eprintln!("✗ Proxy is not running (no PID file)");
         return Ok(());
     }
-    let pid = std::fs::read_to_string(&pid_path)?.trim().parse::<u32>().unwrap_or(0);
+    let pid = std::fs::read_to_string(&pid_path)?
+        .trim()
+        .parse::<u32>()
+        .unwrap_or(0);
     #[cfg(unix)]
     {
-        unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+        unsafe {
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
         eprintln!("✓ Sent SIGTERM to PID {pid}");
     }
     #[cfg(not(unix))]
@@ -318,11 +337,7 @@ impl HttpHandler for ProxyHandler {
         self.state.on_request(req).await
     }
 
-    async fn handle_response(
-        &mut self,
-        _ctx: &HttpContext,
-        res: Response<Body>,
-    ) -> Response<Body> {
+    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
         self.state.on_response(res).await
     }
 }

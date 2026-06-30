@@ -1,11 +1,6 @@
 use std::{env, sync::Arc};
 
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, http::HeaderMap, routing::post, Json, Router};
 use chrono::Utc;
 use reqwest::Client;
 use serde_json::Value;
@@ -28,7 +23,10 @@ pub fn router(upstream_url: String, collector_url: String, client: Client) -> Ro
 
     Router::new()
         .route("/", post(proxy_handler))
-        .route("/health", axum::routing::get(|| async { Json(serde_json::json!({"status":"ok"})) }))
+        .route(
+            "/health",
+            axum::routing::get(|| async { Json(serde_json::json!({"status":"ok"})) }),
+        )
         .with_state(state)
 }
 
@@ -51,8 +49,10 @@ async fn proxy_handler(
     };
 
     let method = request_body["method"].as_str().unwrap_or("");
-    let is_mcp_method =
-        matches!(method, "tools/list" | "tools/call" | "tools/notify" | "initialize" | "notifications/initialized");
+    let is_mcp_method = matches!(
+        method,
+        "tools/list" | "tools/call" | "tools/notify" | "initialize" | "notifications/initialized"
+    );
 
     let started_at = Utc::now();
 
@@ -216,7 +216,11 @@ fn extract_tool_result(body: &Value) -> Option<String> {
     for block in blocks {
         let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
         let text = match block_type {
-            "text" => block.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string(),
+            "text" => block
+                .get("text")
+                .and_then(|t| t.as_str())
+                .unwrap_or("")
+                .to_string(),
             "image" => "[image]".to_string(),
             "resource" => block
                 .get("resource")
@@ -233,8 +237,13 @@ fn extract_tool_result(body: &Value) -> Option<String> {
 
     if parts.is_empty() {
         // Fallback: if result has no content array, stringify result directly
-        let raw = body.pointer("/result").map(|v| v.to_string()).unwrap_or_default();
-        if raw.is_empty() || raw == "null" { return None; }
+        let raw = body
+            .pointer("/result")
+            .map(|v| v.to_string())
+            .unwrap_or_default();
+        if raw.is_empty() || raw == "null" {
+            return None;
+        }
         let truncated = truncate_utf8(&raw, MAX_BYTES);
         return Some(truncated);
     }
@@ -249,6 +258,8 @@ fn truncate_utf8(s: &str, max_bytes: usize) -> String {
     }
     // Find a valid UTF-8 boundary
     let mut end = max_bytes;
-    while !s.is_char_boundary(end) { end -= 1; }
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
     format!("{}…[truncated]", &s[..end])
 }

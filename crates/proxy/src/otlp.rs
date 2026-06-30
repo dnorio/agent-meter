@@ -1,5 +1,5 @@
-use serde_json::{json, Value};
 use chrono::Utc;
+use serde_json::{json, Value};
 use uuid::Uuid;
 
 /// Build an OTLP ExportTraceServiceRequest JSON for a single LLM span.

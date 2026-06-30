@@ -2,13 +2,16 @@ use std::time::Duration;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use serde_json::Value;
 use reqwest::Client;
+use serde_json::Value;
 
 const DEFAULT_COLLECTOR_URL: &str = "http://localhost:8081";
 
 #[derive(Parser)]
-#[command(name = "agent-meter", about = "Lightweight observability for agentic AI workflows")]
+#[command(
+    name = "agent-meter",
+    about = "Lightweight observability for agentic AI workflows"
+)]
 struct Cli {
     /// Collector base URL
     #[arg(long = "collector", default_value = DEFAULT_COLLECTOR_URL, env = "AGENT_METER_COLLECTOR_URL")]
@@ -167,9 +170,7 @@ fn now_rfc3339() -> String {
 
 impl Cli {
     async fn run(&self) -> Result<()> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?;
+        let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
 
         match &self.command {
             Commands::Task { action } => self.run_task(&client, action).await,
@@ -180,7 +181,14 @@ impl Cli {
 
     async fn run_task(&self, client: &Client, action: &TaskAction) -> Result<()> {
         match action {
-            TaskAction::Start { task_id, repo, branch, ide, agent, skill } => {
+            TaskAction::Start {
+                task_id,
+                repo,
+                branch,
+                ide,
+                agent,
+                skill,
+            } => {
                 let body = serde_json::json!({
                     "task_id": task_id,
                     "repo": repo,
@@ -227,11 +235,21 @@ impl Cli {
                     if arr.is_empty() {
                         println!("no tasks found");
                     } else {
-                        println!("{:<8} {:<20} {:<10} {:<10}", "ID", "TASK_ID", "STATUS", "DURATION");
+                        println!(
+                            "{:<8} {:<20} {:<10} {:<10}",
+                            "ID", "TASK_ID", "STATUS", "DURATION"
+                        );
                         println!("{}", "-".repeat(50));
                         for t in arr {
-                            let status = if t["ended_at"].is_null() { "active" } else { "done" };
-                            let dur = t["duration_secs"].as_i64().map(|d| format!("{}s", d)).unwrap_or_else(|| "-".into());
+                            let status = if t["ended_at"].is_null() {
+                                "active"
+                            } else {
+                                "done"
+                            };
+                            let dur = t["duration_secs"]
+                                .as_i64()
+                                .map(|d| format!("{}s", d))
+                                .unwrap_or_else(|| "-".into());
                             println!(
                                 "{:<8} {:<20} {:<10} {:<10}",
                                 t["id"].as_i64().unwrap_or(0),
@@ -313,17 +331,60 @@ impl Cli {
 
     async fn run_report(&self, client: &Client, action: &ReportAction) -> Result<()> {
         let (path, pretty_title, columns) = match action {
-            ReportAction::TopTools { from, to, repo, ide, agent, skill, limit } => {
+            ReportAction::TopTools {
+                from,
+                to,
+                repo,
+                ide,
+                agent,
+                skill,
+                limit,
+            } => {
                 let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
-                (format!("/reports/top-tools?{}", params), "TOP TOOLS", vec!["MCP Server", "Tool", "Calls", "Tokens", "Avg (ms)", "Errors"])
+                (
+                    format!("/reports/top-tools?{}", params),
+                    "TOP TOOLS",
+                    vec![
+                        "MCP Server",
+                        "Tool",
+                        "Calls",
+                        "Tokens",
+                        "Avg (ms)",
+                        "Errors",
+                    ],
+                )
             }
-            ReportAction::TopTasks { from, to, repo, ide, agent, skill, limit } => {
+            ReportAction::TopTasks {
+                from,
+                to,
+                repo,
+                ide,
+                agent,
+                skill,
+                limit,
+            } => {
                 let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
-                (format!("/reports/top-tasks?{}", params), "TOP TASKS", vec!["Task ID", "Calls", "Tokens", "Duration", "Errors", "Tools"])
+                (
+                    format!("/reports/top-tasks?{}", params),
+                    "TOP TASKS",
+                    vec!["Task ID", "Calls", "Tokens", "Duration", "Errors", "Tools"],
+                )
             }
-            ReportAction::TopMcpServers { from, to, repo, ide, agent, skill, limit } => {
+            ReportAction::TopMcpServers {
+                from,
+                to,
+                repo,
+                ide,
+                agent,
+                skill,
+                limit,
+            } => {
                 let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
-                (format!("/reports/top-mcp-servers?{}", params), "TOP MCP SERVERS", vec!["Server", "Calls", "Tokens", "Avg Resp", "Err Rate"])
+                (
+                    format!("/reports/top-mcp-servers?{}", params),
+                    "TOP MCP SERVERS",
+                    vec!["Server", "Calls", "Tokens", "Avg Resp", "Err Rate"],
+                )
             }
         };
 
@@ -350,27 +411,71 @@ impl Cli {
                             let server = row["mcp_server"].as_str().unwrap_or("-").to_string();
                             let tool = row["tool_name"].as_str().unwrap_or("?");
                             let calls = row["calls"].as_i64().unwrap_or(0);
-                            let tokens = row["total_estimated_tokens"].as_i64().map(|t| format_tokens(t)).unwrap_or_else(|| "-".into());
-                            let avg = row["avg_duration_ms"].as_f64().map(|d| format!("{:.0}", d)).unwrap_or_else(|| "-".into());
+                            let tokens = row["total_estimated_tokens"]
+                                .as_i64()
+                                .map(|t| format_tokens(t))
+                                .unwrap_or_else(|| "-".into());
+                            let avg = row["avg_duration_ms"]
+                                .as_f64()
+                                .map(|d| format!("{:.0}", d))
+                                .unwrap_or_else(|| "-".into());
                             let errs = row["errors"].as_i64().unwrap_or(0);
-                            println!("  {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}", truncate(server, 18), truncate(tool.into(), 18), calls, tokens, avg, errs);
+                            println!(
+                                "  {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}",
+                                truncate(server, 18),
+                                truncate(tool.into(), 18),
+                                calls,
+                                tokens,
+                                avg,
+                                errs
+                            );
                         }
                         "TOP TASKS" => {
                             let tid = row["task_id"].as_str().unwrap_or("?");
                             let calls = row["tool_calls"].as_i64().unwrap_or(0);
-                            let tokens = row["total_estimated_tokens"].as_i64().map(|t| format_tokens(t)).unwrap_or_else(|| "-".into());
-                            let dur = row["total_duration_ms"].as_i64().map(|d| format_duration(d)).unwrap_or_else(|| "-".into());
+                            let tokens = row["total_estimated_tokens"]
+                                .as_i64()
+                                .map(|t| format_tokens(t))
+                                .unwrap_or_else(|| "-".into());
+                            let dur = row["total_duration_ms"]
+                                .as_i64()
+                                .map(|d| format_duration(d))
+                                .unwrap_or_else(|| "-".into());
                             let errs = row["errors"].as_i64().unwrap_or(0);
                             let tools = row["distinct_tools"].as_i64().unwrap_or(0);
-                            println!("  {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}", truncate(tid.into(), 18), calls, tokens, dur, errs, tools);
+                            println!(
+                                "  {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}",
+                                truncate(tid.into(), 18),
+                                calls,
+                                tokens,
+                                dur,
+                                errs,
+                                tools
+                            );
                         }
                         _ => {
                             let server = row["mcp_server"].as_str().unwrap_or("?");
                             let calls = row["calls"].as_i64().unwrap_or(0);
-                            let tokens = row["total_estimated_tokens"].as_i64().map(|t| format_tokens(t)).unwrap_or_else(|| "-".into());
-                            let avg_r = row["avg_response_bytes"].as_f64().map(|b| format!("{:.0}", b)).unwrap_or_else(|| "-".into());
-                            let err_rate = row["error_rate"].as_f64().map(|r| format!("{:.1}%", r * 100.0)).unwrap_or_else(|| "-".into());
-                            println!("  {:<20} {:<20} {:<20} {:<20} {:<20}", truncate(server.into(), 18), calls, tokens, avg_r, err_rate);
+                            let tokens = row["total_estimated_tokens"]
+                                .as_i64()
+                                .map(|t| format_tokens(t))
+                                .unwrap_or_else(|| "-".into());
+                            let avg_r = row["avg_response_bytes"]
+                                .as_f64()
+                                .map(|b| format!("{:.0}", b))
+                                .unwrap_or_else(|| "-".into());
+                            let err_rate = row["error_rate"]
+                                .as_f64()
+                                .map(|r| format!("{:.1}%", r * 100.0))
+                                .unwrap_or_else(|| "-".into());
+                            println!(
+                                "  {:<20} {:<20} {:<20} {:<20} {:<20}",
+                                truncate(server.into(), 18),
+                                calls,
+                                tokens,
+                                avg_r,
+                                err_rate
+                            );
                         }
                     }
                 }
@@ -393,12 +498,24 @@ impl Cli {
         limit: i64,
     ) -> String {
         let mut parts: Vec<String> = vec![format!("limit={}", limit)];
-        if let Some(v) = from { parts.push(format!("from={}", v)); }
-        if let Some(v) = to { parts.push(format!("to={}", v)); }
-        if let Some(v) = repo { parts.push(format!("repo={}", v)); }
-        if let Some(v) = ide { parts.push(format!("ide={}", v)); }
-        if let Some(v) = agent { parts.push(format!("agent={}", v)); }
-        if let Some(v) = skill { parts.push(format!("skill={}", v)); }
+        if let Some(v) = from {
+            parts.push(format!("from={}", v));
+        }
+        if let Some(v) = to {
+            parts.push(format!("to={}", v));
+        }
+        if let Some(v) = repo {
+            parts.push(format!("repo={}", v));
+        }
+        if let Some(v) = ide {
+            parts.push(format!("ide={}", v));
+        }
+        if let Some(v) = agent {
+            parts.push(format!("agent={}", v));
+        }
+        if let Some(v) = skill {
+            parts.push(format!("skill={}", v));
+        }
         parts.join("&")
     }
 }

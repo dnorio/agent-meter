@@ -480,19 +480,22 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| TopToolRow {
-            mcp_server: r.mcp_server,
-            tool_name: r.tool_name,
-            calls: r.calls,
-            total_estimated_tokens: r.total_estimated_tokens,
-            avg_duration_ms: r.avg_duration_ms,
-            errors: r.errors,
-            avg_response_bytes: r.avg_response_bytes,
-            top_model: r.top_model,
-            cached_tokens_total: r.cached_tokens_total,
-            avg_input_tokens: r.avg_input_tokens,
-            avg_output_tokens: r.avg_output_tokens,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| TopToolRow {
+                mcp_server: r.mcp_server,
+                tool_name: r.tool_name,
+                calls: r.calls,
+                total_estimated_tokens: r.total_estimated_tokens,
+                avg_duration_ms: r.avg_duration_ms,
+                errors: r.errors,
+                avg_response_bytes: r.avg_response_bytes,
+                top_model: r.top_model,
+                cached_tokens_total: r.cached_tokens_total,
+                avg_input_tokens: r.avg_input_tokens,
+                avg_output_tokens: r.avg_output_tokens,
+            })
+            .collect())
     }
 
     async fn top_agents(&self, q: &ReportQuery) -> DbResult<Vec<TopAgentRow>> {
@@ -526,10 +529,17 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| TopAgentRow {
-            agent: r.agent, calls: r.calls, total_tokens: r.total_tokens,
-            total_usd_cost: r.total_usd_cost, errors: r.errors, conversations: r.conversations,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| TopAgentRow {
+                agent: r.agent,
+                calls: r.calls,
+                total_tokens: r.total_tokens,
+                total_usd_cost: r.total_usd_cost,
+                errors: r.errors,
+                conversations: r.conversations,
+            })
+            .collect())
     }
 
     async fn top_mcp_servers(&self, q: &ReportQuery) -> DbResult<Vec<TopMcpServerRow>> {
@@ -561,11 +571,16 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| TopMcpServerRow {
-            mcp_server: r.mcp_server, calls: r.calls,
-            total_estimated_tokens: r.total_estimated_tokens,
-            avg_response_bytes: r.avg_response_bytes, error_rate: r.error_rate,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| TopMcpServerRow {
+                mcp_server: r.mcp_server,
+                calls: r.calls,
+                total_estimated_tokens: r.total_estimated_tokens,
+                avg_response_bytes: r.avg_response_bytes,
+                error_rate: r.error_rate,
+            })
+            .collect())
     }
 
     async fn ide_breakdown(&self, q: &ReportQuery) -> DbResult<Vec<IdeBreakdownRow>> {
@@ -592,10 +607,17 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| IdeBreakdownRow {
-            ide: r.ide, calls: r.calls, total_estimated_tokens: r.total_estimated_tokens,
-            errors: r.errors, llm_calls: r.llm_calls, tool_calls_count: r.tool_calls_count,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| IdeBreakdownRow {
+                ide: r.ide,
+                calls: r.calls,
+                total_estimated_tokens: r.total_estimated_tokens,
+                errors: r.errors,
+                llm_calls: r.llm_calls,
+                tool_calls_count: r.tool_calls_count,
+            })
+            .collect())
     }
 
     async fn error_patterns(&self, q: &ReportQuery) -> DbResult<Vec<ErrorPatternRow>> {
@@ -626,10 +648,16 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| ErrorPatternRow {
-            error: r.error, occurrences: r.occurrences, tool_name: r.tool_name,
-            model: r.model, last_seen: r.last_seen,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| ErrorPatternRow {
+                error: r.error,
+                occurrences: r.occurrences,
+                tool_name: r.tool_name,
+                model: r.model,
+                last_seen: r.last_seen,
+            })
+            .collect())
     }
 
     async fn cost_over_time(&self, q: &ReportQuery) -> DbResult<Vec<CostBucketRow>> {
@@ -655,9 +683,14 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| CostBucketRow {
-            bucket: r.bucket, total_usd: r.total_usd, calls: r.calls,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| CostBucketRow {
+                bucket: r.bucket,
+                total_usd: r.total_usd,
+                calls: r.calls,
+            })
+            .collect())
     }
 
     async fn top_tasks(&self, q: &ReportQuery) -> DbResult<Vec<TopTaskRow>> {
@@ -704,17 +737,30 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| TopTaskRow {
-            task_id: r.task_id, tool_calls: r.tool_calls,
-            total_estimated_tokens: r.total_estimated_tokens,
-            total_duration_ms: r.total_duration_ms,
-            errors: r.errors, distinct_tools: r.distinct_tools,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| TopTaskRow {
+                task_id: r.task_id,
+                tool_calls: r.tool_calls,
+                total_estimated_tokens: r.total_estimated_tokens,
+                total_duration_ms: r.total_duration_ms,
+                errors: r.errors,
+                distinct_tools: r.distinct_tools,
+            })
+            .collect())
     }
 
-    async fn calls_over_time(&self, q: &ReportQuery, bucket: &str) -> DbResult<Vec<CallsBucketRow>> {
+    async fn calls_over_time(
+        &self,
+        q: &ReportQuery,
+        bucket: &str,
+    ) -> DbResult<Vec<CallsBucketRow>> {
         #[derive(sqlx::FromRow)]
-        struct Row { bucket: chrono::DateTime<chrono::Utc>, calls: i64, errors: i64 }
+        struct Row {
+            bucket: chrono::DateTime<chrono::Utc>,
+            calls: i64,
+            errors: i64,
+        }
 
         let interval = match bucket {
             "hour" => "hour",
@@ -722,9 +768,8 @@ impl Database for PostgresDb {
             "minute" => "minute",
             _ => "hour",
         };
-        let rows = sqlx::query_as::<_, Row>(
-            &format!(
-                r#"
+        let rows = sqlx::query_as::<_, Row>(&format!(
+            r#"
                 SELECT
                     date_trunc('{interval}', started_at) AS bucket,
                     COUNT(*)::bigint AS calls,
@@ -741,8 +786,7 @@ impl Database for PostgresDb {
                 ORDER BY bucket ASC
                 LIMIT 500
                 "#,
-            ),
-        )
+        ))
         .bind(q.from)
         .bind(q.to)
         .bind(&q.repo)
@@ -753,9 +797,14 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| CallsBucketRow {
-            bucket: r.bucket, calls: r.calls, errors: r.errors,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| CallsBucketRow {
+                bucket: r.bucket,
+                calls: r.calls,
+                errors: r.errors,
+            })
+            .collect())
     }
 
     async fn distinct_models(&self) -> DbResult<Vec<String>> {
@@ -769,7 +818,11 @@ impl Database for PostgresDb {
 
     async fn leaderboard_agents(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
         #[derive(sqlx::FromRow)]
-        struct Row { name: String, events: i64, usd_cost: f64 }
+        struct Row {
+            name: String,
+            events: i64,
+            usd_cost: f64,
+        }
         let rows = sqlx::query_as::<_, Row>(
             "SELECT COALESCE(agent, 'unknown') AS name, \
              COUNT(*)::int8 AS events, \
@@ -781,12 +834,23 @@ impl Database for PostgresDb {
         .bind(limit)
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|r| LeaderboardEntry { name: r.name, events: r.events, usd_cost: r.usd_cost }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| LeaderboardEntry {
+                name: r.name,
+                events: r.events,
+                usd_cost: r.usd_cost,
+            })
+            .collect())
     }
 
     async fn leaderboard_ides(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
         #[derive(sqlx::FromRow)]
-        struct Row { name: String, events: i64, usd_cost: f64 }
+        struct Row {
+            name: String,
+            events: i64,
+            usd_cost: f64,
+        }
         let rows = sqlx::query_as::<_, Row>(
             "SELECT COALESCE(ide, 'unknown') AS name, \
              COUNT(*)::int8 AS events, \
@@ -798,12 +862,23 @@ impl Database for PostgresDb {
         .bind(limit)
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|r| LeaderboardEntry { name: r.name, events: r.events, usd_cost: r.usd_cost }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| LeaderboardEntry {
+                name: r.name,
+                events: r.events,
+                usd_cost: r.usd_cost,
+            })
+            .collect())
     }
 
     async fn leaderboard_models(&self, from: &str, limit: i64) -> DbResult<Vec<LeaderboardEntry>> {
         #[derive(sqlx::FromRow)]
-        struct Row { name: String, events: i64, usd_cost: f64 }
+        struct Row {
+            name: String,
+            events: i64,
+            usd_cost: f64,
+        }
         let rows = sqlx::query_as::<_, Row>(
             "SELECT COALESCE(model, 'unknown') AS name, \
              COUNT(*)::int8 AS events, \
@@ -815,7 +890,14 @@ impl Database for PostgresDb {
         .bind(limit)
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|r| LeaderboardEntry { name: r.name, events: r.events, usd_cost: r.usd_cost }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| LeaderboardEntry {
+                name: r.name,
+                events: r.events,
+                usd_cost: r.usd_cost,
+            })
+            .collect())
     }
 
     async fn list_conversations(&self, q: &ConversationQuery) -> DbResult<Vec<ConversationRow>> {
@@ -868,14 +950,26 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| ConversationRow {
-            conversation_id: r.conversation_id, title: r.title, initial_prompt: r.initial_prompt,
-            response_preview: r.response_preview, started_at: r.started_at, ended_at: r.ended_at,
-            total_duration_ms: r.total_duration_ms, event_count: r.event_count,
-            error_count: r.error_count, total_usd_cost: r.total_usd_cost,
-            agent: r.agent, ide: r.ide, model: r.model,
-            total_tokens_in: r.total_tokens_in, total_tokens_out: r.total_tokens_out,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| ConversationRow {
+                conversation_id: r.conversation_id,
+                title: r.title,
+                initial_prompt: r.initial_prompt,
+                response_preview: r.response_preview,
+                started_at: r.started_at,
+                ended_at: r.ended_at,
+                total_duration_ms: r.total_duration_ms,
+                event_count: r.event_count,
+                error_count: r.error_count,
+                total_usd_cost: r.total_usd_cost,
+                agent: r.agent,
+                ide: r.ide,
+                model: r.model,
+                total_tokens_in: r.total_tokens_in,
+                total_tokens_out: r.total_tokens_out,
+            })
+            .collect())
     }
 
     async fn conversation_detail(&self, conversation_id: &str) -> DbResult<Vec<ToolCallRow>> {
@@ -939,13 +1033,17 @@ impl Database for PostgresDb {
             GROUP BY model ORDER BY usd_cost DESC LIMIT 20
             "#,
         )
-        .bind(q.from).bind(q.to).bind(&q.model)
+        .bind(q.from)
+        .bind(q.to)
+        .bind(&q.model)
         .fetch_all(&self.pool)
         .await?
         .into_iter()
         .map(|r| ModelCostRow {
-            model: r.get("model"), events: r.get("events"),
-            tokens_in: r.get("tokens_in"), tokens_out: r.get("tokens_out"),
+            model: r.get("model"),
+            events: r.get("events"),
+            tokens_in: r.get("tokens_in"),
+            tokens_out: r.get("tokens_out"),
             usd_cost: r.get("usd_cost"),
         })
         .collect();
@@ -962,11 +1060,17 @@ impl Database for PostgresDb {
             GROUP BY day ORDER BY day
             "#,
         )
-        .bind(q.from).bind(q.to).bind(&q.model)
+        .bind(q.from)
+        .bind(q.to)
+        .bind(&q.model)
         .fetch_all(&self.pool)
         .await?
         .into_iter()
-        .map(|r| CostByDayRow { day: r.get("day"), usd_cost: r.get("usd_cost"), events: r.get("events") })
+        .map(|r| CostByDayRow {
+            day: r.get("day"),
+            usd_cost: r.get("usd_cost"),
+            events: r.get("events"),
+        })
         .collect();
 
         // By billing model
@@ -982,17 +1086,26 @@ impl Database for PostgresDb {
             GROUP BY billing_model ORDER BY usd_cost DESC
             "#,
         )
-        .bind(q.from).bind(q.to).bind(&q.model)
+        .bind(q.from)
+        .bind(q.to)
+        .bind(&q.model)
         .fetch_all(&self.pool)
         .await?
         .into_iter()
         .map(|r| BillingModelBreakdownRow {
-            billing_model: r.get("billing_model"), events: r.get("events"),
-            usd_cost: r.get("usd_cost"), credits: r.get("credits"),
+            billing_model: r.get("billing_model"),
+            events: r.get("events"),
+            usd_cost: r.get("usd_cost"),
+            credits: r.get("credits"),
         })
         .collect();
 
-        Ok(CostSummaryResult { kpis, by_model, by_day, by_billing_model })
+        Ok(CostSummaryResult {
+            kpis,
+            by_model,
+            by_day,
+            by_billing_model,
+        })
     }
 
     async fn list_orgs(&self) -> DbResult<Vec<OrgRow>> {
@@ -1002,9 +1115,16 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| OrgRow {
-            id: r.id, slug: r.slug, name: r.name, plan: r.plan, created_at: r.created_at,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| OrgRow {
+                id: r.id,
+                slug: r.slug,
+                name: r.name,
+                plan: r.plan,
+                created_at: r.created_at,
+            })
+            .collect())
     }
 
     async fn find_org_by_slug(&self, slug: &str) -> DbResult<OrgRow> {
@@ -1015,7 +1135,13 @@ impl Database for PostgresDb {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(OrgRow { id: r.id, slug: r.slug, name: r.name, plan: r.plan, created_at: r.created_at })
+        Ok(OrgRow {
+            id: r.id,
+            slug: r.slug,
+            name: r.name,
+            plan: r.plan,
+            created_at: r.created_at,
+        })
     }
 
     async fn list_api_keys(&self, org_id: uuid::Uuid) -> DbResult<Vec<ApiKeyRow>> {
@@ -1026,13 +1152,26 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| ApiKeyRow {
-            id: r.id, org_id: r.org_id, key_prefix: r.key_prefix,
-            name: r.name, created_at: r.created_at, last_used_at: r.last_used_at,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| ApiKeyRow {
+                id: r.id,
+                org_id: r.org_id,
+                key_prefix: r.key_prefix,
+                name: r.name,
+                created_at: r.created_at,
+                last_used_at: r.last_used_at,
+            })
+            .collect())
     }
 
-    async fn create_api_key(&self, org_id: uuid::Uuid, name: &str, prefix: &str, hash: &str) -> DbResult<ApiKeyRow> {
+    async fn create_api_key(
+        &self,
+        org_id: uuid::Uuid,
+        name: &str,
+        prefix: &str,
+        hash: &str,
+    ) -> DbResult<ApiKeyRow> {
         let r = sqlx::query_as::<_, PgApiKeyRow>(
             r#"
             INSERT INTO api_keys (org_id, name, key_prefix, key_hash)
@@ -1048,8 +1187,12 @@ impl Database for PostgresDb {
         .await?;
 
         Ok(ApiKeyRow {
-            id: r.id, org_id: r.org_id, key_prefix: r.key_prefix,
-            name: r.name, created_at: r.created_at, last_used_at: r.last_used_at,
+            id: r.id,
+            org_id: r.org_id,
+            key_prefix: r.key_prefix,
+            name: r.name,
+            created_at: r.created_at,
+            last_used_at: r.last_used_at,
         })
     }
 
@@ -1069,7 +1212,11 @@ impl Database for PostgresDb {
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.map(|r| ApiKeyMetaRow { id: r.id, org_id: r.org_id, key_hash: r.key_hash }))
+        Ok(row.map(|r| ApiKeyMetaRow {
+            id: r.id,
+            org_id: r.org_id,
+            key_hash: r.key_hash,
+        }))
     }
 
     async fn search(&self, query: &str, limit: i64) -> DbResult<Vec<SearchResultRow>> {
@@ -1102,11 +1249,18 @@ impl Database for PostgresDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| SearchResultRow {
-            conversation_id: r.conversation_id, user_prompt: r.user_prompt,
-            model: r.model, agent: r.agent, tool_name: r.tool_name,
-            started_at: r.started_at, match_field: r.match_field,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| SearchResultRow {
+                conversation_id: r.conversation_id,
+                user_prompt: r.user_prompt,
+                model: r.model,
+                agent: r.agent,
+                tool_name: r.tool_name,
+                started_at: r.started_at,
+                match_field: r.match_field,
+            })
+            .collect())
     }
 
     async fn migrate(&self) -> DbResult<()> {
@@ -1118,9 +1272,7 @@ impl Database for PostgresDb {
     }
 
     async fn health_check(&self) -> DbResult<()> {
-        sqlx::query("SELECT 1")
-            .execute(&self.pool)
-            .await?;
+        sqlx::query("SELECT 1").execute(&self.pool).await?;
         Ok(())
     }
 }
