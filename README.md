@@ -8,7 +8,7 @@ Track every **LLM call**, **tool invocation**, **conversation** and **token** sp
 across all your IDEs and AI agents. No accounts, no cloud, no database to provision:
 **one binary**, a local **SQLite** file, and a dashboard on `localhost`.
 
-[![CI](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml)
+[![CI: Jenkins external CI](https://img.shields.io/badge/CI-Jenkins%20external CI-blue.svg)](https://jenkins.ci.example.com/job/agent-meter-oss/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)
 ![Single binary](https://img.shields.io/badge/deploy-single%20binary-success.svg)
@@ -76,9 +76,8 @@ won't re-seed a database that already has data — pass `--force` to reseed.
 State lives in `agent-meter.db` (SQLite) in the working directory. **Zero
 configuration required.**
 
-> 📦 **Prebuilt binaries** for Linux/macOS/Windows will attach to
-> [Releases](https://github.com/dnorio/agent-meter/releases); until the first
-> tagged release, the installer builds from source automatically.
+> 📦 **Prebuilt binaries** on [Releases](https://github.com/dnorio/agent-meter/releases).
+> **CI** = [Jenkins external CI](https://jenkins.ci.example.com/job/agent-meter-oss/) (`jenkins/agent-meter`), not GitHub Actions.
 
 ---
 
