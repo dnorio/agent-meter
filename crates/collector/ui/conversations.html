@@ -23,18 +23,18 @@
   .stat-card.success .stat-val { color:var(--am-success); }
   .stat-card.danger .stat-val { color:var(--am-danger); }
 
-  /* ── Row layout — dense 2-line rows ─────── */
+  /* ── Row layout — aligned data grid ─────── */
   .conv-list { display:flex; flex-direction:column; }
   .conv-row {
     display:grid;
-    grid-template-columns: 34px 1fr auto;
+    grid-template-columns: 40px minmax(0, 1fr) 76px 64px 72px 76px 72px;
+    gap:0 14px;
     align-items:center;
-    gap:10px;
-    padding:8px 16px;
+    padding:10px 16px;
     border-bottom:1px solid var(--am-border);
     cursor:pointer; text-decoration:none; color:inherit;
-    transition: background .12s var(--am-ease);
-    min-height:52px;
+    transition: background .15s var(--am-ease);
+    min-height:56px;
   }
   .conv-row:hover { background:var(--am-surface-2); }
   .conv-row:last-child { border-bottom:none; }
@@ -85,23 +85,43 @@
   .tag-model { background:var(--am-surface-2); color:var(--am-text-muted); }
   .tag-err { background:var(--am-danger-soft); color:var(--am-danger); }
 
-  /* ── Right metrics (compact) ─────── */
-  .conv-right {
-    display:flex; align-items:center; gap:16px; flex-shrink:0;
+  /* ── Right metrics — values only; headers live in conv-head ─────── */
+  .conv-metric {
+    text-align:right;
+    font-family:var(--am-font-mono);
+    font-size:12px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    color:var(--am-text);
+    line-height:1.2;
   }
-  .metric { display:flex; flex-direction:column; align-items:flex-end; }
-  .metric .mv { font-family:var(--am-font-mono); font-size:12px; font-weight:600; color:var(--am-text); line-height:1.2; }
-  .metric .ml { font-size:9px; text-transform:uppercase; letter-spacing:.04em; color:var(--am-text-dim); }
-  .metric.cost .mv { color:var(--am-success); }
-  .metric.tokens .mv { color:var(--am-info); }
-  .conv-time { font-size:11px; color:var(--am-text-muted); text-align:right; min-width:60px; }
+  .conv-metric.cost { color:var(--am-success); }
+  .conv-metric.tokens { color:var(--am-info); }
+  .conv-metric.muted { color:var(--am-text-dim); font-weight:500; }
+  .conv-time {
+    text-align:right;
+    font-size:11px;
+    color:var(--am-text-muted);
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+  }
 
-  /* ── Header ─────── */
+  /* ── Header — column labels aligned to metrics ─────── */
   .conv-head {
-    display:flex; align-items:center; padding:8px 16px;
-    border-bottom:1px solid var(--am-border-strong); background:var(--am-surface-2);
-    font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--am-text-muted);
+    display:grid;
+    grid-template-columns: 40px minmax(0, 1fr) 76px 64px 72px 76px 72px;
+    gap:0 14px;
+    align-items:center;
+    padding:10px 16px;
+    border-bottom:1px solid var(--am-border-strong);
+    background:var(--am-surface-2);
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:.02em;
+    color:var(--am-text-muted);
   }
+  .conv-head .col-num { text-align:right; }
+  .conv-head .col-session { font-weight:600; color:var(--am-text-dim); }
 
   /* ── Toolbar ─────── */
   .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -116,9 +136,19 @@
   .ide-filter button.active { background:var(--am-accent-soft); color:var(--am-accent); }
   .pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:12px; font-size:12px; color:var(--am-text-muted); }
 
-  @media (max-width:768px) {
-    .conv-right .metric.tokens, .conv-right .metric.cost { display:none; }
-    .conv-summary { grid-template-columns:repeat(3,1fr); }
+  @media (max-width:900px) {
+    .conv-row, .conv-head {
+      grid-template-columns: 36px minmax(0, 1fr) 68px 56px 64px;
+    }
+    .conv-metric.cost, .conv-head .col-cost,
+    .conv-time, .conv-head .col-when { display:none; }
+  }
+  @media (max-width:640px) {
+    .conv-row, .conv-head {
+      grid-template-columns: 32px minmax(0, 1fr) 64px 56px;
+    }
+    .conv-metric.tokens, .conv-head .col-tokens { display:none; }
+    .conv-summary { grid-template-columns:repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -153,8 +183,13 @@
 
     <div class="am-card" style="padding:0;overflow:hidden">
       <div class="conv-head">
-        <span style="flex:1">Conversations</span>
-        <span style="margin-right:16px">Duration · Events · Tokens · Cost · Time</span>
+        <span aria-hidden="true"></span>
+        <span class="col-session">Session</span>
+        <span class="col-num">Duration</span>
+        <span class="col-num">Events</span>
+        <span class="col-num col-tokens">Tokens</span>
+        <span class="col-num col-cost">Cost</span>
+        <span class="col-num col-when">When</span>
       </div>
       <div id="convList" class="conv-list"><div class="am-empty" style="padding:32px;text-align:center">Loading…</div></div>
     </div>
@@ -196,15 +231,17 @@ function fmtTokens(n) {
   return String(n);
 }
 function fmtDate(s) {
-  if (!s) return '—';
+  if (!s) return { label: '—', title: '' };
   const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return { label: '—', title: '' };
   const now = new Date();
   const diff = now - d;
-  if (diff < 60e3) return 'now';
-  if (diff < 3600e3) return Math.floor(diff/60e3) + 'm';
-  if (diff < 86400e3) return Math.floor(diff/3600e3) + 'h';
-  if (diff < 172800e3) return '1d';
-  return Math.floor(diff/86400e3) + 'd';
+  const full = d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  if (diff < 60e3) return { label: 'just now', title: full };
+  if (diff < 3600e3) return { label: Math.floor(diff/60e3) + ' min ago', title: full };
+  if (diff < 86400e3) return { label: Math.floor(diff/3600e3) + ' h ago', title: full };
+  if (diff < 172800e3) return { label: 'yesterday', title: full };
+  return { label: Math.floor(diff/86400e3) + ' d ago', title: full };
 }
 
 const IDE_META = {
@@ -288,7 +325,7 @@ function renderSummary() {
   const toks = allRows.reduce((s,c) => s + (c.total_tokens_in||0) + (c.total_tokens_out||0), 0);
   document.getElementById('summaryStrip').innerHTML = `
     <div class="stat-card accent"><div class="stat-val">${n}</div><div class="stat-label">Sessions</div></div>
-    <div class="stat-card"><div class="stat-val">${fmtTokens(evts)}</div><div class="stat-label">Events</div></div>
+    <div class="stat-card"><div class="stat-val">${evts.toLocaleString()}</div><div class="stat-label">Events</div></div>
     <div class="stat-card"><div class="stat-val">${fmtTokens(toks)}</div><div class="stat-label">Tokens</div></div>
     <div class="stat-card success"><div class="stat-val">${fmtUsd(cost)}</div><div class="stat-label">Cost</div></div>
     <div class="stat-card ${errs>0?'danger':''}"><div class="stat-val">${errs}</div><div class="stat-label">Errors</div></div>`;
@@ -307,7 +344,7 @@ function render() {
 
   document.getElementById('btnPrev').disabled = offset === 0;
   document.getElementById('btnNext').disabled = allRows.length < PAGE_SIZE;
-  document.getElementById('pagerInfo').textContent = `pg ${Math.floor(offset/PAGE_SIZE)+1}`;
+  document.getElementById('pagerInfo').textContent = `Page ${Math.floor(offset/PAGE_SIZE)+1}`;
 
   if (!rows.length) {
     document.getElementById('convList').innerHTML = `<div class="am-empty" style="padding:32px;text-align:center;color:var(--am-text-dim)">No conversations found.</div>`;
@@ -333,13 +370,15 @@ function render() {
     let line2 = `<span class="tag tag-model" style="font-family:var(--am-font-mono)">${esc(shortId)}</span>`;
     if (agent) line2 += `<span class="dot"></span><span class="tag tag-agent">${agent}</span>`;
     if (model) line2 += `<span class="dot"></span><span class="tag tag-model">${model}</span>`;
-    if (hasErr) line2 += `<span class="dot"></span><span class="tag tag-err">${c.error_count} err</span>`;
+    if (hasErr) line2 += `<span class="dot"></span><span class="tag tag-err">${c.error_count} error${c.error_count===1?'':'s'}</span>`;
 
     // Display: title OR prompt OR response_preview OR model-based fallback
     const displayTitle = title || prompt || (response ? response.slice(0, 80) : '') || (model ? `${model} session` : '');
     const showPromptBelow = prompt && title && prompt !== title;
     // Response preview: show below title only if title came from elsewhere
     const responseSnippet = (response && displayTitle !== response.slice(0, 80)) ? (response.length > 120 ? response.slice(0,120) + '…' : response) : '';
+
+    const when = fmtDate(c.started_at);
 
     return `<a class="conv-row" href="/conversations/${encodeURIComponent(id)}/timeline">
       <div class="ide-badge ${ide.cls}" title="${esc(ide.label)}">${esc(ide.abbr)}</div>
@@ -349,13 +388,11 @@ function render() {
         ${responseSnippet ? `<div class="conv-response">${responseSnippet}</div>` : ''}
         <div class="conv-line2">${line2}</div>
       </div>
-      <div class="conv-right">
-        <div class="metric"><span class="mv">${fmtDur(c.total_duration_ms)}</span><span class="ml">dur</span></div>
-        <div class="metric"><span class="mv">${c.event_count}</span><span class="ml">evts</span></div>
-        <div class="metric tokens"><span class="mv">${fmtTokens(totalTok)}</span><span class="ml">tok</span></div>
-        <div class="metric cost"><span class="mv">${fmtUsd(c.total_usd_cost)}</span><span class="ml">cost</span></div>
-        <div class="conv-time">${fmtDate(c.started_at)}</div>
-      </div>
+      <span class="conv-metric">${fmtDur(c.total_duration_ms)}</span>
+      <span class="conv-metric">${c.event_count ?? 0}</span>
+      <span class="conv-metric tokens">${fmtTokens(totalTok)}</span>
+      <span class="conv-metric cost">${fmtUsd(c.total_usd_cost)}</span>
+      <span class="conv-time" title="${esc(when.title)}">${esc(when.label)}</span>
     </a>`;
   }).join('');
 }

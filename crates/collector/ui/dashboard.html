@@ -110,7 +110,7 @@
     </div>
 
     <!-- SOCIAL PROOF BANNER (anonymous visitors) -->
-    <div id="socialProof" style="display:none;margin-bottom:20px;padding:12px 20px;background:var(--am-surface);border:1px solid var(--am-border);border-radius:var(--am-radius);align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;font-size:var(--am-fs-sm)">>
+    <div id="socialProof" style="display:none;margin-bottom:20px;padding:12px 20px;background:var(--am-surface);border:1px solid var(--am-border);border-radius:var(--am-radius);align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;font-size:var(--am-fs-sm)">
       <span style="font-weight:600;color:var(--am-text)">📊 Live platform stats</span>
       <span><strong id="spEvents">—</strong> <span class="am-muted">events tracked</span></span>
       <span><strong id="spModels">—</strong> <span class="am-muted">AI models</span></span>
@@ -482,8 +482,8 @@ function renderIdeBreakdown(elId, rows) {
       <div style="width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500">${ide}</div>
       <div style="flex:1;height:6px;background:var(--am-surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};opacity:0.8"></div></div>
       <div style="width:50px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600">${amNum(c)}</div>
-      <div style="width:55px;text-align:right;font-size:11px;color:var(--am-muted)">${toks} tok</div>
-      <div style="width:42px;text-align:right;font-size:11px;color:var(--am-muted)" title="${r.llm_calls||0} LLM calls">${llmPct}% LLM</div>
+      <div style="width:72px;text-align:right;font-size:11px;color:var(--am-text-muted);font-variant-numeric:tabular-nums" title="Estimated tokens">${toks}</div>
+      <div style="width:48px;text-align:right;font-size:11px;color:var(--am-text-muted)" title="${r.llm_calls||0} LLM calls">${llmPct}% LLM</div>
     </div>`;
   }).join('');
   el.innerHTML = html;
