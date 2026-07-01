@@ -1,34 +1,105 @@
-# agent-meter-proxy installer for Windows PowerShell
-# Full auto: downloads MSI wizard (CA + proxy + service + env vars)
+# agent-meter installer (Windows PowerShell)
 #
 # Usage:
-#   irm http://localhost:8081/api/setup/bootstrap.ps1 | iex
+#   irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
+#
+# Installs a single `agent-meter.exe` to %USERPROFILE%\.agent-meter\bin. If a
+# prebuilt release binary exists for your platform it is downloaded; otherwise
+# the binary is built from source (requires Rust + git).
+#
+# Environment:
+#   AGENT_METER_DIR           install directory (default: ~\.agent-meter\bin)
+#   AGENT_METER_VERSION       release tag to install (default: latest release)
+#   AGENT_METER_FROM_SOURCE=1 skip release download and always build from source
+#   AGENT_METER_SRC           source checkout dir (default: ~\.agent-meter\src)
 
 $ErrorActionPreference = "Stop"
 
-$BaseUrl = if ($env:AGENT_METER_BASE_URL) { $env:AGENT_METER_BASE_URL } else { "http://localhost:8081" }
+$Repo       = "dnorio/agent-meter"
+$Binary     = "agent-meter"
+$InstallDir = if ($env:AGENT_METER_DIR) { $env:AGENT_METER_DIR } else { Join-Path $HOME ".agent-meter\bin" }
+$SrcDir     = if ($env:AGENT_METER_SRC) { $env:AGENT_METER_SRC } else { Join-Path $HOME ".agent-meter\src" }
 
-# Detect architecture (ARM64 vs x64)
-$IsArm64 = $false
-if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { $IsArm64 = $true }
-if ($env:PROCESSOR_IDENTIFIER -match "ARM64") { $IsArm64 = $true }
+$Arch = if ($env:PROCESSOR_ARCHITECTURE -match "ARM64") { "aarch64" } else { "x86_64" }
 
-$MsiFormat = if ($IsArm64) { "msi-arm64" } else { "msi" }
-$MsiLabel = if ($IsArm64) { "ARM64" } else { "x64" }
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+$Dest = Join-Path $InstallDir "$Binary.exe"
 
-Write-Host "==> Instalador MSI agent-meter-proxy ($MsiLabel)..." -ForegroundColor Cyan
-Write-Host "    O wizard instala CA, proxy, servico Windows e HTTPS_PROXY automaticamente."
+function Try-Release {
+    if ($env:AGENT_METER_FROM_SOURCE -eq "1") { return $false }
+    try {
+        $version = $env:AGENT_METER_VERSION
+        if (-not $version) {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
+            $version = $rel.tag_name
+        }
+        if (-not $version) { return $false }
 
-$DownloadUrl = "$BaseUrl/api/setup/proxy?os=windows&format=$MsiFormat"
-$TempMsi = Join-Path $env:TEMP "agent-meter-proxy-setup.msi"
+        $asset = "$Binary-windows-$Arch.exe"
+        $url   = "https://github.com/$Repo/releases/download/$version/$asset"
+        Write-Host "`n==> Downloading prebuilt $Binary $version (windows/$Arch)..." -ForegroundColor Cyan
+        Write-Host "    $url"
+        Invoke-WebRequest -Uri $url -OutFile $Dest -UseBasicParsing -MaximumRedirection 5
+        return $true
+    } catch {
+        return $false
+    }
+}
 
-Write-Host "    Baixando de $DownloadUrl ..."
-Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempMsi -UseBasicParsing -MaximumRedirection 5
+function Build-FromSource {
+    Write-Host "`n==> No prebuilt binary available — building from source." -ForegroundColor Cyan
 
-Write-Host "    Executando wizard MSI..."
-Start-Process "msiexec.exe" -ArgumentList "/i `"$TempMsi`"" -Wait
+    if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+        Write-Host "Error: Rust (cargo) is required to build from source." -ForegroundColor Red
+        Write-Host "    Install it from https://rustup.rs and re-run this installer."
+        exit 1
+    }
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Host "Error: git is required to build from source." -ForegroundColor Red
+        exit 1
+    }
+
+    if (Test-Path (Join-Path $SrcDir ".git")) {
+        Write-Host "    Updating source in $SrcDir..."
+        git -C $SrcDir pull --ff-only origin main
+    } else {
+        Write-Host "    Cloning $Repo into $SrcDir..."
+        New-Item -ItemType Directory -Force -Path (Split-Path $SrcDir) | Out-Null
+        git clone --depth 1 "https://github.com/$Repo.git" $SrcDir
+    }
+
+    Write-Host "    Compiling (release) — this may take a few minutes..."
+    Push-Location $SrcDir
+    try {
+        cargo build --release -p agent-meter-collector
+    } finally {
+        Pop-Location
+    }
+    Copy-Item (Join-Path $SrcDir "target\release\agent-meter-collector.exe") $Dest -Force
+}
+
+if (-not (Try-Release)) {
+    Build-FromSource
+}
+
+Write-Host "    Installed to $Dest"
+
+# PATH hint
+if (($env:Path -split ';') -notcontains $InstallDir) {
+    Write-Host ""
+    Write-Host "  Add $InstallDir to your PATH:" -ForegroundColor Yellow
+    Write-Host "    setx PATH `"$InstallDir;`$env:PATH`""
+}
 
 Write-Host ""
-Write-Host "✓ Instalacao concluida. Reinicie o Cursor." -ForegroundColor Green
-Write-Host "  Proxy:     http://127.0.0.1:8898"
-Write-Host "  Collector: $BaseUrl"
+Write-Host "✓ agent-meter installed!" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Try it instantly (synthetic data):"
+Write-Host "    $Binary demo"
+Write-Host ""
+Write-Host "  Run for real (ingest your own events):"
+Write-Host "    $Binary serve"
+Write-Host "    # UI + REST -> http://127.0.0.1:8081"
+Write-Host "    # OTLP       -> http://127.0.0.1:4318/v1/traces"
+Write-Host ""
+Write-Host "  Docs: https://github.com/$Repo"

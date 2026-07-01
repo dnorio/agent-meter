@@ -1,101 +1,139 @@
 #!/usr/bin/env bash
-# agent-meter-proxy installer — full auto when piped (curl | sh)
+# agent-meter installer (Linux / macOS)
 #
 # Usage:
-#   curl -fsSL http://localhost:8081/api/setup/bootstrap.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter-worktree/main/apps/agent-meter/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | bash
+#
+# It installs a single `agent-meter` binary to ~/.local/bin. If a prebuilt
+# release binary exists for your platform it is downloaded; otherwise the
+# binary is built from source (requires Rust + git).
 #
 # Environment:
-#   AGENT_METER_AUTO=0     — só baixa o binário (comportamento legado)
-#   AGENT_METER_VERSION    — tag do release (default: latest)
-#   AGENT_METER_DIR        — diretório de instalação (default: ~/.local/bin)
-#   AGENT_METER_BASE_URL   — URL do collector (default: http://localhost:8081)
+#   AGENT_METER_DIR       install directory (default: ~/.local/bin)
+#   AGENT_METER_VERSION   release tag to install (default: latest release)
+#   AGENT_METER_FROM_SOURCE=1   skip release download and always build from source
+#   AGENT_METER_SRC       source checkout dir (default: ~/.cache/agent-meter/src)
 
-set -e
+set -euo pipefail
 
 REPO="dnorio/agent-meter"
-BINARY="agent-meter-proxy"
+BINARY="agent-meter"
 INSTALL_DIR="${AGENT_METER_DIR:-$HOME/.local/bin}"
-BASE_URL="${AGENT_METER_BASE_URL:-http://localhost:8081}"
-AUTO="${AGENT_METER_AUTO:-1}"
+SRC_DIR="${AGENT_METER_SRC:-$HOME/.cache/agent-meter/src}"
 
-# Quando piped, default é instalação completa via bootstrap
-if [ ! -t 0 ] && [ "$AUTO" = "1" ] && [ -z "${AGENT_METER_SKIP_BOOTSTRAP:-}" ]; then
-  echo "==> Instalação automática (proxy + CA + serviço + Cursor)..."
-  exec bash -c "curl -fsSL '${BASE_URL}/api/setup/bootstrap.sh' | bash"
-fi
+info()  { printf '  %s\n' "$*"; }
+step()  { printf '\n==> %s\n' "$*"; }
+err()   { printf 'Error: %s\n' "$*" >&2; }
 
 detect_os() {
   case "$(uname -s)" in
-    Linux*)   echo "linux";;
-    Darwin*)  echo "darwin";;
-    CYGWIN*|MINGW*|MSYS*) echo "windows";;
-    *)        echo "unknown";;
+    Linux*)  echo "linux" ;;
+    Darwin*) echo "darwin" ;;
+    *)       echo "unknown" ;;
   esac
 }
 
 detect_arch() {
   case "$(uname -m)" in
-    x86_64|amd64)  echo "x86_64";;
-    aarch64|arm64) echo "aarch64";;
-    *)             echo "unknown";;
+    x86_64|amd64)  echo "x86_64" ;;
+    aarch64|arm64) echo "aarch64" ;;
+    *)             echo "unknown" ;;
   esac
 }
 
-OS=$(detect_os)
-ARCH=$(detect_arch)
+OS="$(detect_os)"
+ARCH="$(detect_arch)"
 
 if [ "$OS" = "unknown" ] || [ "$ARCH" = "unknown" ]; then
-  echo "Error: Unsupported platform $(uname -s) / $(uname -m)" >&2
+  err "unsupported platform $(uname -s) / $(uname -m). Build from source instead."
   exit 1
 fi
 
-if [ -z "$AGENT_METER_VERSION" ]; then
-  AGENT_METER_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')
-  if [ -z "$AGENT_METER_VERSION" ]; then
-    echo "Error: Could not determine latest version" >&2
+mkdir -p "$INSTALL_DIR"
+DEST="${INSTALL_DIR}/${BINARY}"
+
+# ── 1) Try a prebuilt release binary ────────────────────────────────────────
+try_release() {
+  [ "${AGENT_METER_FROM_SOURCE:-0}" = "1" ] && return 1
+  command -v curl >/dev/null 2>&1 || return 1
+
+  local version="${AGENT_METER_VERSION:-}"
+  if [ -z "$version" ]; then
+    version="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
+      | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+  fi
+  [ -z "$version" ] && return 1
+
+  local asset="${BINARY}-${OS}-${ARCH}"
+  local url="https://github.com/${REPO}/releases/download/${version}/${asset}"
+  step "Downloading prebuilt ${BINARY} ${version} (${OS}/${ARCH})..."
+  info "$url"
+  if curl -fSL "$url" -o "$DEST" 2>/dev/null; then
+    chmod +x "$DEST"
+    return 0
+  fi
+  return 1
+}
+
+# ── 2) Fallback: build from source ──────────────────────────────────────────
+build_from_source() {
+  step "No prebuilt binary available — building from source."
+
+  if ! command -v cargo >/dev/null 2>&1; then
+    err "Rust (cargo) is required to build from source."
+    info "Install it with:  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    info "then re-run this installer."
     exit 1
   fi
+  if ! command -v git >/dev/null 2>&1; then
+    err "git is required to build from source."
+    exit 1
+  fi
+
+  if [ -d "${SRC_DIR}/.git" ]; then
+    info "Updating source in ${SRC_DIR}..."
+    git -C "$SRC_DIR" pull --ff-only origin main
+  else
+    info "Cloning ${REPO} into ${SRC_DIR}..."
+    mkdir -p "$(dirname "$SRC_DIR")"
+    git clone --depth 1 "https://github.com/${REPO}.git" "$SRC_DIR"
+  fi
+
+  info "Compiling (release) — this may take a few minutes..."
+  ( cd "$SRC_DIR" && cargo build --release -p agent-meter-collector )
+  cp "${SRC_DIR}/target/release/agent-meter-collector" "$DEST"
+  chmod +x "$DEST"
+}
+
+if try_release; then
+  info "Installed prebuilt binary."
+else
+  build_from_source
 fi
 
-echo "Installing ${BINARY} ${AGENT_METER_VERSION} for ${OS}/${ARCH}..."
+info "Installed to ${DEST}"
 
-EXT=""
-if [ "$OS" = "windows" ]; then EXT=".exe"; fi
-
-ASSET="${BINARY}-${OS}-${ARCH}${EXT}"
-URL="https://github.com/${REPO}/releases/download/${AGENT_METER_VERSION}/${ASSET}"
-
-mkdir -p "$INSTALL_DIR"
-DEST="${INSTALL_DIR}/${BINARY}${EXT}"
-
-echo "  Downloading ${URL}..."
-curl -fsSL "$URL" -o "$DEST"
-chmod +x "$DEST"
-
-echo "  Installed to ${DEST}"
-
+# ── PATH hint + next steps ──────────────────────────────────────────────────
 case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
-    echo ""
-    echo "  ⚠ ${INSTALL_DIR} is not in your PATH."
-    echo "  Add: export PATH=\"${INSTALL_DIR}:\$PATH\""
+    printf '\n'
+    info "⚠ ${INSTALL_DIR} is not in your PATH. Add this to your shell profile:"
+    info "    export PATH=\"${INSTALL_DIR}:\$PATH\""
     ;;
 esac
 
-echo ""
-echo "✓ ${BINARY} ${AGENT_METER_VERSION} installed!"
-echo ""
-if [ "$AUTO" = "1" ]; then
-  SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo "$INSTALL_DIR")"
-  if [ -f "${SCRIPT_DIR}/scripts/setup-https-proxy.sh" ]; then
-  AGENT_METER_BASE_URL="$BASE_URL" AGENT_METER_COLLECTOR_URL="$BASE_URL" \
-    bash "${SCRIPT_DIR}/scripts/setup-https-proxy.sh"
-  else
-    echo "  Run full setup: curl -fsSL ${BASE_URL}/api/setup/bootstrap.sh | bash"
-  fi
-else
-  echo "  Next: ${BINARY} setup && ${BINARY} start"
-fi
+cat <<EOF
+
+✓ agent-meter installed!
+
+  Try it instantly (synthetic data):
+    ${BINARY} demo
+
+  Run for real (ingest your own events):
+    ${BINARY} serve
+    # UI + REST  → http://127.0.0.1:8081
+    # OTLP        → http://127.0.0.1:4318/v1/traces
+
+  Docs: https://github.com/${REPO}
+EOF

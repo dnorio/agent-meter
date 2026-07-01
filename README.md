@@ -34,17 +34,36 @@ across all your IDEs and AI agents. No accounts, no cloud, no database to provis
 
 ## 🚀 Quick start
 
-> The fastest path that works today is running from source with Rust 1.75+.
+### Install (one-liner)
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
+```
+
+Installs a single `agent-meter` binary to `~/.local/bin`. It downloads a
+prebuilt release binary when one is available, otherwise builds from source
+(needs [Rust](https://rustup.rs) 1.75+ and `git`). Then:
+
+```bash
+agent-meter demo    # see it instantly, with realistic synthetic data
+agent-meter serve   # run for real and ingest your own events
+```
+
+### From source
 
 ```bash
 git clone https://github.com/dnorio/agent-meter.git
 cd agent-meter
 
-# 1) See it instantly, with realistic synthetic data
+# See it instantly, with realistic synthetic data
 cargo run -p agent-meter-collector -- demo
 # → seeds sample conversations and opens http://127.0.0.1:8081
 
-# 2) Run for real (ingest your own events)
+# Run for real (ingest your own events)
 cargo run -p agent-meter-collector -- serve
 # → http://127.0.0.1:8081  (UI + REST API)
 # → http://127.0.0.1:4318  (OTLP receiver)
@@ -57,8 +76,9 @@ won't re-seed a database that already has data — pass `--force` to reseed.
 State lives in `agent-meter.db` (SQLite) in the working directory. **Zero
 configuration required.**
 
-> 📦 **Prebuilt binaries** for Linux/macOS/Windows ship with the first tagged
-> release — see [Releases](https://github.com/dnorio/agent-meter/releases).
+> 📦 **Prebuilt binaries** for Linux/macOS/Windows will attach to
+> [Releases](https://github.com/dnorio/agent-meter/releases); until the first
+> tagged release, the installer builds from source automatically.
 
 ---
 
