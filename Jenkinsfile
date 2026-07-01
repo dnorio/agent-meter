@@ -45,7 +45,7 @@ spec:
 
   options {
     skipDefaultCheckout(true)
-    timeout(time: 25, unit: 'MINUTES')
+    timeout(time: 45, unit: 'MINUTES')
     disableConcurrentBuilds(abortPrevious: true)
     buildDiscarder(logRotator(numToKeepStr: '25'))
   }
