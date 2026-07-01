@@ -983,6 +983,21 @@ impl Database for PostgresDb {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    async fn delete_conversation(&self, conversation_id: &str) -> DbResult<u64> {
+        let result = sqlx::query("DELETE FROM agent_tool_calls WHERE conversation_id = $1")
+            .bind(conversation_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    async fn reset_all_events(&self) -> DbResult<u64> {
+        let result = sqlx::query("DELETE FROM agent_tool_calls")
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
     async fn cost_summary(&self, q: &CostQuery) -> DbResult<CostSummaryResult> {
         // KPIs
         let kpi_row = sqlx::query(

@@ -203,7 +203,7 @@ fn estimate_usd(model: Option<&str>, input_tokens: Option<i32>, output_tokens: O
 }
 
 fn parse_dt_opt(s: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
-    s.map(|s| parse_dt(s))
+    s.map(parse_dt)
 }
 
 // ── Trait implementation ────────────────────────────────────────────────────
@@ -847,7 +847,7 @@ impl Database for SqliteDb {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.iter().map(|r| sqlite_row_to_tool_call(r)).collect())
+        Ok(rows.iter().map(sqlite_row_to_tool_call).collect())
     }
 
     async fn cost_summary(&self, q: &CostQuery) -> DbResult<CostSummaryResult> {
@@ -863,7 +863,10 @@ impl Database for SqliteDb {
                 COALESCE(SUM(estimated_input_tokens), 0) AS total_tokens_in,
                 COALESCE(SUM(estimated_output_tokens), 0) AS total_tokens_out,
                 COALESCE(AVG(usd_cost), 0.0) AS avg_usd_per_event,
-                0.0 AS burn_rate_usd_per_hour,
+                COALESCE(
+                    SUM(usd_cost) / NULLIF((julianday(?2) - julianday(?1)) * 24.0, 0),
+                    0.0
+                ) AS burn_rate_usd_per_hour,
                 COALESCE(AVG(duration_ms), 0.0) AS avg_duration_ms,
                 CAST(SUM(CASE WHEN NOT ok THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) AS error_rate
             FROM agent_tool_calls
@@ -1079,6 +1082,29 @@ impl Database for SqliteDb {
             org_id: uuid::Uuid::parse_str(r.get::<&str, _>("org_id")).unwrap_or_default(),
             key_hash: r.get("key_hash"),
         }))
+    }
+
+    async fn delete_conversation(&self, conversation_id: &str) -> DbResult<u64> {
+        let result = sqlx::query("DELETE FROM agent_tool_calls WHERE conversation_id = ?1")
+            .bind(conversation_id)
+            .execute(&self.pool)
+            .await?;
+        if result.rows_affected() > 0 {
+            sqlx::query("INSERT INTO atc_fts(atc_fts) VALUES('rebuild')")
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(result.rows_affected())
+    }
+
+    async fn reset_all_events(&self) -> DbResult<u64> {
+        let result = sqlx::query("DELETE FROM agent_tool_calls")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("INSERT INTO atc_fts(atc_fts) VALUES('rebuild')")
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
     }
 
     async fn search(&self, query: &str, limit: i64) -> DbResult<Vec<SearchResultRow>> {

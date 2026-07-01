@@ -71,6 +71,10 @@ pub trait Database: Send + Sync + 'static {
         params: &ConversationQuery,
     ) -> DbResult<Vec<ConversationRow>>;
     async fn conversation_detail(&self, conversation_id: &str) -> DbResult<Vec<ToolCallRow>>;
+    /// Delete all events for a conversation. Returns rows removed.
+    async fn delete_conversation(&self, conversation_id: &str) -> DbResult<u64>;
+    /// Delete all tool-call events (local reset). Returns rows removed.
+    async fn reset_all_events(&self) -> DbResult<u64>;
 
     // ── Cost ────────────────────────────────────────────────────────────────
     async fn cost_summary(&self, params: &CostQuery) -> DbResult<CostSummaryResult>;

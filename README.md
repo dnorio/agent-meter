@@ -166,6 +166,8 @@ curl -X POST http://127.0.0.1:8081/events/tool-call \
 | `GET` | `/reports/top-tools` | Most-used tools |
 | `GET` | `/reports/top-mcp-servers` | Most active MCP servers |
 | `GET` | `/api/cost/summary` | Token & USD cost summary |
+| `DELETE` | `/api/conversations/:id` | Delete one session and all its events |
+| `POST` | `/api/admin/reset` | Wipe all ingested events (local reset) |
 | `GET` | `/health` | Health check |
 
 ---
@@ -190,6 +192,19 @@ file (`--config agent-meter.toml`, see [`agent-meter.example.toml`](agent-meter.
 > **Cost estimates.** When a client doesn't send an explicit cost, agent-meter
 > estimates USD from token counts using approximate public per-model list prices,
 > so the FinOps views always have a sensible number.
+
+### Managing local data
+
+```bash
+# Delete one conversation (and all its events)
+curl -X DELETE http://127.0.0.1:8081/api/conversations/demo-conv-03
+
+# Wipe everything (fresh start before a live capture)
+curl -X POST http://127.0.0.1:8081/api/admin/reset
+```
+
+Both endpoints are localhost-only by default (`127.0.0.1` bind). No auth token
+required — intended for local dev and demos.
 
 ---
 

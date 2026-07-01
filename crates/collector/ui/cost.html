@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <title>Cost · agent-meter</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Track AI agent costs by model, IDE, and time period. Budget alerts and daily spend breakdowns.">
+<meta name="description" content="Track AI agent token and USD spend by model, agent, and IDE — local FinOps for your dev workflow.">
 <meta property="og:title" content="Cost Analytics · agent-meter">
-<meta property="og:description" content="Track AI agent costs by model, IDE, and time period. Budget alerts and daily spend breakdowns.">
+<meta property="og:description" content="Track AI agent token and USD spend by model, agent, and IDE — local FinOps for your dev workflow.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="http://localhost:8081/cost">
 <meta name="twitter:card" content="summary">
@@ -28,7 +28,7 @@
     <div class="am-page-header" style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
         <h1 class="am-page-title">Cost attribution</h1>
-        <p class="am-page-subtitle">FinOps view — track LLM spend by model, by day, by org. Live pricing reference.</p>
+        <p class="am-page-subtitle">FinOps view — track LLM spend by model, agent, and day. Costs are estimated from token counts × approximate public list prices.</p>
       </div>
       <div class="am-segment" id="windowSeg">
         <button data-days="1">24h</button>
@@ -97,22 +97,12 @@
       </table>
     </div>
 
-    <!-- Pricing reference -->
+    <!-- Cost estimation note -->
     <div class="am-card">
       <div class="am-card-header">
-        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-info"/></svg>Pricing reference</h3>
-        <p class="am-card-subtitle" style="margin:0">Current rate card we apply when computing per-event cost.</p>
+        <h3 class="am-card-title"><svg class="am-icon"><use href="/_static/icons.svg#i-info"/></svg>How cost is estimated</h3>
+        <p class="am-card-subtitle" style="margin:0">When a client doesn't send an explicit USD amount, agent-meter estimates cost from input/output token counts using approximate public list prices (GPT-4o, Claude, Gemini, etc.). Figures are indicative — not a billing invoice.</p>
       </div>
-      <table class="am-table pricing-row">
-        <thead><tr>
-          <th>Model</th><th>Match</th>
-          <th class="num">Input $/M</th>
-          <th class="num">Output $/M</th>
-          <th class="num">Cached $/M</th>
-          <th>Source</th>
-        </tr></thead>
-        <tbody id="pricingBody"></tbody>
-      </table>
     </div>
   </main>
   <footer class="am-footer" id="amFooter"></footer>
@@ -150,7 +140,6 @@ async function load() {
   } catch (e) {
     document.getElementById('statusText').textContent = 'error: ' + e.message;
   }
-  loadPricing();
 }
 
 function renderSummary(data) {
@@ -255,23 +244,6 @@ function drawChart(days) {
     xh.style.display='none';
     svg.querySelectorAll('rect[data-idx]').forEach(r => r.setAttribute('opacity','0.85'));
   });
-}
-
-async function loadPricing() {
-  try {
-    const r = await fetch('/api/cost/pricing');
-    if (!r.ok) return;
-    const rows = await r.json();
-    document.getElementById('pricingBody').innerHTML = rows.slice(0, 20).map(p => `
-      <tr>
-        <td>${escapeHtml(p.model)}</td>
-        <td><code>${escapeHtml(p.match_kind)}</code></td>
-        <td class="num am-mono">${p.input_per_mtok.toFixed(2)}</td>
-        <td class="num am-mono">${p.output_per_mtok.toFixed(2)}</td>
-        <td class="num am-mono">${p.cached_per_mtok.toFixed(2)}</td>
-        <td class="am-muted" style="font-size:12px">${escapeHtml(p.source)}</td>
-      </tr>`).join('');
-  } catch(e) { console.error(e); }
 }
 
 // Breakdown tabs (by model / by agent / by IDE)

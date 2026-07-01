@@ -166,3 +166,105 @@ async fn test_conversations_list_and_cost_summary() {
         .unwrap();
     assert!(cost.get("kpis").is_some(), "cost summary should have kpis");
 }
+
+#[tokio::test]
+async fn test_admin_delete_and_reset() {
+    let (base_url, client) = setup().await;
+
+    let event = json!({
+        "event_id": uuid::Uuid::new_v4().to_string(),
+        "tool_name": "admin_test_tool",
+        "conversation_id": "conv-admin-test",
+        "started_at": "2026-05-17T00:00:00Z",
+        "ended_at": "2026-05-17T00:00:01Z",
+        "ok": true,
+        "estimated_input_tokens": 1000,
+        "estimated_output_tokens": 200,
+        "model": "gpt-4o"
+    });
+    client
+        .post(format!("{}/events/tool-call", base_url))
+        .json(&event)
+        .send()
+        .await
+        .unwrap();
+
+    let del: serde_json::Value = client
+        .delete(format!("{}/api/conversations/conv-admin-test", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(del["deleted_events"], 1);
+
+    client
+        .post(format!("{}/events/tool-call", base_url))
+        .json(&event)
+        .send()
+        .await
+        .unwrap();
+
+    let reset: serde_json::Value = client
+        .post(format!("{}/api/admin/reset", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(reset["deleted_events"].as_u64().unwrap_or(0) >= 1);
+
+    let convs: serde_json::Value = client
+        .get(format!("{}/api/conversations?limit=10", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(convs.as_array().map(|a| a.len()).unwrap_or(99), 0);
+}
+
+#[tokio::test]
+async fn test_cost_summary_burn_rate_nonzero() {
+    let (base_url, client) = setup().await;
+
+    let event = json!({
+        "event_id": uuid::Uuid::new_v4().to_string(),
+        "tool_name": "cost_tool",
+        "conversation_id": "conv-cost",
+        "started_at": "2026-05-17T00:00:00Z",
+        "ended_at": "2026-05-17T00:00:01Z",
+        "ok": true,
+        "estimated_input_tokens": 5000,
+        "estimated_output_tokens": 1000,
+        "model": "gpt-4o"
+    });
+    client
+        .post(format!("{}/events/tool-call", base_url))
+        .json(&event)
+        .send()
+        .await
+        .unwrap();
+
+    let cost: serde_json::Value = client
+        .get(format!(
+            "{}/api/cost/summary?from=2026-05-16T00:00:00Z&to=2026-05-18T00:00:00Z",
+            base_url
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let burn = cost["kpis"]["burn_rate_usd_per_hour"]
+        .as_f64()
+        .unwrap_or(0.0);
+    assert!(
+        burn > 0.0,
+        "burn rate should be computed from spend / hours"
+    );
+}
