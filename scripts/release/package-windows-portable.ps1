@@ -25,7 +25,7 @@ agent-meter-proxy $Version (portable)
 4. Reinicie o Cursor.
 
 Collector: http://localhost:8081
-Docs:      http://localhost:8081/setup
+Docs:      http://localhost:8081/docs
 "@ | Set-Content -Path (Join-Path $Stage "README.txt") -Encoding UTF8
 
 @"

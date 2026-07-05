@@ -94,11 +94,12 @@ bash scripts/ci/github-status.sh pending "agent-meter CI running" "${BUILD_URL}"
         not { buildingTag() }
       }
       stages {
-        stage('Format') {
-          steps {
-            container('rust') {
-              sh '''#!/usr/bin/env bash
+    stage('Format') {
+      steps {
+        container('rust') {
+          sh '''#!/usr/bin/env bash
 set -euo pipefail
+bash scripts/ci/oss-scrub-check.sh
 rustup component add rustfmt
 cargo fmt --all -- --check
 echo "✓ cargo fmt"

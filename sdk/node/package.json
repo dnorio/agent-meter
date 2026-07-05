@@ -21,12 +21,12 @@
     "llm",
     "opentelemetry"
   ],
-  "author": "Agent Meter <security@example.com>",
+  "author": "dnorio",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/dnorio/agent-meter",
-    "directory": "apps/agent-meter/sdk/node"
+    "directory": "sdk/node"
   },
   "engines": {
     "node": ">=18"

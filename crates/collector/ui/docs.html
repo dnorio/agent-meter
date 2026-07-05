@@ -128,7 +128,7 @@
         <a href="#cursor">Cursor</a>
         <a href="#eclipse">Eclipse</a>
         <a href="#opencode">OpenCode / Others</a>
-        <a href="/setup">Download & Setup</a>
+        <a href="https://github.com/dnorio/agent-meter/releases" target="_blank" rel="noopener">Install & Releases</a>
         <div class="toc-section">CLI Support</div>
         <a href="#copilot-cli">Copilot CLI</a>
         <a href="#claude-code">Claude Code</a>
@@ -165,8 +165,8 @@
               <span>Waterfall view of LLM spans with tool calls, duration, and model attribution.</span>
             </div>
             <div class="feature-item">
-              <strong>Budget Alerts</strong>
-              <span>Set spend thresholds per team, project, or model. Get notified before you overspend.</span>
+              <strong>Local-first</strong>
+              <span>SQLite embedded — no Postgres or cloud account required for the OSS binary.</span>
             </div>
             <div class="feature-item">
               <strong>CLI Agnostic</strong>
@@ -239,7 +239,7 @@
         <!-- ARCHITECTURE -->
         <section id="architecture">
           <h2>Architecture</h2>
-          <p>agent-meter uses a lightweight collector that ingests telemetry from multiple sources and stores it in PostgreSQL. The architecture supports three capture methods:</p>
+          <p>agent-meter uses a lightweight collector that ingests telemetry from multiple sources and stores it in <strong>SQLite</strong> (OSS default). The architecture supports three capture methods:</p>
 
           <div class="arch-diagram">
             <div class="mermaid">
@@ -249,7 +249,7 @@ graph TD
     vscode["VS Code<br/><small>OTLP · Port 4318</small>"]
     cursor["Cursor / Eclipse<br/><small>Proxy · Port 8898</small>"]
     cli["CLI Tools<br/><small>Proxy · Port 8898</small>"]
-    custom["Custom Agents<br/><small>REST API · Port 3000</small>"]
+    custom["Custom Agents<br/><small>REST API · Port 8081</small>"]
   end
 
   subgraph collector ["agent-meter collector"]
@@ -257,7 +257,7 @@ graph TD
     detect["IDE Detection<br/><small>user-agent, service.name</small>"]
     group["Conversation Grouping<br/><small>trace_id</small>"]
     cost["Cost Calculator<br/><small>per-model pricing</small>"]
-    db[("PostgreSQL<br/><small>events · conversations · cost</small>")]
+    db[("SQLite<br/><small>events · conversations · cost</small>")]
     ui["Web UI<br/><small>Dashboard · Conversations · Cost · …</small>"]
   end
 
@@ -313,42 +313,27 @@ graph TD
           <h2>Quick Start</h2>
 
           <div class="callout callout-success">
-            <strong>Need the local proxy?</strong> Download the correct binary from <a href="/setup" style="color:var(--am-accent)">Download & Setup</a> or open the <a href="https://github.com/dnorio/agent-meter/releases/tag/agent-meter-proxy-v1.2.3" style="color:var(--am-accent)">v1.2.3 GitHub release</a>.
+            <strong>Install the binary:</strong> use <a href="https://github.com/dnorio/agent-meter/releases" style="color:var(--am-accent)">GitHub Releases</a> or <code>curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | bash</code>.
           </div>
 
           <h3>Self-Hosted (Docker Compose)</h3>
-          <pre><code># Clone the repository
-git clone https://github.com/dnorio/agent-meter.git
-cd agent-meter-worktree/apps/agent-meter
+          <pre><code>git clone https://github.com/dnorio/agent-meter.git
+cd agent-meter
+docker compose -f docker-compose.standalone.yml up -d --build
 
-# Start PostgreSQL + collector
-docker compose up -d
-
-# Collector is now listening:
-#   :3000  — REST API + Web UI
-#   :4318  — OTLP receiver</code></pre>
+# Collector:
+#   http://localhost:8081  — REST API + Web UI
+#   http://localhost:4318  — OTLP receiver</code></pre>
 
           <h3>From Source (Development)</h3>
-          <pre><code># Prerequisites: Rust 1.75+, PostgreSQL 15+
-cargo install sqlx-cli
+          <pre><code># Prerequisites: Rust 1.75+
+git clone https://github.com/dnorio/agent-meter.git
+cd agent-meter
 
-# Create database and run migrations
-export DATABASE_URL="postgres://localhost/agent_meter"
-sqlx database create
-sqlx migrate run
+cargo run -p agent-meter-collector -- demo
+# or: cargo run -p agent-meter-collector -- serve
 
-# Start the collector
-cargo run -p collector
-
-# Open http://localhost:3000</code></pre>
-
-          <h3>Kubernetes (Helm)</h3>
-          <pre><code># Using the deploy script (ARM64 cluster)
-cd apps/agent-meter
-./deploy.sh
-
-# Or apply manifests directly
-kubectl apply -f k8s/</code></pre>
+# Open http://127.0.0.1:8081</code></pre>
 
           <div class="callout callout-info">
             <strong>First telemetry in 60 seconds:</strong> After starting the collector, configure VS Code with 2 lines in <code>settings.json</code> (see <a href="#vscode" style="color:var(--am-accent)">VS Code setup</a>), start a Copilot chat, and see data appear on the dashboard immediately.
@@ -367,7 +352,7 @@ kubectl apply -f k8s/</code></pre>
           <p>Add to your VS Code <code>settings.json</code>:</p>
           <pre><code>{
   "github.copilot.chat.otel.enabled": true,
-  "github.copilot.chat.otel.otlpEndpoint": "https://your-agent-meter.example.com",
+  "github.copilot.chat.otel.otlpEndpoint": "http://127.0.0.1:4318",
   "github.copilot.chat.otel.captureContent": false
 }</code></pre>
 
@@ -634,7 +619,7 @@ codex "refactor this function"</code></pre>
           <pre><code>pip install agent-meter</code></pre>
           <pre><code>from agent_meter import AgentMeter
 
-am = AgentMeter(api_key="am_live_...")
+am = AgentMeter(endpoint="http://127.0.0.1:8081")
 
 # Track a tool call
 span = am.track("web_search", model="gpt-4o")
@@ -652,7 +637,7 @@ span.finish()</code></pre>
           <pre><code>npm install @agent-meter/sdk</code></pre>
           <pre><code>import { AgentMeter } from "@agent-meter/sdk";
 
-const am = new AgentMeter({ apiKey: "am_live_..." });
+const am = new AgentMeter({ endpoint: "http://127.0.0.1:8081" });
 
 const span = am.track("web_search", { model: "gpt-4o" });
 const result = await search(query);
@@ -669,8 +654,7 @@ am.finish(span2);</code></pre>
           <table>
             <thead><tr><th>Env Variable</th><th>Description</th><th>Default</th></tr></thead>
             <tbody>
-              <tr><td><code>AGENT_METER_API_KEY</code></td><td>API key for auth</td><td>—</td></tr>
-              <tr><td><code>AGENT_METER_ENDPOINT</code></td><td>Collector URL</td><td><code>http://localhost:8081</code></td></tr>
+              <tr><td><code>AGENT_METER_ENDPOINT</code></td><td>Collector URL</td><td><code>http://127.0.0.1:8081</code></td></tr>
               <tr><td><code>AGENT_METER_IDE</code></td><td>IDE identifier</td><td><code>python-sdk</code> / <code>node-sdk</code></td></tr>
               <tr><td><code>AGENT_METER_AGENT</code></td><td>Agent name tag</td><td>—</td></tr>
             </tbody>
@@ -782,7 +766,7 @@ certmgr.msc → Trusted Root CAs → delete "mitmproxy"</code></pre>
           <p>Yes. Configure mitmproxy with an upstream proxy: <code>mitmdump --mode upstream:http://corporate-proxy:8080 -s interceptor.py</code>. The interception still works — it just chains through your corporate proxy.</p>
 
           <h3>Can I run agent-meter without PostgreSQL?</h3>
-          <p>Not currently. PostgreSQL is the only supported backend. SQLite support is on the roadmap for single-developer setups.</p>
+          <p>Yes — the OSS standalone binary uses <strong>SQLite</strong> by default (<code>agent-meter.db</code> in the working directory). No database server required.</p>
 
           <h3>How do I export data?</h3>
           <p>Use the REST API to pull data programmatically, or the Reports page for pre-built views. CSV export is available from the Cost page.</p>

@@ -32,7 +32,6 @@
 - **WSL2** com Ubuntu (ou qualquer distro Linux)
 - **VSCode** com extensão **Remote - WSL** (ms-vscode-remote.remote-wsl)
 - **kubectl** configurado no WSL com acesso ao cluster OCI
-- **SSH tunnel** ativo para o master node (`setup-dev-deploy.sh`)
 - **Rust toolchain** (`cargo`) ou **Docker** para compilar o CLI
 - **Porta 8081** livre no WSL (para port-forward local)
 
@@ -91,10 +90,8 @@ Use este método se precisar de customização adicional ou se o OTLP nativo nã
 
 ```bash
 # Na worktree do OpenCode (ou de qualquer worktree com o repositório)
-cd ~/REDACTED-worktree
 
 # Setup para Copilot/VSCode com MCP wrapper
-apps/agent-meter/scripts/setup-agent.sh --agent copilot --mcp-wrapper
 ```
 
 O script:
@@ -103,7 +100,6 @@ O script:
 3. Adiciona `source ~/.config/agent-meter/env.sh` ao `~/.bashrc`
 4. Configura vars do MCP wrapper no `env.sh`
 
-### WSL detection (`setup-agent.sh`)
 
 O script detecta automaticamente se está rodando dentro do WSL e ajusta:
 
@@ -131,7 +127,7 @@ env | grep AGENT_METER
 AGENT_METER_COLLECTOR_URL=http://localhost:8081
 AGENT_METER_IDE=copilot-vscode
 AGENT_METER_AGENT=copilot
-AGENT_METER_REPO=agent-meter-worktree
+AGENT_METER_REPO=agent-meter
 ```
 
 ## Passo 2 — Tunnel para o collector
@@ -142,8 +138,6 @@ O agent-meter collector roda dentro do cluster K8s (`agent-meter:3000`). Para ac
 
 ```bash
 # No diretório do cluster (worktree Antigravity)
-cd ~/REDACTED-worktree
-source oci-k8s-cluster/scripts/setup-dev-deploy.sh
 ```
 
 ### Port-forward do collector
@@ -155,15 +149,12 @@ kubectl port-forward svc/agent-meter 8081:3000
 
 ### Script automático (recomendado)
 
-Adicione ao `~/.bashrc` (já incluso pelo `setup-agent.sh`):
 
 ```bash
 # agent-meter tunnel helper
 agent-meter-tunnel() {
-  local KUBECONFIG="${KUBECONFIG:-$HOME/REDACTED-worktree/oci-k8s-cluster/kubeconfig_tunnel.yaml}"
   if [ ! -f "$KUBECONFIG" ]; then
     echo "KUBECONFIG não encontrado em $KUBECONFIG"
-    echo "Rode: source ~/REDACTED-worktree/oci-k8s-cluster/scripts/setup-dev-deploy.sh"
     return 1
   fi
   KUBECONFIG="$KUBECONFIG" kubectl port-forward svc/agent-meter 8081:3000
@@ -188,7 +179,6 @@ curl -s http://localhost:8081/health
 
 ### Configuração de ambiente
 
-O VSCode Remote - WSL herda as env vars do shell do WSL. Após o setup-agent.sh, as vars já estão no `~/.bashrc`.
 
 Para verificar se o VSCode está vendo as vars:
 
@@ -209,7 +199,7 @@ if [ -n "$TERM_PROGRAM" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
   if [ -z "$AGENT_METER_TASK_ID" ]; then
     export AGENT_METER_TASK_ID="vscode-$(hostname)-$(date +%s)"
     agent-meter task start "$AGENT_METER_TASK_ID" \
-      --repo my-app 2>/dev/null || true
+      --repo agent-meter 2>/dev/null || true
   fi
 
   # End task on shell exit
@@ -323,8 +313,6 @@ Adicione ao `~/.bashrc` para iniciar o tunnel automaticamente ao abrir o WSL:
 
 ```bash
 # Auto-tunnel agent-meter (WSL)
-if [ -z "$AGENT_METER_TUNNEL_PID" ] && [ -f "$HOME/REDACTED-worktree/oci-k8s-cluster/kubeconfig_tunnel.yaml" ]; then
-  KUBECONFIG="$HOME/REDACTED-worktree/oci-k8s-cluster/kubeconfig_tunnel.yaml" \
     kubectl port-forward svc/agent-meter 8081:3000 &>/dev/null &
   export AGENT_METER_TUNNEL_PID=$!
 fi
@@ -333,7 +321,6 @@ fi
 ## Referências
 
 - `docs/agent-meter-otel.md` — documentação geral de OTEL
-- `scripts/setup-agent.sh` — script universal de setup
 - `.agents/skills/agent-meter-integration/SKILL.md` — skill reutilizável
 - `apps/agent-meter/crates/cli/` — código do CLI
 - Dashboard: `http://localhost:8081` (via ingress, sem tunnel)

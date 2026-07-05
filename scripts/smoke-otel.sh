@@ -26,7 +26,7 @@ TASK_RESP=$(curl -sf -X POST "$COLLECTOR/tasks/start" \
   -H "content-type: application/json" \
   -d "{
     \"task_id\": \"$TASK_ID\",
-    \"repo\": \"agent-meter-worktree\",
+    \"repo\": \"agent-meter\",
     \"branch\": \"smoke-otel\",
     \"ide\": \"opencode\",
     \"agent\": \"smoke-test\",
@@ -49,7 +49,7 @@ EVENT_RESP=$(curl -sf -X POST "$COLLECTOR/events/tool-call" \
   -d "{
     \"event_id\": \"$EVENT_ID\",
     \"task_id\": \"$TASK_ID\",
-    \"repo\": \"agent-meter-worktree\",
+    \"repo\": \"agent-meter\",
     \"branch\": \"smoke-otel\",
     \"ide\": \"opencode\",
     \"agent\": \"smoke-test\",

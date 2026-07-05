@@ -9,7 +9,7 @@ description = "Lightweight SDK to track AI agent tool calls, costs, and latency.
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
-authors = [{ name = "Agent Meter", email = "security@example.com" }]
+authors = [{ name = "dnorio", email = "dnorio@users.noreply.github.com" }]
 keywords = ["ai", "agents", "observability", "telemetry", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -21,8 +21,8 @@ classifiers = [
 dependencies = ["httpx>=0.24"]
 
 [project.urls]
-Homepage = "http://localhost:8081"
-Repository = "https://github.com/dnorio/agent-meter/tree/main/apps/agent-meter/sdk/python"
+Homepage = "https://github.com/dnorio/agent-meter"
+Repository = "https://github.com/dnorio/agent-meter"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agent_meter"]

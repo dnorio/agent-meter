@@ -96,7 +96,7 @@ All other agents (OpenCode, Cursor, Antigravity, Codex) use the REST API.
 # Set the collector URL (default: http://localhost:8081)
 export AGENT_METER_COLLECTOR_URL=http://agent-meter:3000
 export AGENT_METER_TASK_ID=task-abc-123
-export AGENT_METER_REPO=agent-meter-worktree
+export AGENT_METER_REPO=agent-meter
 export AGENT_METER_BRANCH=feat/minha-feature
 export AGENT_METER_IDE=cursor
 export AGENT_METER_AGENT=cursor-agent
@@ -116,11 +116,6 @@ agent-meter event tool-call \
 
 | Agent | `AGENT_METER_IDE` | `AGENT_METER_AGENT` | Notes |
 |-------|------------------|---------------------|-------|
-| OpenCode | `opencode` | `opencode` | CLI na worktree `~/REDACTED-worktree` |
-| Cursor | `cursor` | `cursor` | CLI na worktree `~/REDACTED-worktree` |
-| Copilot/VSCode | `copilot-vscode` | `copilot` | CLI na worktree `~/REDACTED-worktree` |
-| Antigravity | `antigravity` | `antigravity` | CLI na worktree `~/REDACTED-worktree` |
-| Codex | `rust-rover` | `codex` | CLI na worktree `~/REDACTED-worktree-claude` |
 
 ### Direct HTTP (without CLI)
 
@@ -130,7 +125,7 @@ curl -X POST http://agent-meter:3000/events/tool-call \
   -d '{
     "event_id": "'$(python3 -c "import uuid; print(uuid.uuid4())")'",
     "task_id": "task-abc",
-    "repo": "agent-meter-worktree",
+    "repo": "agent-meter",
     "branch": "feat/x",
     "ide": "opencode",
     "agent": "opencode",

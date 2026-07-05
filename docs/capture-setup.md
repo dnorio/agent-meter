@@ -14,10 +14,10 @@
 
 ```bash
 # Linux / macOS / WSL / Git Bash
-curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter-worktree/main/apps/agent-meter/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | sh
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/dnorio/agent-meter-worktree/main/apps/agent-meter/install.ps1 | iex
+irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
 ```
 
 ### Uso
@@ -184,7 +184,7 @@ PostgreSQL → Dashboard
 ### Setup (primeira vez)
 
 ```bash
-cd ~/REDACTED-worktree/apps/agent-meter/eclipse-proxy
+cd ~/agent-meter/eclipse-proxy
 
 # Gera CA, importa no Windows, configura eclipse.ini
 ./start_proxy.sh --setup
@@ -272,7 +272,7 @@ PostgreSQL → Dashboard
 ### Setup (primeira vez — único comando)
 
 ```bash
-cd ~/REDACTED-worktree/apps/agent-meter/cursor-proxy
+cd ~/agent-meter/cursor-proxy
 
 ./start_proxy.sh --setup
 ```
@@ -421,7 +421,7 @@ Todas as CLIs usam bibliotecas HTTP padrão (Node.js `https`, Python `requests`,
 
 ```bash
 # Opção A: Wrapper dedicado (recomendado)
-cd ~/REDACTED-worktree/apps/agent-meter/eclipse-proxy
+cd ~/agent-meter/eclipse-proxy
 ./copilot-cli-metered.sh suggest "como listar pods no kubernetes"
 ./copilot-cli-metered.sh explain "kubectl get pods -A"
 
