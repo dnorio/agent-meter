@@ -8,7 +8,7 @@ cd "$ROOT"
 # Scan tracked + common source paths (exclude target/, .git/)
 mapfile -t files < <(
   git ls-files \
-    ':!:target/*' ':!docs/assets/*' \
+    ':!:target/*' ':!docs/assets/*' ':!scripts/ci/oss-scrub-check.sh' \
     | grep -E '\.(rs|html|md|sh|ps1|toml|json|yml|yaml|groovy)$|^(install\.(sh|ps1)|Jenkinsfile|Dockerfile)$' || true
 )
 
