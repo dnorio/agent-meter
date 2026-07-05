@@ -10,6 +10,9 @@ on:
         description: 'Tag to release (e.g. v0.1.1)'
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   retired:
     runs-on: ubuntu-latest

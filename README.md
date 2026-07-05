@@ -238,6 +238,12 @@ agent-meter/
 - **Local-first.** Binds to `127.0.0.1` and stores everything in a local SQLite file. No external telemetry, no phone-home.
 - **No credentials stored.** The collector records tool-call metadata, not your API keys.
 
+## 🛡️ Security
+
+- **Private pre-public.** This repository is not public yet — see [docs/pre-public-audit.md](docs/pre-public-audit.md) before go-live.
+- **CI gates:** `oss-scrub-check.sh` (tree) + `history-audit.sh` (full history).
+- **Report issues:** [SECURITY.md](SECURITY.md)
+
 ---
 
 ## 📄 License

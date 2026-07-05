@@ -24,10 +24,13 @@ FORBIDDEN=(
 
 # CI infra (not product SaaS) — allowed in these paths only
 ALLOW_JENKINS='(README\.md|Jenkinsfile|\.github/workflows/|scripts/ci/github-status\.sh)'
+# Security audit docs — document forbidden patterns intentionally
+ALLOW_SECURITY='(SECURITY\.md|docs/pre-public-audit\.md|scripts/ci/history-audit\.sh|scripts/ci/oss-scrub-check\.sh)'
+ALLOW="$ALLOW_JENKINS|$ALLOW_SECURITY"
 
 fail=0
 for pat in "${FORBIDDEN[@]}"; do
-  hits=$(grep -EIn "$pat" "${files[@]}" 2>/dev/null | grep -Ev "$ALLOW_JENKINS" || true)
+  hits=$(grep -EIn "$pat" "${files[@]}" 2>/dev/null | grep -Ev "$ALLOW" || true)
   if [[ -n "$hits" ]]; then
     echo "❌ forbidden pattern /$pat/:"
     echo "$hits" | head -20
