@@ -46,6 +46,7 @@ install_cross_toolchains() {
     apt-get update -qq
     apt-get install -y -qq --no-install-recommends \
       gcc-aarch64-linux-gnu \
+      libc6-dev-arm64-cross \
       ${INSTALL_MINGW:+mingw-w64} \
       ca-certificates \
       >/dev/null
