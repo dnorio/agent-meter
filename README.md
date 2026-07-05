@@ -9,6 +9,7 @@ across all your IDEs and AI agents. No accounts, no cloud, no database to provis
 **one binary**, a local **SQLite** file, and a dashboard on `localhost`.
 
 [![CI: Jenkins external CI](https://img.shields.io/badge/CI-Jenkins%20external CI-blue.svg)](https://jenkins.ci.example.com/job/agent-meter-oss/)
+[![Release](https://img.shields.io/github/v/release/dnorio/agent-meter?label=release)](https://github.com/dnorio/agent-meter/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)
 ![Single binary](https://img.shields.io/badge/deploy-single%20binary-success.svg)

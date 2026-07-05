@@ -35,11 +35,16 @@ function Try-Release {
         }
         if (-not $version) { return $false }
 
-        $asset = "$Binary-windows-$Arch.exe"
+        $asset = "$Binary-windows-$Arch.exe.zip"
         $url   = "https://github.com/$Repo/releases/download/$version/$asset"
         Write-Host "`n==> Downloading prebuilt $Binary $version (windows/$Arch)..." -ForegroundColor Cyan
         Write-Host "    $url"
-        Invoke-WebRequest -Uri $url -OutFile $Dest -UseBasicParsing -MaximumRedirection 5
+        $tmpZip = Join-Path $env:TEMP "agent-meter-install.zip"
+        Invoke-WebRequest -Uri $url -OutFile $tmpZip -UseBasicParsing -MaximumRedirection 5
+        Expand-Archive -Path $tmpZip -DestinationPath $env:TEMP -Force
+        $extracted = Join-Path $env:TEMP "$Binary-windows-$Arch.exe"
+        Copy-Item $extracted $Dest -Force
+        Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
         return $true
     } catch {
         return $false

@@ -64,14 +64,26 @@ try_release() {
   fi
   [ -z "$version" ] && return 1
 
-  local asset="${BINARY}-${OS}-${ARCH}"
-  local url="https://github.com/${REPO}/releases/download/${version}/${asset}"
-  step "Downloading prebuilt ${BINARY} ${version} (${OS}/${ARCH})..."
-  info "$url"
-  if curl -fSL "$url" -o "$DEST" 2>/dev/null; then
-    chmod +x "$DEST"
-    return 0
+  local asset_base="${BINARY}-${OS}-${ARCH}"
+  local tmpdir url archive
+
+  if [ "$OS" = "linux" ] || [ "$OS" = "darwin" ]; then
+    archive="${asset_base}.tar.gz"
+    url="https://github.com/${REPO}/releases/download/${version}/${archive}"
+    step "Downloading prebuilt ${BINARY} ${version} (${OS}/${ARCH})..."
+    info "$url"
+    tmpdir="$(mktemp -d)"
+    if curl -fSL "$url" -o "$tmpdir/archive.tar.gz" 2>/dev/null; then
+      tar -xzf "$tmpdir/archive.tar.gz" -C "$tmpdir"
+      cp "$tmpdir/$asset_base" "$DEST"
+      chmod +x "$DEST"
+      rm -rf "$tmpdir"
+      return 0
+    fi
+    rm -rf "$tmpdir" 2>/dev/null || true
+    return 1
   fi
+
   return 1
 }
 
