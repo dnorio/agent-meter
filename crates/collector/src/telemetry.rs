@@ -1,29 +1,29 @@
 use opentelemetry::trace::TracerProvider as _;
-use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::trace::{Config, TracerProvider};
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
 
-pub fn init_telemetry(config: &crate::config::Config) -> Option<TracerProvider> {
+pub fn init_telemetry(config: &crate::config::Config) -> Option<SdkTracerProvider> {
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     let fmt_layer = fmt::layer().json().with_target(true).with_thread_ids(true);
 
     let (otel_layer, provider) = if let Some(endpoint) = &config.otel_endpoint {
-        match opentelemetry_otlp::new_exporter()
-            .http()
+        match opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
             .with_endpoint(endpoint)
-            .build_span_exporter()
+            .build()
         {
             Ok(exporter) => {
-                let provider = TracerProvider::builder()
+                let resource = Resource::builder()
+                    .with_service_name(config.otel_service_name.clone())
+                    .build();
+                let provider = SdkTracerProvider::builder()
                     .with_simple_exporter(exporter)
-                    .with_config(Config::default().with_resource(Resource::new(vec![
-                        KeyValue::new("service.name", config.otel_service_name.clone()),
-                    ])))
+                    .with_resource(resource)
                     .build();
 
                 let tracer = provider.tracer("agent-meter-collector");
@@ -40,11 +40,12 @@ pub fn init_telemetry(config: &crate::config::Config) -> Option<TracerProvider> 
         (None, None)
     };
 
-    Registry::default()
-        .with(filter)
-        .with(fmt_layer)
-        .with(otel_layer)
-        .init();
+    let base = Registry::default().with(filter).with(fmt_layer);
+    if let Some(otel_layer) = otel_layer {
+        base.with(otel_layer).init();
+    } else {
+        base.init();
+    }
 
     provider
 }
