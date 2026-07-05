@@ -32,7 +32,24 @@ ORG_LEAKS=(
 
 fail=0
 
+# Count commits where pattern appears outside security-audit allowlist paths
 count_commits() {
+  local pat="$1"
+  local n=0
+  local commit file
+  while read -r commit; do
+    [[ -z "$commit" ]] && continue
+    local bad=0
+    while read -r file; do
+      [[ "$file" =~ ^(SECURITY\.md|docs/pre-public-audit\.md|scripts/ci/) ]] && continue
+      bad=1
+    done < <(git grep -l -E "$pat" "$commit" 2>/dev/null || true)
+    [[ $bad -eq 1 ]] && n=$((n + 1))
+  done < <(git log --all -G"$pat" --pretty=format:%H 2>/dev/null)
+  echo "$n"
+}
+
+count_commits_all() {
   local pat="$1"
   git log --all -G"$pat" --oneline 2>/dev/null | wc -l | tr -d ' '
 }
@@ -54,7 +71,7 @@ echo ""
 echo "--- Organizational / SaaS leaks in history (scrub before public) ---"
 org_hits=0
 for pat in "${ORG_LEAKS[@]}"; do
-  n=$(count_commits "$pat")
+  n=$(count_commits_all "$pat")
   if [[ "$n" -gt 0 ]]; then
     echo "⚠️  $pat → $n commit(s)"
     org_hits=$((org_hits + n))
@@ -71,6 +88,14 @@ if git log --all --name-only --pretty=format: | sort -u | grep -qE '^\.env$|\.pe
   fail=1
 else
   echo "✓  no .env / .pem / private keys in history"
+fi
+
+echo ""
+echo "--- Secret scan (full history: gitleaks + all blobs) ---"
+if bash "$ROOT/scripts/ci/secret-scan-history.sh"; then
+  :
+else
+  fail=1
 fi
 
 echo ""

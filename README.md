@@ -241,7 +241,7 @@ agent-meter/
 ## 🛡️ Security
 
 - **Private pre-public.** This repository is not public yet — see [docs/pre-public-audit.md](docs/pre-public-audit.md) before go-live.
-- **CI gates:** `oss-scrub-check.sh` (tree) + `history-audit.sh` (full history).
+- **CI gates:** `oss-scrub-check.sh` (tree) + `secret-scan-history.sh` (gitleaks + all blobs) + `history-audit.sh` (pre-public)
 - **Report issues:** [SECURITY.md](SECURITY.md)
 
 ---

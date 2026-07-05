@@ -100,6 +100,7 @@ bash scripts/ci/github-status.sh pending "agent-meter CI running" "${BUILD_URL}"
           sh '''#!/usr/bin/env bash
 set -euo pipefail
 bash scripts/ci/oss-scrub-check.sh
+bash scripts/ci/secret-scan-history.sh
 rustup component add rustfmt
 cargo fmt --all -- --check
 echo "✓ cargo fmt"

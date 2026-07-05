@@ -1,0 +1,33 @@
+# gitleaks config — agent-meter OSS
+# Docs: https://github.com/gitleaks/gitleaks
+
+title = "agent-meter OSS gitleaks"
+
+[extend]
+useDefault = true
+
+# Example / placeholder credentials in docs and tests — not real secrets
+[[allowlists]]
+description = "local dev placeholders"
+regexes = [
+  '''postgres://agent_meter:CHANGE_ME@''',
+  '''postgres://agent_meter:agent_meter@localhost''',
+  '''password=changeme''',
+  '''example\.com''',
+]
+
+[[allowlists]]
+description = "security audit docs list patterns intentionally"
+paths = [
+  '''docs/pre-public-audit\.md''',
+  '''scripts/ci/history-audit\.sh''',
+  '''scripts/ci/secret-scan-blobs\.sh''',
+  '''scripts/ci/oss-scrub-check\.sh''',
+  '''SECURITY\.md''',
+]
+
+[[allowlists]]
+description = "generated lockfile noise"
+paths = [
+  '''Cargo\.lock''',
+]

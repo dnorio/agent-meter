@@ -1,0 +1,15 @@
+# git-filter-repo --replace-text expressions (run before making repo public)
+# Usage: git filter-repo --replace-text scripts/ci/filter-repo-expressions.txt --force
+# See docs/pre-public-audit.md and skill git-history-redaction (monorepo)
+
+dnorio/agent-meter==>dnorio/agent-meter
+github.com/dnorio==>github.com/dnorio
+ghcr.io/dnorio/agent-meter==>ghcr.io/dnorio/agent-meter
+security@example.com==>security@example.com
+REDACTED-worktree==>REDACTED-worktree
+REDACTED-worktree==>REDACTED-worktree
+REDACTED-worktree==>REDACTED-worktree
+REDACTED-worktree==>REDACTED-worktree
+~/REDACTED-worktree==>~/REDACTED-worktree
+AGENT_METER_REPO="my-app"==>AGENT_METER_REPO="my-app"
+--repo my-app==>--repo my-app

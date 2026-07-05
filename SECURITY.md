@@ -29,7 +29,7 @@ In scope:
 
 Out of scope:
 
-- Hosted SaaS at `REDACTED-SaaS-host` (separate deployment; not this repo)
+- Hosted SaaS product (separate deployment; not this repo)
 - User-configured PostgreSQL backends (`DATABASE_URL`) — operator responsibility
 
 ## Safe defaults
