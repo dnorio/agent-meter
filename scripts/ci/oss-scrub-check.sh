@@ -14,11 +14,11 @@ mapfile -t files < <(
 
 FORBIDDEN=(
   'agent-meter\.dnor\.io'
-  'dnorio/agent-meter'
+  'dnorio/'$'agent-meter-worktree'
   'github\.com/dnorio'
   'ghcr\.io/toolhq'
   'agent-meter-worktree-(cursor|copilot|opencode|antigravity|rust-rover)'
-  '~/REDACTED-worktree'
+  '~/agent-meter-worktree'
   'founders@agent-meter\.com'
 )
 

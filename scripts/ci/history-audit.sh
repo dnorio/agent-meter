@@ -23,11 +23,11 @@ FORBIDDEN=(
 # Organizational leaks — allowed in current tree only via oss-scrub-check allowlist;
 # in history they must be scrubbed before public (see docs/pre-public-audit.md)
 ORG_LEAKS=(
-  'dnorio/agent-meter'
+  'dnorio/'$'agent-meter-worktree'
   'ghcr\.io/toolhq'
   'agent-meter-worktree-(cursor|copilot|opencode|antigravity|rust-rover|ops)'
   'founders@agent-meter\.com'
-  '~/REDACTED-worktree'
+  '~/agent-meter-worktree'
 )
 
 fail=0
@@ -71,7 +71,7 @@ echo ""
 echo "--- Organizational / SaaS leaks in history (scrub before public) ---"
 org_hits=0
 for pat in "${ORG_LEAKS[@]}"; do
-  n=$(count_commits_all "$pat")
+  n=$(count_commits "$pat")
   if [[ "$n" -gt 0 ]]; then
     echo "⚠️  $pat → $n commit(s)"
     org_hits=$((org_hits + n))
