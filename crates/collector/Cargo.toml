@@ -30,7 +30,7 @@ reqwest.workspace = true
 tokio-util.workspace = true
 prost.workspace = true
 toml = "0.8"
-dirs = "5"
+dirs = "6"
 agent-meter-db = { path = "../db" }
 
 [dev-dependencies]
