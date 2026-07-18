@@ -1,7 +1,6 @@
-# Aposentado (T-365): release roda no Jenkins external CI (Fase 3 T-365)
-# Emergência manual apenas.
+# Retired placeholder. Maintainers run releases outside this workflow.
 
-name: Release (retired — use Jenkins)
+name: Release (retired)
 
 on:
   workflow_dispatch:
@@ -18,6 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "::error::Release via GHA aposentado. Use Jenkins job agent-meter-oss-release (T-365 Fase 3)."
+          echo "::error::Release via GitHub Actions is retired. Maintainers run release automation externally."
           echo "Tag solicitada: ${{ github.event.inputs.tag }}"
           exit 1

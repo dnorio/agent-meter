@@ -43,8 +43,9 @@ Out of scope:
 Before making this repository **public**, maintainers must run:
 
 ```bash
+bash scripts/ci/secret-scan-history.sh
 bash scripts/ci/history-audit.sh
 bash scripts/ci/oss-scrub-check.sh
 ```
 
-See [docs/pre-public-audit.md](docs/pre-public-audit.md) for history scrub requirements.
+Organization-specific deny patterns should live in local-only `scripts/ci/private-patterns.txt` or the path pointed to by `OSS_PRIVATE_PATTERNS_FILE`; do not commit private audit reports or private infrastructure names.

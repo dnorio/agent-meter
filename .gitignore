@@ -1,2 +1,7 @@
 target/
 .env
+*.db
+*.db-shm
+*.db-wal
+scripts/ci/tools/
+scripts/ci/private-patterns.txt

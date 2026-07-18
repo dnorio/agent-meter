@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # agent-meter-release-build.sh — cross-build release artifacts (T-365 Fase 3)
-# Runs on external CI Jenkins (x86_64). Builds Linux x86_64 + aarch64 (+ Windows if mingw present).
+# Runs on a Linux x86_64 release runner. Builds Linux x86_64 + aarch64 (+ Windows if mingw present).
 # macOS: not cross-compiled — build locally or self-hosted Mac runner.
 set -euo pipefail
 

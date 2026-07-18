@@ -17,9 +17,8 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "security audit docs list patterns intentionally"
+description = "security audit scripts list generic patterns intentionally"
 paths = [
-  '''docs/pre-public-audit\.md''',
   '''scripts/ci/history-audit\.sh''',
   '''scripts/ci/secret-scan-blobs\.sh''',
   '''scripts/ci/oss-scrub-check\.sh''',

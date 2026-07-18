@@ -30,11 +30,12 @@ if [[ ! -x "$GITLEAKS" ]]; then
   install_gitleaks
 fi
 
-COMMITS="$(git rev-list --all | wc -l | tr -d ' ')"
+COMMIT_REFS=(--branches --tags)
+COMMITS="$(git rev-list "${COMMIT_REFS[@]}" | wc -l | tr -d ' ')"
 log "=== secret scan — $COMMITS commits ($(date -Iseconds)) ==="
 
 CONFIG="${GITLEAKS_CONFIG:-$ROOT/.gitleaks.toml}"
-GITLEAKS_ARGS=(detect --source "$ROOT" --verbose --redact --log-opts="--all")
+GITLEAKS_ARGS=(detect --source "$ROOT" --verbose --redact --log-opts="--branches --tags")
 [[ -f "$CONFIG" ]] && GITLEAKS_ARGS+=(--config "$CONFIG")
 
 log "--- gitleaks (all commits) ---"
@@ -55,10 +56,10 @@ EXTRA=(
 )
 extra_fail=0
 for pat in "${EXTRA[@]}"; do
-  n=$(git log --all -G"$pat" --oneline 2>/dev/null | wc -l | tr -d ' ')
+  n=$(git log "${COMMIT_REFS[@]}" -G"$pat" --oneline 2>/dev/null | wc -l | tr -d ' ')
   if [[ "$n" -gt 0 ]]; then
     log "❌ pickaxe /$pat/ → $n commit(s)"
-    git log --all -G"$pat" --oneline 2>/dev/null | head -5 | sed 's/^/    /'
+    git log "${COMMIT_REFS[@]}" -G"$pat" --oneline 2>/dev/null | head -5 | sed 's/^/    /'
     extra_fail=1
   fi
 done

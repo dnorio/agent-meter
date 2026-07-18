@@ -38,9 +38,6 @@ spec:
     GITHUB_REPOSITORY = 'dnorio/agent-meter'
     GITHUB_STATUS_CONTEXT = 'jenkins/agent-meter'
     INSTALL_MINGW = '1'
-    SONAR_HOST_URL = 'https://sonar.ci.example.com'
-    SONAR_PROJECT_KEY = 'agent-meter'
-    SONAR_TOKEN = credentials('sonar-token')
   }
 
   options {

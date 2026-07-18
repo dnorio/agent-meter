@@ -14,19 +14,18 @@ mapfile -t files < <(
 
 FORBIDDEN=(
   'agent-meter\.dnor\.io'
-  'dnorio/'$'agent-meter-worktree'
-  'github\.com/dnorio'
-  'ghcr\.io/toolhq'
-  'agent-meter-worktree-(cursor|copilot|opencode|antigravity|rust-rover)'
-  '~/agent-meter-worktree'
-  'founders@agent-meter\.com'
 )
 
-# CI infra (not product SaaS) — allowed in these paths only
-ALLOW_JENKINS='(README\.md|Jenkinsfile|\.github/workflows/|scripts/ci/github-status\.sh)'
-# Security audit docs — document forbidden patterns intentionally
-ALLOW_SECURITY='(SECURITY\.md|docs/pre-public-audit\.md|scripts/ci/history-audit\.sh|scripts/ci/oss-scrub-check\.sh)'
-ALLOW="$ALLOW_JENKINS|$ALLOW_SECURITY"
+PRIVATE_PATTERNS_FILE="${OSS_PRIVATE_PATTERNS_FILE:-scripts/ci/private-patterns.txt}"
+if [[ -f "$PRIVATE_PATTERNS_FILE" ]]; then
+  while IFS= read -r pat; do
+    [[ -z "$pat" || "$pat" =~ ^[[:space:]]*# ]] && continue
+    FORBIDDEN+=("$pat")
+  done < "$PRIVATE_PATTERNS_FILE"
+fi
+
+# Security scripts intentionally document generic forbidden patterns.
+ALLOW='(SECURITY\.md|scripts/ci/history-audit\.sh|scripts/ci/oss-scrub-check\.sh)'
 
 fail=0
 for pat in "${FORBIDDEN[@]}"; do

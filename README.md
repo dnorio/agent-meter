@@ -8,7 +8,6 @@ Track every **LLM call**, **tool invocation**, **conversation** and **token** sp
 across all your IDEs and AI agents. No accounts, no cloud, no database to provision:
 **one binary**, a local **SQLite** file, and a dashboard on `localhost`.
 
-[![CI: Jenkins external CI](https://img.shields.io/badge/CI-Jenkins%20external CI-blue.svg)](https://jenkins.ci.example.com/job/agent-meter-oss/)
 [![Release](https://img.shields.io/github/v/release/dnorio/agent-meter?label=release)](https://github.com/dnorio/agent-meter/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)
@@ -78,7 +77,7 @@ State lives in `agent-meter.db` (SQLite) in the working directory. **Zero
 configuration required.**
 
 > 📦 **Prebuilt binaries** on [Releases](https://github.com/dnorio/agent-meter/releases).
-> **CI** = [Jenkins external CI](https://jenkins.ci.example.com/job/agent-meter-oss/) (`jenkins/agent-meter`), not GitHub Actions.
+> **CI** can run on any runner with Rust 1.75+; release automation is maintainer-operated.
 
 ---
 
@@ -240,8 +239,8 @@ agent-meter/
 
 ## 🛡️ Security
 
-- **Private pre-public.** This repository is not public yet — see [docs/pre-public-audit.md](docs/pre-public-audit.md) before go-live.
-- **CI gates:** `oss-scrub-check.sh` (tree) + `secret-scan-history.sh` (gitleaks + all blobs) + `history-audit.sh` (pre-public)
+- **Pre-public gates:** `oss-scrub-check.sh` (tree) + `secret-scan-history.sh` (gitleaks + all blobs) + `history-audit.sh` (history).
+- **Private pattern checks:** maintainers can provide local-only patterns via ignored `scripts/ci/private-patterns.txt`.
 - **Report issues:** [SECURITY.md](SECURITY.md)
 
 ---

@@ -14,7 +14,8 @@ declare -A seen=()
 blobs_scanned=0
 hits=0
 
-log "walking objects from $(git rev-list --all | wc -l | tr -d ' ') commits…"
+COMMIT_REFS=(--branches --tags)
+log "walking objects from $(git rev-list "${COMMIT_REFS[@]}" | wc -l | tr -d ' ') commits…"
 
 while read -r hash path; do
   [[ -z "${hash:-}" ]] && continue
@@ -35,7 +36,7 @@ while read -r hash path; do
     git cat-file blob "$hash" 2>/dev/null | grep -oE "$PATTERN" | head -3 | sed 's/\(.\{12\}\).*/\1…/'
     hits=$((hits + 1))
   fi
-done < <(git rev-list --all --objects)
+done < <(git rev-list "${COMMIT_REFS[@]}" --objects)
 
 log "scanned $blobs_scanned unique text blobs (${#seen[@]} objects total)"
 

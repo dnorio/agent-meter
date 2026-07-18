@@ -6,7 +6,7 @@ log() { printf '[github-status] %s\n' "$*"; }
 
 STATE="${1:-}"
 DESCRIPTION="${2:-agent-meter CI}"
-TARGET_URL="${3:-${BUILD_URL:-https://jenkins.ci.example.com/job/agent-meter-oss/}}"
+TARGET_URL="${3:-${BUILD_URL:-}}"
 CONTEXT="${GITHUB_STATUS_CONTEXT:-jenkins/agent-meter}"
 REPO="${GITHUB_REPOSITORY:-dnorio/agent-meter}"
 SHA="${CODEQL_SHA:-${GIT_COMMIT:-}}"

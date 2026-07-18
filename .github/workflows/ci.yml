@@ -1,7 +1,6 @@
-# Aposentado (T-365): CI roda no Jenkins external CI — status jenkins/agent-meter
-# Emergência manual apenas. Ver Jenkinsfile + docs/ci-zero-github-actions.md (monorepo).
+# Retired placeholder. Maintainers run CI outside this workflow.
 
-name: CI (retired — use Jenkins)
+name: CI (retired)
 
 on:
   workflow_dispatch:
@@ -14,6 +13,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "::error::Este workflow foi aposentado. CI = Jenkins external CI (jenkins/agent-meter)."
-          echo "https://jenkins.ci.example.com/job/agent-meter-oss/"
+          echo "::error::This workflow is retired. Maintainers run CI outside this workflow."
           exit 1

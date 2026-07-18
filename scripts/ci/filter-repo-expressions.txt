@@ -1,6 +1,6 @@
 # git-filter-repo --replace-text expressions (run before making repo public)
 # Usage: git filter-repo --replace-text scripts/ci/filter-repo-expressions.txt --force
-# See docs/pre-public-audit.md and skill git-history-redaction (monorepo)
+# Keep private/org-specific replacement rules out of this public file.
 
 dnorio/agent-meter==>dnorio/agent-meter
 github.com/dnorio==>github.com/dnorio
