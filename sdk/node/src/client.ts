@@ -12,6 +12,7 @@ export class AgentMeter {
   private agent?: string;
   private buffer: ToolCall[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
+  private beforeExitHandler: () => void;
   private closed = false;
 
   constructor(opts: AgentMeterOptions = {}) {
@@ -27,7 +28,10 @@ export class AgentMeter {
     this.timer.unref(); // don't keep process alive
 
     // Flush on exit
-    process.on("beforeExit", () => this.shutdown());
+    this.beforeExitHandler = () => {
+      void this.shutdown();
+    };
+    process.once("beforeExit", this.beforeExitHandler);
   }
 
   track(toolName: string, opts: TrackOptions = {}): ToolCall {
@@ -84,7 +88,9 @@ export class AgentMeter {
   }
 
   async shutdown(): Promise<void> {
+    if (this.closed) return;
     this.closed = true;
+    process.removeListener("beforeExit", this.beforeExitHandler);
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;

@@ -2,3 +2,15 @@ target/
 .git
 .env
 crates/*/target/
+agent-meter.db*
+*.db
+*.db-shm
+*.db-wal
+sdk/node/node_modules/
+sdk/node/dist/
+sdk/node/*.tgz
+sdk/python/.pytest_cache/
+sdk/python/dist/
+sdk/python/*.egg-info/
+**/__pycache__/
+**/*.pyc

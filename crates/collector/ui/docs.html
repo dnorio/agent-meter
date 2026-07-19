@@ -148,7 +148,7 @@
         <section id="overview">
           <div class="docs-hero">
             <h1>agent-meter Documentation</h1>
-            <p>Observability and FinOps for AI-powered development workflows. Track every LLM call, tool invocation, and token across all your IDEs and agents — in one place.</p>
+            <p>Observability and FinOps for AI-powered development workflows. Track every LLM call, prompt, tool invocation, and token across your IDEs and agents — in one place.</p>
           </div>
 
           <div class="feature-grid">
@@ -170,7 +170,7 @@
             </div>
             <div class="feature-item">
               <strong>CLI Agnostic</strong>
-              <span>Works with Copilot CLI, Claude Code, Codex CLI — same proxy captures all HTTP traffic.</span>
+              <span>Works with CLIs that honor proxy environment variables. Live capture depends on each tool's network stack.</span>
             </div>
             <div class="feature-item">
               <strong>Self-Hosted & Private</strong>
@@ -193,13 +193,13 @@
               <tr>
                 <td><strong>Cursor</strong></td>
                 <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
-                <td>One-time setup script</td>
+                <td><code>agent-meter-proxy wrap cursor .</code></td>
                 <td>★★★★☆</td>
               </tr>
               <tr>
                 <td><strong>Eclipse</strong> (GitHub Copilot)</td>
                 <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
-                <td>One-time setup script</td>
+                <td>Legacy mitmproxy script</td>
                 <td>★★★★☆</td>
               </tr>
               <tr>
@@ -211,13 +211,13 @@
               <tr>
                 <td><strong>Claude Code</strong> (CLI)</td>
                 <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
-                <td>Env vars + proxy</td>
+                <td><code>agent-meter-proxy wrap</code></td>
                 <td>★★★★☆</td>
               </tr>
               <tr>
                 <td><strong>Codex CLI</strong> (OpenAI)</td>
                 <td><span class="badge badge-proxy">HTTPS Proxy</span></td>
-                <td>Env vars + proxy</td>
+                <td><code>agent-meter-proxy wrap</code></td>
                 <td>★★★★☆</td>
               </tr>
               <tr>
@@ -390,33 +390,29 @@ curl -s https://your-agent-meter.example.com/api/conversations | \
         <section id="cursor">
           <h2>Cursor</h2>
 
-          <p>Cursor uses direct HTTPS connections to Anthropic, OpenAI, and GitHub Copilot APIs. A local mitmproxy intercepts these calls transparently.</p>
+          <p>Cursor uses direct HTTPS connections to Anthropic, OpenAI, and GitHub Copilot APIs. The Rust <code>agent-meter-proxy</code> can launch Cursor with proxy environment variables and convert matching AI requests into OTLP spans.</p>
 
           <h3>One-Time Setup</h3>
-          <pre><code>cd agent-meter/cursor-proxy
-
-# Generates CA, installs system-wide, creates systemd service
-./start_proxy.sh --setup</code></pre>
+          <pre><code>agent-meter-proxy setup</code></pre>
 
           <h3>Daily Usage</h3>
           <pre><code># Instead of "cursor .", use:
-cursor-metered .
+agent-meter-proxy wrap cursor .
 
 # Operations:
-cursor-metered --status   # proxy status + recent logs
-cursor-metered --logs     # live interceptor output
-cursor-metered --stop     # stop the proxy</code></pre>
+agent-meter-proxy status
+agent-meter-proxy stop</code></pre>
 
           <div class="callout callout-info">
-            <strong>Zero friction:</strong> <code>cursor-metered</code> auto-starts the proxy if it's not running, sets the required env vars, and launches Cursor. One command replaces your normal workflow.
+            <strong>Capture scope:</strong> the wrapper sets <code>HTTPS_PROXY</code>, <code>HTTP_PROXY</code>, <code>SSL_CERT_FILE</code>, and <code>NODE_EXTRA_CA_CERTS</code>. Tools that ignore these variables need tool-specific setup.
           </div>
 
           <h3>How It Works</h3>
           <ol>
-            <li><code>cursor-metered</code> checks if mitmproxy is already running on port 8898</li>
-            <li>If not, starts <code>mitmdump</code> with <code>cursor_interceptor.py</code> in background</li>
+            <li><code>agent-meter-proxy wrap</code> checks whether the Rust proxy is running on port 8898</li>
+            <li>If not, starts <code>agent-meter-proxy start</code> in background</li>
             <li>Launches Cursor with <code>HTTPS_PROXY=http://127.0.0.1:8898</code> and <code>NODE_EXTRA_CA_CERTS</code></li>
-            <li>The interceptor captures all requests to AI API hosts and converts them to OTLP spans</li>
+            <li>The proxy captures matching AI API requests and converts them to OTLP spans</li>
           </ol>
 
           <h3>Monitored Endpoints</h3>
@@ -524,32 +520,19 @@ cd agent-meter/eclipse-proxy
         <section id="claude-code">
           <h2>Claude Code (CLI)</h2>
 
-          <p>Anthropic's <code>claude</code> CLI makes direct HTTPS calls to <code>api.anthropic.com</code>. The mitmproxy technique captures these identically to Cursor.</p>
+          <p>Anthropic's <code>claude</code> CLI can be captured when it honors standard proxy environment variables.</p>
 
           <h3>Setup</h3>
-          <pre><code># Use the cursor-proxy (same Anthropic endpoint interception)
-cd agent-meter/cursor-proxy
-./start_proxy.sh --setup</code></pre>
+          <pre><code>agent-meter-proxy setup</code></pre>
 
           <h3>Usage</h3>
-          <pre><code># Option A: Set env vars in your shell profile
-export HTTPS_PROXY="http://127.0.0.1:8898"
-export SSL_CERT_FILE="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
-export NODE_EXTRA_CA_CERTS="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
-
-# Then use claude normally:
-claude "explain this code"
-
-# Option B: One-liner wrapper
-HTTPS_PROXY=http://127.0.0.1:8898 \
-SSL_CERT_FILE=~/.mitmproxy/mitmproxy-ca-cert.pem \
-claude "explain this code"</code></pre>
+          <pre><code>agent-meter-proxy wrap claude "explain this code"</code></pre>
 
           <h3>Detection</h3>
           <p>The collector detects Claude Code via user-agent patterns (<code>claude-code</code>, <code>claude_code</code>) and assigns the <code>claude-code</code> IDE badge in the dashboard.</p>
 
           <div class="callout callout-success">
-            <strong>Same proxy, different tool.</strong> Since Claude Code talks to the same <code>api.anthropic.com</code> endpoint as Cursor's Claude integration, the <code>cursor_interceptor.py</code> captures both seamlessly. The IDE is distinguished by user-agent analysis.
+            <strong>Same proxy, different tool.</strong> Since Claude Code talks to Anthropic APIs, the Rust proxy can capture the request path when the CLI respects proxy variables. The IDE is distinguished by user-agent analysis when available.
           </div>
         </section>
 
@@ -557,15 +540,10 @@ claude "explain this code"</code></pre>
         <section id="codex-cli">
           <h2>Codex CLI (OpenAI)</h2>
 
-          <p>OpenAI's Codex CLI uses <code>api.openai.com</code> — already intercepted by the cursor-proxy.</p>
+          <p>OpenAI's Codex CLI uses <code>api.openai.com</code> and can be captured through the Rust proxy when it honors proxy variables.</p>
 
           <h3>Usage</h3>
-          <pre><code># Set proxy env vars (same as Claude Code)
-export HTTPS_PROXY="http://127.0.0.1:8898"
-export SSL_CERT_FILE="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
-
-# Use codex normally:
-codex "refactor this function"</code></pre>
+          <pre><code>agent-meter-proxy wrap codex "refactor this function"</code></pre>
 
           <h3>Detection</h3>
           <p>Detected via user-agent pattern <code>codex</code> — appears with the <code>codex</code> IDE badge in the dashboard.</p>
@@ -616,7 +594,9 @@ codex "refactor this function"</code></pre>
           <p>Official SDKs wrap the OTLP endpoint with ergonomic APIs. Both auto-flush in the background and work with any <code>AGENT_METER_ENDPOINT</code>.</p>
 
           <h3>Python</h3>
-          <pre><code>pip install agent-meter</code></pre>
+          <pre><code># Until the package is published to PyPI:
+cd sdk/python
+python -m pip install -e .</code></pre>
           <pre><code>from agent_meter import AgentMeter
 
 am = AgentMeter(endpoint="http://127.0.0.1:8081")
@@ -634,7 +614,10 @@ span.usd_cost = 0.012
 span.finish()</code></pre>
 
           <h3>Node.js / TypeScript</h3>
-          <pre><code>npm install @agent-meter/sdk</code></pre>
+          <pre><code># Until the package is published to npm:
+cd sdk/node
+npm ci
+npm run build</code></pre>
           <pre><code>import { AgentMeter } from "@agent-meter/sdk";
 
 const am = new AgentMeter({ endpoint: "http://127.0.0.1:8081" });
@@ -702,15 +685,15 @@ am.finish(span2);</code></pre>
 
           <h3>Data Privacy</h3>
           <ul>
-            <li><strong>No prompts stored by default</strong> — only metadata: model name, token counts, tool names, durations</li>
-            <li><strong>Opt-in content capture</strong> — requires explicit <code>captureContent: true</code> in VS Code, or custom interceptor config</li>
+            <li><strong>Full observability includes prompts</strong> — when a source exposes prompt text, agent-meter stores it for conversation drill-down</li>
+            <li><strong>VS Code content capture is explicit</strong> — Copilot OTLP prompt content requires <code>captureContent: true</code>; proxy capture sees HTTP request bodies by design</li>
             <li><strong>Bearer tokens never stored</strong> — only a prefix hash is used for session grouping</li>
             <li><strong>Local-first architecture</strong> — all data stays on your infrastructure</li>
           </ul>
 
           <h3>Proxy Security</h3>
           <ul>
-            <li>mitmproxy listens on <code>127.0.0.1</code> only — never exposed to the network</li>
+            <li>Proxies should listen on <code>127.0.0.1</code> by default; use a wider bind only when bridging WSL/Windows intentionally</li>
             <li>Generated CA certificates are unique per installation</li>
             <li>CA can be removed at any time to disable interception</li>
             <li>No data is sent to third parties — all telemetry goes to your own collector</li>

@@ -161,9 +161,8 @@ use **`agent-meter-proxy wrap cursor .`** (seção 3).
 Para mitmproxy manual:
 
 ```bash
-cd agent-meter/eclipse-proxy
-./start_proxy.sh --setup
-cursor-metered .    # se instalado pelo setup script
+agent-meter-proxy setup
+agent-meter-proxy wrap cursor .
 ```
 
 ---

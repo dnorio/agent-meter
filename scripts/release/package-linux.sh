@@ -4,7 +4,7 @@
 
 set -e
 
-VERSION="${1:-1.2.3}"
+VERSION="${1:-0.1.0}"
 ARCH="${2:-x86_64}"
 
 # Detect architecture

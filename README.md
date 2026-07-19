@@ -4,7 +4,7 @@
 
 ### Observability & FinOps for AI-powered development — in a single self-hosted binary.
 
-Track every **LLM call**, **tool invocation**, **conversation** and **token** spent
+Track every **LLM call**, **prompt**, **tool invocation**, **conversation** and **token** spent
 across all your IDEs and AI agents. No accounts, no cloud, no database to provision:
 **one binary**, a local **SQLite** file, and a dashboard on `localhost`.
 
@@ -28,7 +28,7 @@ across all your IDEs and AI agents. No accounts, no cloud, no database to provis
 - **Local-first & private.** Binds to `127.0.0.1`, stores everything in a local file, never phones home.
 - **Multi-agent by design.** Cursor, VS Code / GitHub Copilot, Claude Code, Codex CLI, Eclipse, OpenCode — all in one place.
 - **FinOps built in.** Token and USD cost attribution by model, by day, with burn-rate and per-session breakdowns.
-- **Trace-level drill-down.** Every conversation has a waterfall timeline of tool calls, prompts, latencies and errors.
+- **Trace-level drill-down.** Every conversation has a waterfall timeline of prompts, tool calls, latencies and errors when the source exposes them.
 
 ---
 
@@ -76,8 +76,8 @@ won't re-seed a database that already has data — pass `--force` to reseed.
 State lives in `agent-meter.db` (SQLite) in the working directory. **Zero
 configuration required.**
 
-> 📦 **Prebuilt binaries** on [Releases](https://github.com/dnorio/agent-meter/releases).
-> **CI** can run on any runner with Rust 1.75+; release automation is maintainer-operated.
+> 📦 **Prebuilt binaries** will be attached to [Releases](https://github.com/dnorio/agent-meter/releases).
+> Until the first release is published, the installer falls back to building from source.
 
 ---
 

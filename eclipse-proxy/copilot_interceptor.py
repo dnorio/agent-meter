@@ -18,8 +18,6 @@ import httpx
 from mitmproxy import http, ctx
 
 AGENT_METER_URL = "http://localhost:8081/v1/traces"
-# Also send as structured event for direct ingestion
-AGENT_METER_EVENT_URL = "http://localhost:8081/api/events"
 
 # Hosts that carry Copilot traffic
 COPILOT_HOSTS = [
@@ -363,27 +361,6 @@ def extract_response_meta(flow: http.HTTPFlow) -> dict:
             pass  # SSE stream decode failure; metadata remains partial
 
     return meta
-
-
-def send_to_agent_meter(event: dict):
-    """Send captured event to agent-meter in background."""
-    def _send():
-        try:
-            # Send as a direct event payload
-            resp = httpx.post(
-                AGENT_METER_EVENT_URL,
-                json=event,
-                timeout=5.0,
-                verify=False,  # Our custom CA might not be in system store
-            )
-            if resp.status_code < 300:
-                ctx.log.info(f"[copilot-interceptor] Event sent: {event.get('model', 'unknown')} → {resp.status_code}")
-            else:
-                ctx.log.warn(f"[copilot-interceptor] Event send failed: {resp.status_code} {resp.text[:100]}")
-        except Exception as e:
-            ctx.log.warn(f"[copilot-interceptor] Failed to send event: {e}")
-
-    threading.Thread(target=_send, daemon=True).start()
 
 
 def send_otlp_span(req_meta: dict, resp_meta: dict, tool_call: dict = None, parent_span_id: str = None, shared_trace_id: str = None):

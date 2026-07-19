@@ -8,7 +8,7 @@
     wix build ProductUI.wxs \
         -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext \
         -arch x64 -d ProxyExe=agent-meter-proxy-windows-x86_64.exe \
-        -o agent-meter-proxy-1.2.3-x64.msi
+        -o agent-meter-proxy-0.1.0-x64.msi
 
   The Util extension provides WixQuietExec64 used by the deferred custom
   actions (CA install + Windows service create/start/stop/delete).
@@ -35,7 +35,7 @@
   <Package
     Name="agent-meter-proxy"
     Manufacturer="DNOR"
-    Version="1.2.4.0"
+    Version="0.1.0.0"
     UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
     Scope="perMachine"
     Compressed="yes"
@@ -43,7 +43,7 @@
 
     <SummaryInformation
       Manufacturer="DNOR"
-      Description="agent-meter-proxy 1.2.4 — AI IDE/CLI telemetry proxy installer" />
+      Description="agent-meter-proxy 0.1.0 — AI IDE/CLI telemetry proxy installer" />
 
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"
