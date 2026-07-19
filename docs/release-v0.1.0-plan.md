@@ -21,7 +21,7 @@ docker build -t agent-meter:v0.1.0-rc .
 
 GitHub checks required on the release PR:
 
-- `cargo-test` (Rust fmt/clippy/tests, smoke demo, Python SDK tests, Node SDK build/tests)
+- `cargo-test` (Rust fmt/clippy/tests, smoke demo, history audit, Python SDK tests, Node SDK build/tests, Node pack dry-run)
 - CodeQL checks for actions, JavaScript/TypeScript, Python, and Rust
 
 The CodeQL Rust check may report analysis-quality warnings. Treat that as a release review item: either switch to a maintained advanced CodeQL workflow with an explicit Rust build, or document the warning in the release notes if accepted.
