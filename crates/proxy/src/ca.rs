@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use rcgen::{BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, KeyPair};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Returns the CA directory (~/.agent-meter/)
 pub fn ca_dir() -> PathBuf {
@@ -16,7 +16,7 @@ pub fn ca_paths() -> (PathBuf, PathBuf) {
 }
 
 /// Generate a new CA key + certificate
-pub fn generate_ca(dir: &PathBuf) -> Result<(PathBuf, PathBuf)> {
+pub fn generate_ca(dir: &Path) -> Result<(PathBuf, PathBuf)> {
     let key_path = dir.join("ca-key.pem");
     let cert_path = dir.join("ca-cert.pem");
 
@@ -45,13 +45,15 @@ pub fn generate_ca(dir: &PathBuf) -> Result<(PathBuf, PathBuf)> {
 }
 
 /// Install CA certificate into the system trust store
-pub fn install_system_ca(cert_path: &PathBuf) -> Result<()> {
+pub fn install_system_ca(cert_path: &Path) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         let dest = PathBuf::from("/usr/local/share/ca-certificates/agent-meter-proxy.crt");
         eprintln!("  Installing CA to {} (requires sudo)", dest.display());
         let status = std::process::Command::new("sudo")
-            .args(["cp", &cert_path.to_string_lossy(), &dest.to_string_lossy()])
+            .arg("cp")
+            .arg(cert_path)
+            .arg(&dest)
             .status()
             .context("copying CA cert")?;
         if !status.success() {

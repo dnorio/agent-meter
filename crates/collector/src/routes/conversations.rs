@@ -121,7 +121,10 @@ async fn get_timeline(
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/conversations", get(page))
-        .route("/conversations/{conversation_id}/timeline", get(detail_page))
+        .route(
+            "/conversations/{conversation_id}/timeline",
+            get(detail_page),
+        )
         .route("/api/conversations", get(list))
         .route(
             "/api/conversations/{conversation_id}/timeline",
