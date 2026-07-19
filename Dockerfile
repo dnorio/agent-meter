@@ -1,5 +1,5 @@
 # OSS standalone — build from repo root (SQLite default)
-FROM rust:1.96-slim-bookworm AS builder
+FROM rust:1.97-slim-bookworm AS builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p crates/collector/src crates/cli/src crates/mcp-wrapper/src crates/db/src crates/proxy/src && \

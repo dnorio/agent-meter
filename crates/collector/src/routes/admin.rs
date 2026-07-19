@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use crate::app::AppState;
 use crate::errors::AppError;
 
-/// DELETE /api/conversations/:conversation_id — remove one session and its events.
+/// DELETE /api/conversations/{conversation_id} — remove one session and its events.
 async fn delete_conversation(
     State(state): State<AppState>,
     Path(conversation_id): Path<String>,
@@ -32,7 +32,7 @@ async fn reset_all(State(state): State<AppState>) -> Result<Json<Value>, AppErro
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
-            "/api/conversations/:conversation_id",
+            "/api/conversations/{conversation_id}",
             delete(delete_conversation),
         )
         .route("/api/admin/reset", post(reset_all))
