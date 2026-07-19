@@ -2,17 +2,17 @@
 
 # 📊 agent-meter
 
-### Observability & FinOps for AI-powered development — in a single self-hosted binary.
+### Observability and cost tracking for AI-powered development workflows.
 
 Track every **LLM call**, **prompt**, **tool invocation**, **conversation** and **token** spent
-across all your IDEs and AI agents. No accounts, no cloud, no database to provision:
-**one binary**, a local **SQLite** file, and a dashboard on `localhost`.
+across your IDEs, CLIs and agents. Run the collector as a binary or container,
+store events in SQLite by default, and inspect usage through the built-in dashboard.
 
 [![Release](https://img.shields.io/github/v/release/dnorio/agent-meter?label=release)](https://github.com/dnorio/agent-meter/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)
-![Single binary](https://img.shields.io/badge/deploy-single%20binary-success.svg)
-![Local-first](https://img.shields.io/badge/privacy-local--first-brightgreen.svg)
+![OTLP](https://img.shields.io/badge/ingest-OTLP-blue.svg)
+![SQLite](https://img.shields.io/badge/storage-SQLite-success.svg)
 
 <br/>
 
@@ -24,9 +24,9 @@ across all your IDEs and AI agents. No accounts, no cloud, no database to provis
 
 ## ✨ Why agent-meter
 
-- **One binary, zero setup.** Embedded Web UI + REST API + OTLP receiver + SQLite. No services to wire up.
-- **Local-first & private.** Binds to `127.0.0.1`, stores everything in a local file, never phones home.
-- **Multi-agent by design.** Cursor, VS Code / GitHub Copilot, Claude Code, Codex CLI, Eclipse, OpenCode — all in one place.
+- **Collector-first workflow.** Web UI, REST API, OTLP receiver and SQLite storage ship together.
+- **Multiple capture paths.** Native OTLP, direct REST events, SDKs and HTTPS proxy capture cover different agent setups.
+- **Multi-agent reporting.** Cursor, VS Code / GitHub Copilot, Claude Code, Codex CLI, Eclipse, OpenCode — all in one place.
 - **FinOps built in.** Token and USD cost attribution by model, by day, with burn-rate and per-session breakdowns.
 - **Trace-level drill-down.** Every conversation has a waterfall timeline of prompts, tool calls, latencies and errors when the source exposes them.
 
@@ -73,8 +73,8 @@ cargo run -p agent-meter-collector -- serve
 errors) so every page has something to show. It never collects real data and
 won't re-seed a database that already has data — pass `--force` to reseed.
 
-State lives in `agent-meter.db` (SQLite) in the working directory. **Zero
-configuration required.**
+By default, state lives in `agent-meter.db` (SQLite) in the working directory.
+Set `DATABASE_URL` to use Postgres.
 
 > 📦 **Prebuilt binaries** will be attached to [Releases](https://github.com/dnorio/agent-meter/releases).
 > Until the first release is published, the installer falls back to building from source.
@@ -202,8 +202,9 @@ curl -X DELETE http://127.0.0.1:8081/api/conversations/demo-conv-03
 curl -X POST http://127.0.0.1:8081/api/admin/reset
 ```
 
-Both endpoints are localhost-only by default (`127.0.0.1` bind). No auth token
-required — intended for local dev and demos.
+These admin endpoints are unauthenticated. Keep the collector bound to
+`127.0.0.1` for local use, or put it behind your own auth/reverse proxy when
+exposing it beyond a trusted machine.
 
 ---
 
@@ -232,10 +233,11 @@ agent-meter/
 
 ---
 
-## 🔒 Privacy
+## 🔒 Data Handling
 
-- **Local-first.** Binds to `127.0.0.1` and stores everything in a local SQLite file. No external telemetry, no phone-home.
-- **No credentials stored.** The collector records tool-call metadata, not your API keys.
+- **Prompt-aware telemetry.** Prompts can be stored when the source exposes content; VS Code requires `captureContent: true` for prompt text.
+- **No credentials stored.** The collector records telemetry fields, not API keys or bearer tokens.
+- **Deployment boundary is yours.** The default bind address is local; use normal network/auth controls if you expose the collector elsewhere.
 
 ## 🛡️ Security
 

@@ -165,16 +165,16 @@
               <span>Waterfall view of LLM spans with tool calls, duration, and model attribution.</span>
             </div>
             <div class="feature-item">
-              <strong>Local-first</strong>
-              <span>SQLite embedded — no Postgres or cloud account required for the OSS binary.</span>
+              <strong>Embedded Storage</strong>
+              <span>SQLite by default, with Postgres available through <code>DATABASE_URL</code>.</span>
             </div>
             <div class="feature-item">
               <strong>CLI Agnostic</strong>
               <span>Works with CLIs that honor proxy environment variables. Live capture depends on each tool's network stack.</span>
             </div>
             <div class="feature-item">
-              <strong>Self-Hosted & Private</strong>
-              <span>Runs on your own infrastructure. No prompts or responses leave your network.</span>
+              <strong>Prompt-Aware Traces</strong>
+              <span>Stores prompt content when the capture source exposes it, so sessions can be reviewed end-to-end.</span>
             </div>
           </div>
 
@@ -304,7 +304,7 @@ graph TD
             <li><strong>Conversation grouping</strong>: Uses <code>COALESCE(trace_id, conversation_id)</code> to unify spans that belong to the same interaction, even across different capture methods.</li>
             <li><strong>IDE detection</strong>: Pattern-matched from user-agent headers and <code>service.name</code> attributes — no manual tagging required.</li>
             <li><strong>Token estimation</strong>: Extracted from <code>usage.prompt_tokens</code> / <code>usage.completion_tokens</code> in API responses, or from OTLP <code>gen_ai.usage.*</code> attributes.</li>
-            <li><strong>Privacy-first</strong>: Only metadata (model, tokens, duration, tool names) is stored by default. Full prompt capture is opt-in.</li>
+            <li><strong>Prompt handling</strong>: Prompt text is stored when the source provides it. VS Code requires <code>captureContent: true</code>; proxy capture sees request bodies by design.</li>
           </ul>
         </section>
 
@@ -316,7 +316,7 @@ graph TD
             <strong>Install the binary:</strong> use <a href="https://github.com/dnorio/agent-meter/releases" style="color:var(--am-accent)">GitHub Releases</a> or <code>curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | bash</code>.
           </div>
 
-          <h3>Self-Hosted (Docker Compose)</h3>
+          <h3>Docker Compose</h3>
           <pre><code>git clone https://github.com/dnorio/agent-meter.git
 cd agent-meter
 docker compose -f docker-compose.standalone.yml up -d --build
@@ -378,12 +378,11 @@ cargo run -p agent-meter-collector -- demo
 
           <h3>Verification</h3>
           <pre><code># Start a Copilot chat, then check:
-curl -s https://your-agent-meter.example.com/api/conversations | \
+curl -s http://127.0.0.1:8081/api/conversations | \
   jq '.[0:3] | .[] | {id: .conversation_id[0:12], events: .event_count, ide}'</code></pre>
 
           <h4>WSL / Remote Development</h4>
-          <p>If VS Code runs in WSL or a remote container, use <code>http://localhost:4318</code> with a port-forward:</p>
-          <pre><code>kubectl port-forward svc/agent-meter 4318:4318</code></pre>
+          <p>If VS Code runs in WSL or a remote container, point OTLP at the collector address visible from that environment, usually <code>http://127.0.0.1:4318</code>.</p>
         </section>
 
         <!-- CURSOR -->
@@ -468,7 +467,7 @@ agent-meter-proxy stop</code></pre>
           <p>Agents with direct env-var access use the REST API. No proxy needed.</p>
 
           <h3>Environment Variables</h3>
-          <pre><code>export AGENT_METER_COLLECTOR_URL="https://your-agent-meter.example.com"
+          <pre><code>export AGENT_METER_COLLECTOR_URL="http://127.0.0.1:8081"
 export AGENT_METER_IDE="opencode"
 export AGENT_METER_AGENT="my-agent"
 export AGENT_METER_REPO="my-project"
@@ -688,7 +687,7 @@ am.finish(span2);</code></pre>
             <li><strong>Full observability includes prompts</strong> — when a source exposes prompt text, agent-meter stores it for conversation drill-down</li>
             <li><strong>VS Code content capture is explicit</strong> — Copilot OTLP prompt content requires <code>captureContent: true</code>; proxy capture sees HTTP request bodies by design</li>
             <li><strong>Bearer tokens never stored</strong> — only a prefix hash is used for session grouping</li>
-            <li><strong>Local-first architecture</strong> — all data stays on your infrastructure</li>
+            <li><strong>Deployment boundary</strong> — telemetry is sent to the collector URL you configure</li>
           </ul>
 
           <h3>Proxy Security</h3>
@@ -696,7 +695,7 @@ am.finish(span2);</code></pre>
             <li>Proxies should listen on <code>127.0.0.1</code> by default; use a wider bind only when bridging WSL/Windows intentionally</li>
             <li>Generated CA certificates are unique per installation</li>
             <li>CA can be removed at any time to disable interception</li>
-            <li>No data is sent to third parties — all telemetry goes to your own collector</li>
+            <li>Telemetry is sent to the configured collector; put it behind your normal network and auth controls if exposed beyond localhost</li>
           </ul>
 
           <h3>Removing the Proxy CA</h3>
@@ -749,7 +748,7 @@ certmgr.msc → Trusted Root CAs → delete "mitmproxy"</code></pre>
           <p>Yes. Configure mitmproxy with an upstream proxy: <code>mitmdump --mode upstream:http://corporate-proxy:8080 -s interceptor.py</code>. The interception still works — it just chains through your corporate proxy.</p>
 
           <h3>Can I run agent-meter without PostgreSQL?</h3>
-          <p>Yes — the OSS standalone binary uses <strong>SQLite</strong> by default (<code>agent-meter.db</code> in the working directory). No database server required.</p>
+          <p>Yes. SQLite is the default storage engine (<code>agent-meter.db</code> in the working directory). Set <code>DATABASE_URL</code> when you want Postgres.</p>
 
           <h3>How do I export data?</h3>
           <p>Use the REST API to pull data programmatically, or the Reports page for pre-built views. CSV export is available from the Cost page.</p>
