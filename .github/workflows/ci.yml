@@ -1,17 +1,26 @@
-# Retired placeholder. Maintainers run CI outside this workflow.
-
-name: CI (retired)
+name: CI
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  retired:
+  cargo-test:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          echo "::error::This workflow is retired. Maintainers run CI outside this workflow."
-          exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo test --workspace
