@@ -10,7 +10,7 @@ postgres = []
 sqlite = []
 
 [dependencies]
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9", features = [
   "postgres",
   "sqlite",
   "runtime-tokio",

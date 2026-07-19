@@ -768,7 +768,7 @@ impl Database for PostgresDb {
             "minute" => "minute",
             _ => "hour",
         };
-        let rows = sqlx::query_as::<_, Row>(&format!(
+        let rows = sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(format!(
             r#"
                 SELECT
                     date_trunc('{interval}', started_at) AS bucket,
@@ -786,7 +786,7 @@ impl Database for PostgresDb {
                 ORDER BY bucket ASC
                 LIMIT 500
                 "#,
-        ))
+        )))
         .bind(q.from)
         .bind(q.to)
         .bind(&q.repo)

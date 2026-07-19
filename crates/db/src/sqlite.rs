@@ -733,7 +733,7 @@ impl Database for SqliteDb {
             LIMIT 500
             "#
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(q.from.map(|d| d.to_rfc3339()))
             .bind(q.to.map(|d| d.to_rfc3339()))
             .bind(&q.repo)
