@@ -6,7 +6,10 @@ Lightweight Node.js/TypeScript SDK to track AI agent tool calls, costs, and late
 
 ```bash
 # Until the first npm release is published:
-cd sdk/node && npm ci && npm run build
+cd sdk/node
+npm ci
+npm pack
+npm install ./agent-meter-sdk-0.1.0.tgz
 
 # After publication:
 npm install @agent-meter/sdk

@@ -6,7 +6,8 @@ Lightweight Python SDK to track AI agent tool calls, costs, and latency.
 
 ```bash
 # Until the first PyPI release is published:
-python -m pip install -e sdk/python
+cd sdk/python
+python -m pip install -e .
 
 # After publication:
 pip install agent-meter
