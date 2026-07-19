@@ -23,7 +23,7 @@ uuid.workspace = true
 sha2.workspace = true
 hex.workspace = true
 
-hudsucker = { version = "0.24", features = ["rcgen-ca"] }
+hudsucker = { version = "0.25", features = ["rcgen-ca"] }
 rcgen = "0.14"
 http-body-util = "0.1"
 rustls-pemfile = "2"
