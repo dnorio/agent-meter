@@ -25,6 +25,21 @@ pub struct IngestBuffer {
     capacity: usize,
 }
 
+#[derive(Debug)]
+pub enum TrySendEventError {
+    Full,
+    Closed,
+}
+
+impl std::fmt::Display for TrySendEventError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Full => f.write_str("channel full"),
+            Self::Closed => f.write_str("channel closed"),
+        }
+    }
+}
+
 impl IngestBuffer {
     /// Spawn the buffer worker. Returns a handle for sending events.
     pub fn spawn(db: Arc<dyn Database>, capacity: usize, cancel: CancellationToken) -> Self {
@@ -42,11 +57,11 @@ impl IngestBuffer {
     }
 
     /// Try to send without waiting (for fire-and-forget paths).
-    pub fn try_send(
-        &self,
-        event: ToolCallEvent,
-    ) -> Result<(), mpsc::error::TrySendError<ToolCallEvent>> {
-        self.tx.try_send(event)
+    pub fn try_send(&self, event: ToolCallEvent) -> Result<(), TrySendEventError> {
+        self.tx.try_send(event).map_err(|err| match err {
+            mpsc::error::TrySendError::Full(_) => TrySendEventError::Full,
+            mpsc::error::TrySendError::Closed(_) => TrySendEventError::Closed,
+        })
     }
 
     /// Total channel capacity.

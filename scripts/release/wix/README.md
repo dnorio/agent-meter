@@ -1,5 +1,9 @@
 # agent-meter-proxy Windows installer (WiX)
 
+Status: experimental packaging path. Do not advertise MSI assets for v0.1.0
+unless this flow is built, signed if required, installed, and removed on a real
+Windows machine or CI runner.
+
 Two installer definitions live here:
 
 | File | Toolchain | Produces | Notes |
@@ -7,9 +11,8 @@ Two installer definitions live here:
 | `ProductUI.wxs` | WiX v5 + `WixToolset.UI.wixext` + `WixToolset.Util.wixext` (**Windows only**) | Full **wizard** MSI | License/EULA page, folder selection, branded banner/dialog, custom feature tree with optional CA install, env vars, Windows service and desktop shortcut. Built in CI on `windows-latest`. |
 | `Product.wixl.wxs` | `wixl` / `msitools` (**Linux**) | Minimal silent MSI | Fallback only. No wizard UI (wixl cannot render WixUI dialogs). |
 
-The published release MSIs (`agent-meter-proxy-1.2.4-x64.msi`,
-`agent-meter-proxy-1.2.4-arm64.msi`) come from **`ProductUI.wxs`** via the
-`package-windows` job in `.github/workflows/release-agent-meter-proxy.yml`.
+When validated, release MSIs should come from **`ProductUI.wxs`** via a Windows
+release job. There is no v0.1.0 MSI release gate yet.
 
 ## Wizard flow (ProductUI.wxs)
 
@@ -37,7 +40,7 @@ wix extension add -g WixToolset.Util.wixext/5.0.0
 wix build ProductUI.wxs `
   -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
   -arch x64 -d "ProxyExe=agent-meter-proxy-windows-x86_64.exe" `
-  -o agent-meter-proxy-1.2.3-x64.msi
+  -o agent-meter-proxy-0.1.0-x64.msi
 ```
 
 ## Code signing

@@ -13,9 +13,9 @@ services:
       - "4318:4318"
     environment:
       DATABASE_URL: "sqlite:///data/agent-meter.db"
-      HOST: "0.0.0.0"
-      PORT: "8081"
-      OTLP_PORT: "4318"
+      AGENT_METER_HOST: "0.0.0.0"
+      AGENT_METER_PORT: "8081"
+      AGENT_METER_OTLP_PORT: "4318"
       RUST_LOG: "info"
     volumes:
       - ./data:/data

@@ -1,8 +1,9 @@
 # Quickstart — agent-meter no WSL + captura do GitHub Copilot
 
 Guia enxuto para instalar o agent-meter (binário standalone) em **outro WSL/computador**
-e capturar a atividade do **GitHub Copilot** ao vivo. Sem cluster, sem PostgreSQL,
-sem conta: 1 binário + SQLite local.
+Guia enxuto para rodar o collector no **WSL** e capturar a atividade do
+**GitHub Copilot** ao vivo via OTLP. O setup padrão usa SQLite e expõe a UI em
+`127.0.0.1:8081`.
 
 ```
 VS Code (Copilot Chat)  ──OTLP──►  agent-meter  ──►  SQLite local

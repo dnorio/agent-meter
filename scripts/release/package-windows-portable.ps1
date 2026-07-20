@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$ExeArtifact,
     [Parameter(Mandatory = $true)][string]$ArchLabel,
-    [string]$Version = "1.2.4"
+     [string]$Version = "0.1.0"
 )
 
 $ErrorActionPreference = "Stop"

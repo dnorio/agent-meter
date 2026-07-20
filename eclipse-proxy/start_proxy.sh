@@ -2,14 +2,16 @@
 # Eclipse Copilot Proxy Interceptor - Setup & Launch
 # Captures GitHub Copilot API traffic from Eclipse and sends telemetry to agent-meter
 #
-# Usage: ./start_proxy.sh [--setup] [--port 8899]
+# Usage: ./start_proxy.sh [--setup] [--host 127.0.0.1] [--port 8899]
 #
 # --setup: First-time setup (generate CA, import to Windows, configure Eclipse)
+# --host:  Proxy listen host (default: 127.0.0.1; use 0.0.0.0 only for WSL/Windows bridging)
 # --port:  Proxy port (default: 8899)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROXY_HOST="${PROXY_HOST:-127.0.0.1}"
 PROXY_PORT="${PROXY_PORT:-8899}"
 MITMPROXY_CONFDIR="$HOME/.mitmproxy"
 ECLIPSE_INI="/mnt/c/Users/dnorio/AppData/Local/eclipse/eclipse.ini"
@@ -94,6 +96,7 @@ show_status() {
     echo "  Eclipse Copilot Proxy Interceptor"
     echo "═══════════════════════════════════════════════════════"
     echo "  Port:        $PROXY_PORT"
+    echo "  Listen:      $PROXY_HOST"
     echo "  WSL IP:      $(hostname -I | awk '{print $1}')"
     echo "  CA cert:     $MITMPROXY_CONFDIR/mitmproxy-ca-cert.pem"
     echo "  Addon:       $SCRIPT_DIR/copilot_interceptor.py"
@@ -104,12 +107,12 @@ show_status() {
 
 start_proxy() {
     show_status
-    info "Starting mitmdump on 0.0.0.0:$PROXY_PORT ..."
+    info "Starting mitmdump on $PROXY_HOST:$PROXY_PORT ..."
     info "Press Ctrl+C to stop"
     echo ""
 
     exec mitmdump \
-        --listen-host 0.0.0.0 \
+        --listen-host "$PROXY_HOST" \
         --listen-port "$PROXY_PORT" \
         --set confdir="$MITMPROXY_CONFDIR" \
         --set ssl_insecure=true \
@@ -121,6 +124,7 @@ DO_SETUP=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --setup) DO_SETUP=true; shift ;;
+        --host)  PROXY_HOST="$2"; shift 2 ;;
         --port)  PROXY_PORT="$2"; shift 2 ;;
         *)       error "Unknown arg: $1"; exit 1 ;;
     esac

@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc",
     "test": "node --test test/*.test.js",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

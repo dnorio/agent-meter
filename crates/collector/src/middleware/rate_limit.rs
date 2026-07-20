@@ -14,6 +14,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Instant;
 
+#[derive(Debug)]
+pub struct RateLimitExceeded;
+
 /// Rate limiter state — shared across all requests.
 #[derive(Debug)]
 pub struct RateLimiter {
@@ -35,7 +38,7 @@ impl RateLimiter {
     }
 
     /// Check if the IP is within rate limit. Returns remaining requests.
-    pub fn check(&self, ip: &str) -> Result<u32, ()> {
+    pub fn check(&self, ip: &str) -> Result<u32, RateLimitExceeded> {
         let mut buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
 
@@ -47,7 +50,7 @@ impl RateLimiter {
         }
 
         if entry.0 >= self.max_requests {
-            return Err(());
+            return Err(RateLimitExceeded);
         }
 
         entry.0 += 1;
@@ -91,7 +94,7 @@ pub async fn rate_limit_ingest(req: Request<Body>, next: Next) -> Response {
                 );
                 resp
             }
-            Err(()) => (
+            Err(RateLimitExceeded) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 [("retry-after", "60")],
                 "rate limit exceeded",

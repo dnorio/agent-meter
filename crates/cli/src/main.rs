@@ -112,7 +112,8 @@ enum EventAction {
 #[derive(Subcommand)]
 enum ReportAction {
     /// Top tools by usage
-    TopTools {
+    #[command(name = "top-tools")]
+    Tools {
         #[arg(long)]
         from: Option<String>,
         #[arg(long)]
@@ -129,7 +130,8 @@ enum ReportAction {
         limit: i64,
     },
     /// Top tasks by cost
-    TopTasks {
+    #[command(name = "top-tasks")]
+    Tasks {
         #[arg(long)]
         from: Option<String>,
         #[arg(long)]
@@ -146,7 +148,8 @@ enum ReportAction {
         limit: i64,
     },
     /// Top MCP servers by usage
-    TopMcpServers {
+    #[command(name = "top-mcp-servers")]
+    McpServers {
         #[arg(long)]
         from: Option<String>,
         #[arg(long)]
@@ -166,6 +169,16 @@ enum ReportAction {
 
 fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339()
+}
+
+struct ReportParams<'a> {
+    from: &'a Option<String>,
+    to: &'a Option<String>,
+    repo: &'a Option<String>,
+    ide: &'a Option<String>,
+    agent: &'a Option<String>,
+    skill: &'a Option<String>,
+    limit: i64,
 }
 
 impl Cli {
@@ -331,7 +344,7 @@ impl Cli {
 
     async fn run_report(&self, client: &Client, action: &ReportAction) -> Result<()> {
         let (path, pretty_title, columns) = match action {
-            ReportAction::TopTools {
+            ReportAction::Tools {
                 from,
                 to,
                 repo,
@@ -340,7 +353,15 @@ impl Cli {
                 skill,
                 limit,
             } => {
-                let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
+                let params = self.build_report_params(ReportParams {
+                    from,
+                    to,
+                    repo,
+                    ide,
+                    agent,
+                    skill,
+                    limit: *limit,
+                });
                 (
                     format!("/reports/top-tools?{}", params),
                     "TOP TOOLS",
@@ -354,7 +375,7 @@ impl Cli {
                     ],
                 )
             }
-            ReportAction::TopTasks {
+            ReportAction::Tasks {
                 from,
                 to,
                 repo,
@@ -363,14 +384,22 @@ impl Cli {
                 skill,
                 limit,
             } => {
-                let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
+                let params = self.build_report_params(ReportParams {
+                    from,
+                    to,
+                    repo,
+                    ide,
+                    agent,
+                    skill,
+                    limit: *limit,
+                });
                 (
                     format!("/reports/top-tasks?{}", params),
                     "TOP TASKS",
                     vec!["Task ID", "Calls", "Tokens", "Duration", "Errors", "Tools"],
                 )
             }
-            ReportAction::TopMcpServers {
+            ReportAction::McpServers {
                 from,
                 to,
                 repo,
@@ -379,7 +408,15 @@ impl Cli {
                 skill,
                 limit,
             } => {
-                let params = self.build_report_params(from, to, repo, ide, agent, skill, *limit);
+                let params = self.build_report_params(ReportParams {
+                    from,
+                    to,
+                    repo,
+                    ide,
+                    agent,
+                    skill,
+                    limit: *limit,
+                });
                 (
                     format!("/reports/top-mcp-servers?{}", params),
                     "TOP MCP SERVERS",
@@ -413,7 +450,7 @@ impl Cli {
                             let calls = row["calls"].as_i64().unwrap_or(0);
                             let tokens = row["total_estimated_tokens"]
                                 .as_i64()
-                                .map(|t| format_tokens(t))
+                                .map(format_tokens)
                                 .unwrap_or_else(|| "-".into());
                             let avg = row["avg_duration_ms"]
                                 .as_f64()
@@ -435,11 +472,11 @@ impl Cli {
                             let calls = row["tool_calls"].as_i64().unwrap_or(0);
                             let tokens = row["total_estimated_tokens"]
                                 .as_i64()
-                                .map(|t| format_tokens(t))
+                                .map(format_tokens)
                                 .unwrap_or_else(|| "-".into());
                             let dur = row["total_duration_ms"]
                                 .as_i64()
-                                .map(|d| format_duration(d))
+                                .map(format_duration)
                                 .unwrap_or_else(|| "-".into());
                             let errs = row["errors"].as_i64().unwrap_or(0);
                             let tools = row["distinct_tools"].as_i64().unwrap_or(0);
@@ -458,7 +495,7 @@ impl Cli {
                             let calls = row["calls"].as_i64().unwrap_or(0);
                             let tokens = row["total_estimated_tokens"]
                                 .as_i64()
-                                .map(|t| format_tokens(t))
+                                .map(format_tokens)
                                 .unwrap_or_else(|| "-".into());
                             let avg_r = row["avg_response_bytes"]
                                 .as_f64()
@@ -487,33 +524,24 @@ impl Cli {
         Ok(())
     }
 
-    fn build_report_params(
-        &self,
-        from: &Option<String>,
-        to: &Option<String>,
-        repo: &Option<String>,
-        ide: &Option<String>,
-        agent: &Option<String>,
-        skill: &Option<String>,
-        limit: i64,
-    ) -> String {
-        let mut parts: Vec<String> = vec![format!("limit={}", limit)];
-        if let Some(v) = from {
+    fn build_report_params(&self, params: ReportParams<'_>) -> String {
+        let mut parts: Vec<String> = vec![format!("limit={}", params.limit)];
+        if let Some(v) = params.from {
             parts.push(format!("from={}", v));
         }
-        if let Some(v) = to {
+        if let Some(v) = params.to {
             parts.push(format!("to={}", v));
         }
-        if let Some(v) = repo {
+        if let Some(v) = params.repo {
             parts.push(format!("repo={}", v));
         }
-        if let Some(v) = ide {
+        if let Some(v) = params.ide {
             parts.push(format!("ide={}", v));
         }
-        if let Some(v) = agent {
+        if let Some(v) = params.agent {
             parts.push(format!("agent={}", v));
         }
-        if let Some(v) = skill {
+        if let Some(v) = params.skill {
             parts.push(format!("skill={}", v));
         }
         parts.join("&")

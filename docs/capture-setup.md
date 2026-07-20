@@ -1,7 +1,7 @@
-# agent-meter — Guia de Captura por IDE (OSS standalone)
+# agent-meter — Guia de Captura por IDE
 
-> **Standalone open source** — um binário, **SQLite** local, dashboard em
-> `http://127.0.0.1:8081`. Sem conta, sem cloud, sem produto SaaS hosted.
+Guia prático para enviar telemetria de IDEs, CLIs e agentes para o collector do
+agent-meter. O setup padrão usa SQLite e expõe UI/REST em `127.0.0.1:8081`.
 
 ```bash
 # Instalar + ver dados de exemplo em segundos
@@ -48,9 +48,12 @@ SQLite → Dashboard http://127.0.0.1:8081
 {
   "github.copilot.chat.otel.enabled": true,
   "github.copilot.chat.otel.otlpEndpoint": "http://127.0.0.1:4318",
-  "github.copilot.chat.otel.captureContent": false
+  "github.copilot.chat.otel.captureContent": true
 }
 ```
+
+Use `captureContent: true` quando quiser observabilidade completa com prompts.
+Use `false` quando quiser apenas metadados/tokens do VS Code.
 
 > **WSL:** use o IP do host Windows ou `127.0.0.1` se o VS Code e o collector
 > rodam no mesmo ambiente. Guia passo a passo:
@@ -161,14 +164,13 @@ use **`agent-meter-proxy wrap cursor .`** (seção 3).
 Para mitmproxy manual:
 
 ```bash
-cd agent-meter/eclipse-proxy
-./start_proxy.sh --setup
-cursor-metered .    # se instalado pelo setup script
+agent-meter-proxy setup
+agent-meter-proxy wrap cursor .
 ```
 
 ---
 
-## Referência — portas e URLs (localhost)
+## Referência — portas e URLs padrão
 
 | Porta | Função |
 |-------|--------|
@@ -188,9 +190,9 @@ cursor-metered .    # se instalado pelo setup script
 
 ## Segurança
 
-- Proxy escuta apenas em `127.0.0.1` — nunca exposto à rede
+- Proxy deve escutar em `127.0.0.1` por padrão; use bind amplo apenas quando precisar cruzar WSL/Windows ou rede confiável
 - CA gerado localmente — removível a qualquer momento
-- Dados ficam no **SQLite local** — nada sai para terceiros
-- `captureContent: false` (VS Code) evita armazenar prompts completos
+- Dados vão para o collector configurado; no setup padrão, o armazenamento é SQLite
+- `captureContent: true` (VS Code) inclui prompts; `false` limita a captura de conteúdo
 
 Mais detalhes OTEL: [agent-meter-otel.md](agent-meter-otel.md)
