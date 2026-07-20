@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# history-audit.sh — scan full git history for leaks before making repo public (AMOSS gate)
+# history-audit.sh — scan full git history for secret/credential leaks
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

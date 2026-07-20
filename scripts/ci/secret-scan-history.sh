@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# secret-scan-history.sh — gitleaks + blob scan over complete git history (AMOSS gate)
+# secret-scan-history.sh — gitleaks + blob scan over complete git history
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

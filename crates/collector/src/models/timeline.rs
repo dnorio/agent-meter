@@ -22,7 +22,7 @@ pub struct TimelineEvent {
     pub tool_arguments: Option<serde_json::Value>,
     /// Tool result/output content, truncated at 8 KB
     pub tool_result: Option<String>,
-    // T-332: deep telemetry
+    // Deep telemetry
     pub reasoning_tokens: Option<i32>,
     pub finish_reason: Option<String>,
     pub request_max_tokens: Option<i32>,

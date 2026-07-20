@@ -25,8 +25,11 @@ impl SessionManager {
 
     /// Get or create a trace_id for the given session key.
     pub fn trace_id_for(&self, session_key: &str) -> String {
+        self.trace_id_for_at(session_key, Instant::now())
+    }
+
+    fn trace_id_for_at(&self, session_key: &str, now: Instant) -> String {
         let mut sessions = self.sessions.lock().unwrap();
-        let now = Instant::now();
 
         if let Some(entry) = sessions.get_mut(session_key) {
             if now.duration_since(entry.last_seen).as_secs() < IDLE_WINDOW_SECS {
@@ -49,5 +52,45 @@ impl SessionManager {
         sessions.retain(|_, v| now.duration_since(v.last_seen).as_secs() < 7200);
 
         trace_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn reuses_trace_id_within_idle_window() {
+        let manager = SessionManager::new();
+        let now = Instant::now();
+
+        let first = manager.trace_id_for_at("session-a", now);
+        let second = manager.trace_id_for_at("session-a", now + Duration::from_secs(60));
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn rotates_trace_id_after_idle_window() {
+        let manager = SessionManager::new();
+        let now = Instant::now();
+
+        let first = manager.trace_id_for_at("session-a", now);
+        let second =
+            manager.trace_id_for_at("session-a", now + Duration::from_secs(IDLE_WINDOW_SECS + 1));
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn uses_distinct_trace_ids_for_distinct_sessions() {
+        let manager = SessionManager::new();
+        let now = Instant::now();
+
+        let first = manager.trace_id_for_at("session-a", now);
+        let second = manager.trace_id_for_at("session-b", now);
+
+        assert_ne!(first, second);
     }
 }

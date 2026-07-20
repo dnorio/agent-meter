@@ -23,7 +23,7 @@ MITMPROXY_CA="${HOME}/.mitmproxy/mitmproxy-ca-cert.pem"
 # Verificar que proxy está rodando
 if ! ss -tlnp 2>/dev/null | grep -q ":${PROXY_PORT}" && ! netstat -tlnp 2>/dev/null | grep -q ":${PROXY_PORT}"; then
     echo "⚠️  Proxy não encontrado em ${PROXY_HOST}:${PROXY_PORT}"
-    echo "   Iniciando: cd apps/agent-meter/eclipse-proxy && mitmdump -p 8899 -s copilot_interceptor.py"
+    echo "   Iniciando: cd agent-meter/eclipse-proxy && mitmdump -p 8899 -s copilot_interceptor.py"
     exit 1
 fi
 

@@ -1,25 +1,19 @@
 #!/usr/bin/env bash
-# agent-meter-release-build.sh — cross-build release artifacts (T-365 Fase 3)
+# agent-meter-release-build.sh — cross-build release artifacts
 # Runs on a Linux x86_64 release runner. Builds Linux x86_64 + aarch64 (+ Windows if mingw present).
 # macOS: not cross-compiled — build locally or self-hosted Mac runner.
 set -euo pipefail
 
 log() { printf '[release-build] %s\n' "$*"; }
 
-# Resolve app root: APP_DIR override, monorepo, or OSS clone subdir
+# Resolve app root: APP_DIR override or repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -n "${APP_DIR:-}" && -f "${APP_DIR}/Cargo.toml" ]]; then
   :
-elif [[ -f "${WORKSPACE:-}/agent-meter-src/Cargo.toml" ]]; then
-  APP_DIR="${WORKSPACE}/agent-meter-src"
-elif [[ -f "${WORKSPACE:-}/apps/agent-meter/Cargo.toml" ]]; then
-  APP_DIR="${WORKSPACE}/apps/agent-meter"
-elif [[ -f "${WORKSPACE:-}/Cargo.toml" ]] && grep -q 'agent-meter-collector' "${WORKSPACE}/Cargo.toml" 2>/dev/null; then
-  APP_DIR="${WORKSPACE}"
-elif [[ -f "$SCRIPT_DIR/../../../apps/agent-meter/Cargo.toml" ]]; then
-  APP_DIR="$(cd "$SCRIPT_DIR/../../../apps/agent-meter" && pwd)"
+elif [[ -f "$SCRIPT_DIR/../../Cargo.toml" ]]; then
+  APP_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 else
-  log "ERROR: cannot locate agent-meter Cargo.toml (WORKSPACE=${WORKSPACE:-unset} APP_DIR=${APP_DIR:-unset})"
+  log "ERROR: cannot locate agent-meter Cargo.toml (APP_DIR=${APP_DIR:-unset})"
   exit 2
 fi
 
@@ -97,6 +91,20 @@ if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
   build_one x86_64-pc-windows-gnu agent-meter-windows-x86_64.exe zip || log "WARN: windows cross-build failed (non-fatal)"
 else
   log "skip windows (mingw-w64 not installed; set INSTALL_MINGW=1 to enable)"
+fi
+
+shopt -s nullglob
+checksum_inputs=("$DIST"/*.tar.gz "$DIST"/*.zip)
+shopt -u nullglob
+if [[ ${#checksum_inputs[@]} -gt 0 ]]; then
+  log "generating SHA256SUMS"
+  (
+    cd "$DIST"
+    sha256sum "${checksum_inputs[@]##*/}" > SHA256SUMS
+  )
+  log "✓ SHA256SUMS"
+else
+  log "WARN: no release archives found; skipping SHA256SUMS"
 fi
 
 log "artifacts:"

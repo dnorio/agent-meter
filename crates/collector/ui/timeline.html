@@ -612,7 +612,7 @@ window.addEventListener('mouseup', () => minimapDrag = null);
 
 const ROW_H = 22, LEFT_PAD = 280, RIGHT_PAD = 16, TOP_PAD = 28;
 
-// T-326: Compute nesting depth from parent_span_id
+// Compute nesting depth from parent_span_id
 function computeDepths(events) {
   const spanMap = new Map(); // span_id → event
   for (const e of events) { if (e.span_id) spanMap.set(e.span_id, e); }

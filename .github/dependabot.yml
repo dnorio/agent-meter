@@ -1,5 +1,5 @@
-# Dependabot — agent-meter OSS (pre-public, repo private)
-# CI primário = Jenkins external CI; GHA só workflow_dispatch (emergência).
+# Dependabot configuration for agent-meter.
+# GitHub Actions is the supported CI path for dependency updates.
 # https://docs.github.com/code-security/dependabot
 
 version: 2

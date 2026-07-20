@@ -76,6 +76,18 @@ won't re-seed a database that already has data — pass `--force` to reseed.
 By default, state lives in `agent-meter.db` (SQLite) in the working directory.
 Set `DATABASE_URL` to use Postgres.
 
+### Docker (hardened standalone)
+
+```bash
+docker compose -f docker-compose.standalone.yml up -d --build
+open http://localhost:8081
+```
+
+The Compose file runs as non-root with a read-only root filesystem, tmpfs at
+`/tmp`, and a named volume at `/data` for SQLite. See
+[docs/docker-runtime.md](docs/docker-runtime.md) for healthcheck behavior and
+troubleshooting.
+
 > 📦 **Prebuilt binaries** will be attached to [Releases](https://github.com/dnorio/agent-meter/releases).
 > Until the first release is published, the installer falls back to building from source.
 

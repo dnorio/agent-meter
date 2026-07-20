@@ -206,13 +206,7 @@ async fn cmd_start_daemon(listen: SocketAddr, collector: String) -> Result<()> {
 
 async fn cmd_wrap(cmd: Vec<String>, listen: SocketAddr) -> Result<()> {
     let (_, cert_path) = ca::ca_paths();
-
-    if !cert_path.exists() {
-        anyhow::bail!("CA not found. Run 'agent-meter-proxy setup' first.");
-    }
-
-    let cert_str = cert_path.to_string_lossy().to_string();
-    let proxy_url = format!("http://{listen}");
+    let (proxy_url, env_vars) = wrap_env_vars(listen, &cert_path)?;
 
     // Check if proxy is running
     let pid_path = ca::ca_dir().join("proxy.pid");
@@ -239,17 +233,39 @@ async fn cmd_wrap(cmd: Vec<String>, listen: SocketAddr) -> Result<()> {
     eprintln!("▶ Launching: {} {}", program, args.join(" "));
     eprintln!("  HTTPS_PROXY={proxy_url}");
 
-    let status = std::process::Command::new(program)
-        .args(args)
-        .env("HTTPS_PROXY", &proxy_url)
-        .env("HTTP_PROXY", &proxy_url)
-        .env("SSL_CERT_FILE", &cert_str)
-        .env("NODE_EXTRA_CA_CERTS", &cert_str)
-        .env("REQUESTS_CA_BUNDLE", &cert_str)
+    let mut command = std::process::Command::new(program);
+    command.args(args);
+    for (key, value) in env_vars {
+        command.env(key, value);
+    }
+
+    let status = command
         .status()
         .with_context(|| format!("launching {program}"))?;
 
     std::process::exit(status.code().unwrap_or(1));
+}
+
+fn wrap_env_vars(
+    listen: SocketAddr,
+    cert_path: &std::path::Path,
+) -> Result<(String, Vec<(&'static str, String)>)> {
+    if !cert_path.exists() {
+        anyhow::bail!("CA not found. Run 'agent-meter-proxy setup' first.");
+    }
+
+    let cert_str = cert_path.to_string_lossy().to_string();
+    let proxy_url = format!("http://{listen}");
+    Ok((
+        proxy_url.clone(),
+        vec![
+            ("HTTPS_PROXY", proxy_url.clone()),
+            ("HTTP_PROXY", proxy_url),
+            ("SSL_CERT_FILE", cert_str.clone()),
+            ("NODE_EXTRA_CA_CERTS", cert_str.clone()),
+            ("REQUESTS_CA_BUNDLE", cert_str),
+        ],
+    ))
 }
 
 async fn cmd_status() -> Result<()> {
@@ -339,5 +355,59 @@ impl HttpHandler for ProxyHandler {
 
     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
         self.state.on_response(res).await
+    }
+}
+
+#[cfg(test)]
+mod wrap_tests {
+    use super::*;
+    use std::net::{Ipv4Addr, SocketAddr};
+
+    #[test]
+    fn wrap_env_vars_fails_when_ca_missing() {
+        let missing = std::env::temp_dir().join(format!(
+            "agent-meter-missing-ca-{}.pem",
+            uuid::Uuid::new_v4()
+        ));
+        let listen = SocketAddr::from((Ipv4Addr::LOCALHOST, 8888));
+
+        let err = wrap_env_vars(listen, &missing).expect_err("missing ca should fail");
+        assert!(err.to_string().contains("CA not found"));
+    }
+
+    #[test]
+    fn wrap_env_vars_sets_proxy_and_cert_env() {
+        let cert_path =
+            std::env::temp_dir().join(format!("agent-meter-wrap-ca-{}.pem", uuid::Uuid::new_v4()));
+        std::fs::write(&cert_path, "test-cert").expect("write temp cert");
+
+        let listen = SocketAddr::from((Ipv4Addr::LOCALHOST, 8888));
+        let (proxy_url, env_vars) =
+            wrap_env_vars(listen, &cert_path).expect("wrap env should succeed");
+
+        assert_eq!(proxy_url, "http://127.0.0.1:8888");
+        let map: std::collections::HashMap<_, _> = env_vars.into_iter().collect();
+        assert_eq!(
+            map.get("HTTPS_PROXY").map(String::as_str),
+            Some("http://127.0.0.1:8888")
+        );
+        assert_eq!(
+            map.get("HTTP_PROXY").map(String::as_str),
+            Some("http://127.0.0.1:8888")
+        );
+        assert_eq!(
+            map.get("SSL_CERT_FILE").map(String::as_str),
+            Some(cert_path.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            map.get("NODE_EXTRA_CA_CERTS").map(String::as_str),
+            Some(cert_path.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            map.get("REQUESTS_CA_BUNDLE").map(String::as_str),
+            Some(cert_path.to_string_lossy().as_ref())
+        );
+
+        let _ = std::fs::remove_file(cert_path);
     }
 }

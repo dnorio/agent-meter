@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke-demo.sh — parity with former GHA smoke job (demo subcommand + API check)
+# smoke-demo.sh — smoke test for demo seeding and API availability
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -7,7 +7,7 @@ cd "$(dirname "$0")/../.."
 cargo build -p agent-meter-collector
 
 AGENT_METER_NO_OPEN=1 \
-DATABASE_URL="sqlite:///tmp/jenkins-smoke-demo.db" \
+DATABASE_URL="sqlite:///tmp/agent-meter-smoke-demo.db" \
 AGENT_METER_PORT=18081 \
 AGENT_METER_OTLP_PORT=14318 \
   ./target/debug/agent-meter-collector demo --conversations 3 --events 5 --force &

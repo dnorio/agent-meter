@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# agent-meter-release-publish.sh — gh release upload (T-365 Fase 3)
+# agent-meter-release-publish.sh — gh release upload
 set -euo pipefail
 
 log() { printf '[release-publish] %s\n' "$*"; }
@@ -17,14 +17,8 @@ DRY_RUN="${DRY_RUN:-false}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -n "${APP_DIR:-}" && -d "${APP_DIR}/dist" ]]; then
   DIST="${APP_DIR}/dist"
-elif [[ -d "${WORKSPACE:-}/agent-meter-src/dist" ]]; then
-  DIST="${WORKSPACE}/agent-meter-src/dist"
-elif [[ -d "${WORKSPACE:-}/apps/agent-meter/dist" ]]; then
-  DIST="${WORKSPACE}/apps/agent-meter/dist"
-elif [[ -d "${WORKSPACE:-}/dist" ]]; then
-  DIST="${WORKSPACE}/dist"
-elif [[ -d "$SCRIPT_DIR/../../../apps/agent-meter/dist" ]]; then
-  DIST="$(cd "$SCRIPT_DIR/../../../apps/agent-meter/dist" && pwd)"
+elif [[ -d "$SCRIPT_DIR/../../dist" ]]; then
+  DIST="$(cd "$SCRIPT_DIR/../../dist" && pwd)"
 else
   log "ERROR: dist/ not found"
   exit 2
@@ -33,10 +27,38 @@ fi
 shopt -s nullglob
 files=("$DIST"/*.tar.gz "$DIST"/*.zip)
 shopt -u nullglob
+
+required=(
+  "agent-meter-linux-x86_64.tar.gz"
+  "agent-meter-linux-arm64.tar.gz"
+  "SHA256SUMS"
+)
+missing=()
+for artifact in "${required[@]}"; do
+  [[ -f "$DIST/$artifact" ]] || missing+=("$artifact")
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+  log "ERROR: missing required release artifacts in $DIST:"
+  printf '  - %s\n' "${missing[@]}"
+  exit 2
+fi
+
 [[ ${#files[@]} -gt 0 ]] || {
   log "ERROR: no .tar.gz/.zip in $DIST"
   exit 2
 }
+
+if [[ -f "$DIST/SHA256SUMS" ]]; then
+  while read -r _sum name; do
+    [[ -n "$name" && -f "$DIST/$name" ]] || {
+      log "ERROR: SHA256SUMS references missing file: ${name:-<empty>}"
+      exit 2
+    }
+  done < "$DIST/SHA256SUMS"
+  files+=("$DIST/SHA256SUMS")
+fi
+
+bash "$SCRIPT_DIR/release-smoke.sh" "$DIST"
 
 [[ -n "${GITHUB_TOKEN:-}" ]] || {
   log "ERROR: GITHUB_TOKEN required"

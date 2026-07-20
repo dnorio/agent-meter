@@ -330,7 +330,7 @@ fn map_tool_call_json(
         metadata["agent"] = serde_json::json!(a);
     }
 
-    // T-332: deep telemetry fields for map_tool_call_json
+    // Deep telemetry fields for map_tool_call_json
     let trace_id = span
         .get("traceId")
         .and_then(|v| v.as_str())
@@ -504,7 +504,7 @@ fn map_chat_span_json(
         metadata["session_id"] = serde_json::json!(sid);
     }
 
-    // T-332: deep telemetry for map_chat_span_json
+    // Deep telemetry for map_chat_span_json
     let trace_id_val = span
         .get("traceId")
         .and_then(|v| v.as_str())
@@ -1259,7 +1259,7 @@ fn map_tool_call(
             .or_else(|| get_attr_str(&span.attributes, "tool.output"))
             .map(|s| truncate_str(s, 8192));
 
-    // T-332: deep telemetry for map_tool_call proto
+    // Deep telemetry for map_tool_call proto
     let trace_id = if span.trace_id.is_empty() {
         None
     } else {
@@ -1396,7 +1396,7 @@ fn map_chat_span_proto(
         metadata["session_id"] = serde_json::json!(sid);
     }
 
-    // T-332: deep telemetry for map_chat_span_proto
+    // Deep telemetry for map_chat_span_proto
     let trace_id = if span.trace_id.is_empty() {
         None
     } else {

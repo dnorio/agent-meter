@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -13,17 +17,12 @@ jobs:
   cargo-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: workspace
+          cache-on-failure: true
 
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -31,14 +30,18 @@ jobs:
       - run: bash scripts/ci/smoke-demo.sh
       - run: bash scripts/ci/history-audit.sh
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - run: python -m pip install pytest httpx
-      - run: python -m pytest -q
+          cache: pip
+          cache-dependency-path: sdk/python/pyproject.toml
+      - run: python3 -m pip install pytest httpx build
+      - run: python3 -m pytest -q
+        working-directory: sdk/python
+      - run: python3 -m build
         working-directory: sdk/python
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -51,3 +54,4 @@ jobs:
         working-directory: sdk/node
       - run: npm pack --dry-run
         working-directory: sdk/node
+      - run: bash scripts/ci/node-tarball-smoke.sh

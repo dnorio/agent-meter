@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# oss-scrub-check.sh — fail CI if SaaS/monorepo leaks appear in the OSS tree (AMOSS gate)
+# oss-scrub-check.sh — fail CI if private/internal references appear in the tree
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -9,7 +9,7 @@ cd "$ROOT"
 mapfile -t files < <(
   git ls-files \
     ':!:target/*' ':!docs/assets/*' ':!scripts/ci/oss-scrub-check.sh' \
-    | grep -E '\.(rs|html|md|sh|ps1|toml|json|yml|yaml|groovy)$|^(install\.(sh|ps1)|Jenkinsfile|Dockerfile)$' || true
+    | grep -E '\.(rs|html|md|sh|ps1|toml|json|yml|yaml)$|^(install\.(sh|ps1)|Dockerfile)$' || true
 )
 
 FORBIDDEN=(
@@ -51,4 +51,4 @@ if [[ $fail -ne 0 ]]; then
   exit 1
 fi
 
-echo "✓ oss-scrub-check: no SaaS/monorepo leaks detected (${#files[@]} files scanned)"
+echo "✓ oss-scrub-check: no private/internal leaks detected (${#files[@]} files scanned)"

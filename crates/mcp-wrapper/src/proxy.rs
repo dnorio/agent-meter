@@ -134,7 +134,7 @@ async fn proxy_handler(
         // JSON-RPC id — used as tool_call_id for correlation with LLM responses
         let tool_call_id = request_body.get("id").map(|v| v.to_string());
 
-        // T-340: IDE identification — env var takes priority, then X-Agent-IDE header
+        // IDE identification — env var takes priority, then X-Agent-IDE header
         let ide_value = env::var("AGENT_METER_IDE").ok().or_else(|| {
             headers
                 .get("x-agent-ide")
@@ -262,4 +262,41 @@ fn truncate_utf8(s: &str, max_bytes: usize) -> String {
         end -= 1;
     }
     format!("{}…[truncated]", &s[..end])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn extract_tool_result_joins_text_blocks() {
+        let body = json!({
+            "result": {
+                "content": [
+                    {"type": "text", "text": "line one"},
+                    {"type": "text", "text": "line two"}
+                ]
+            }
+        });
+
+        assert_eq!(
+            extract_tool_result(&body).as_deref(),
+            Some("line one\nline two")
+        );
+    }
+
+    #[test]
+    fn extract_tool_result_returns_none_without_content() {
+        let body = json!({"error": {"code": -32602}});
+        assert!(extract_tool_result(&body).is_none());
+    }
+
+    #[test]
+    fn truncate_utf8_respects_multibyte_boundaries() {
+        let input = "café".repeat(3000);
+        let truncated = truncate_utf8(&input, 100);
+        assert!(truncated.is_char_boundary(truncated.len()));
+        assert!(truncated.ends_with("…[truncated]"));
+    }
 }

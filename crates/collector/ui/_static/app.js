@@ -83,7 +83,7 @@
     opts = opts || {};
     const active = opts.active || '';
 
-    // Skip-to-content link (a11y T-324.16)
+    // Skip-to-content link (a11y)
     if (!document.querySelector('.am-skip-link')) {
       const skip = document.createElement('a');
       skip.className = 'am-skip-link';
@@ -160,7 +160,7 @@
       }).catch(()=>{});
     }
 
-    // ── T-353: Global Search (⌘K) ──────────────────────────────────────────
+    // ── Global Search (⌘K) ────────────────────────────────────────────────
     const trigger = document.getElementById('amSearchTrigger');
     if (trigger) trigger.addEventListener('click', () => amOpenSearch());
   };

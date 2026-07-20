@@ -61,3 +61,53 @@ pub fn build_otlp_payload(
 pub fn now_ns() -> i64 {
     Utc::now().timestamp_nanos_opt().unwrap_or(0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_otlp_payload_sets_resource_span_and_attribute_types() {
+        let payload = build_otlp_payload(
+            "cursor",
+            "chat gpt-5.4",
+            "1234abcd1234abcd1234abcd1234abcd",
+            100,
+            250,
+            vec![
+                ("gen_ai.request.model", json!("gpt-5.4")),
+                ("gen_ai.usage.input_tokens", json!(42)),
+                ("gen_ai.cache.hit", json!(true)),
+                ("gen_ai.metadata", json!({"foo": "bar"})),
+            ],
+        );
+
+        let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+        let attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+            .as_array()
+            .expect("attributes should be an array");
+
+        assert_eq!(
+            payload["resourceSpans"][0]["resource"]["attributes"][0]["key"],
+            "service.name"
+        );
+        assert_eq!(
+            payload["resourceSpans"][0]["resource"]["attributes"][0]["value"]["stringValue"],
+            "cursor"
+        );
+        assert_eq!(span["traceId"], "1234abcd1234abcd1234abcd1234abcd");
+        assert_eq!(span["name"], "chat gpt-5.4");
+        assert_eq!(span["startTimeUnixNano"], "100");
+        assert_eq!(span["endTimeUnixNano"], "250");
+        assert_eq!(span["kind"], 3);
+
+        assert_eq!(attrs[0]["key"], "gen_ai.request.model");
+        assert_eq!(attrs[0]["value"]["stringValue"], "gpt-5.4");
+        assert_eq!(attrs[1]["value"]["intValue"], "42");
+        assert_eq!(attrs[2]["value"]["boolValue"], true);
+        assert_eq!(attrs[3]["value"]["stringValue"], "{\"foo\":\"bar\"}");
+
+        let span_id = span["spanId"].as_str().expect("spanId should be a string");
+        assert_eq!(span_id.len(), 16);
+    }
+}
