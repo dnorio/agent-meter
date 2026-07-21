@@ -63,9 +63,12 @@ pub async fn run(
     });
 
     let main_handle = tokio::spawn(async move {
-        if let Err(e) = serve(listener, main_app)
-            .with_graceful_shutdown(async move { token.cancelled().await })
-            .await
+        if let Err(e) = serve(
+            listener,
+            main_app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move { token.cancelled().await })
+        .await
         {
             tracing::error!(error = %e, "main server failed");
         }

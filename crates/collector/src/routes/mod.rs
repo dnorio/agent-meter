@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod badges;
 pub mod conversations;
 pub mod cost;
 pub mod dashboard;

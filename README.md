@@ -8,7 +8,10 @@ Track every **LLM call**, **prompt**, **tool invocation**, **conversation** and 
 across your IDEs, CLIs and agents. Run the collector as a binary or container,
 store events in SQLite by default, and inspect usage through the built-in dashboard.
 
+[![CI](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/dnorio/agent-meter?label=release)](https://github.com/dnorio/agent-meter/releases)
+[![npm](https://img.shields.io/npm/v/@dnorio/agent-meter?label=npm)](https://www.npmjs.com/package/@dnorio/agent-meter)
+[![PyPI](https://img.shields.io/pypi/v/agentmeter-obs?label=pypi)](https://pypi.org/project/agentmeter-obs/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)
 ![OTLP](https://img.shields.io/badge/ingest-OTLP-blue.svg)

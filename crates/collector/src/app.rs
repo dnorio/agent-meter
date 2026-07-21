@@ -40,6 +40,7 @@ pub fn build(config: Config, db: Arc<dyn Database>, cancel: CancellationToken) -
         .merge(routes::conversations::router())
         .merge(routes::admin::router())
         .merge(routes::cost::router())
+        .merge(routes::badges::router())
         .merge(routes::docs::router())
         .merge(routes::search::router())
         .merge(routes::static_assets::router())

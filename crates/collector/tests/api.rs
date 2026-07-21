@@ -38,7 +38,12 @@ async fn setup() -> (String, Client) {
     let base_url = format!("http://{}", addr);
 
     tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .unwrap();
     });
 
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -507,5 +512,28 @@ async fn test_docs_and_static_assets_smoke() {
         );
         let body = resp.text().await.unwrap();
         assert!(!body.is_empty(), "asset {path} should not be empty");
+    }
+}
+
+#[tokio::test]
+async fn test_embed_badges_svg() {
+    let (base_url, client) = setup().await;
+
+    for path in ["/badge/cost.svg", "/badge/events.svg"] {
+        let resp = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "badge {path}");
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.contains("image/svg+xml"), "badge content-type: {ct}");
+        let body = resp.text().await.unwrap();
+        assert!(body.contains("<svg"), "badge {path} should be svg");
+        assert!(body.contains("<title>"), "badge {path} should have title");
     }
 }
