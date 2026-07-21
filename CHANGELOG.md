@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-21
+
+### Added
+
+- `agent-meter keys create` and `agent-meter keys list` for API key management.
+
+### Changed
+
+- SDK dev-deps: TypeScript 7, `@types/node` 26.
+
 ## [0.1.1] - 2026-07-21
 
 ### Added

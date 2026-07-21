@@ -222,6 +222,20 @@ These admin endpoints are unauthenticated. Keep the collector bound to
 `127.0.0.1` for local use, or put it behind your own auth/reverse proxy when
 exposing it beyond a trusted machine.
 
+### API keys (SDK ingest)
+
+```bash
+# Create a key (secret shown once)
+agent-meter keys create --name my-sdk
+
+# List key prefixes
+agent-meter keys list
+
+# Require keys on ingest
+export AGENT_METER_REQUIRE_API_KEY=1
+agent-meter serve
+```
+
 ---
 
 ## 🗂️ Project structure

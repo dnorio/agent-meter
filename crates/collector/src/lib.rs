@@ -3,6 +3,7 @@ pub mod config;
 pub mod db;
 pub mod demo;
 pub mod errors;
+pub mod keys;
 pub mod middleware;
 pub mod models;
 pub mod otlp;

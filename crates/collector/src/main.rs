@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::sync::Arc;
 
-use agent_meter_collector::{config, db, run};
+use agent_meter_collector::{config, db, keys, run};
 use agent_meter_db::{Database, PostgresDb, SqliteDb};
 
 /// Build the backend-agnostic database handle from the configured URL.
@@ -60,6 +60,30 @@ enum Command {
     Version,
     /// Validate config and test DB connection
     Check,
+    /// Manage API keys (for SDK ingest auth)
+    Keys {
+        #[command(subcommand)]
+        action: KeysAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum KeysAction {
+    /// Create a new API key (secret shown once)
+    Create {
+        /// Key label
+        #[arg(long, default_value = "default")]
+        name: String,
+        /// Organization slug
+        #[arg(long, default_value = "personal")]
+        org: String,
+    },
+    /// List API keys for an organization (prefixes only)
+    List {
+        /// Organization slug
+        #[arg(long, default_value = "personal")]
+        org: String,
+    },
 }
 
 #[tokio::main]
@@ -125,6 +149,22 @@ async fn main() -> anyhow::Result<()> {
                 println!("✓ Database connection OK (test query returned {})", row.0);
             }
             Ok(())
+        }
+        Command::Keys { action } => {
+            let db = connect_db(&cfg.database_url).await?;
+            match action {
+                KeysAction::Create { name, org } => {
+                    let secret = keys::create_key(&db, &org, &name).await?;
+                    println!("✓ API key created for org '{org}' (name: {name})");
+                    println!();
+                    println!("  {secret}");
+                    println!();
+                    println!("Store this secret now — it won't be shown again.");
+                    println!("Use: export AGENT_METER_API_KEY='{secret}'");
+                    Ok(())
+                }
+                KeysAction::List { org } => keys::list_keys(&db, &org).await,
+            }
         }
     }
 }
