@@ -32,7 +32,12 @@ smoke_linux_archive() {
     exit 2
   }
   chmod +x "$bin"
-  if ! "$bin" --help >/dev/null 2>&1; then
+  if file "$bin" | grep -q "ARM aarch64"; then
+    file "$bin" | grep -q "ELF 64-bit" || {
+      log "ERROR: $name is not a valid arm64 ELF"
+      exit 2
+    }
+  elif ! "$bin" --help >/dev/null 2>&1; then
     log "ERROR: $name failed --help smoke check"
     exit 2
   fi
