@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-07-21
+
+### Added
+
+- `GET /openapi.json` — OpenAPI 3.1 spec for collector REST/query endpoints.
+- `GET /api/version` — version, `require_api_key`, and links to docs/OpenAPI.
+- Docker CI smoke checks for `/openapi.json` and `/api/version`.
+
+### Fixed
+
+- REST ingest returns `503` + `Retry-After` when the async buffer is full (parity with OTLP; no longer blocks on `send().await`).
+
 ## [0.1.7] - 2026-07-21
 
 ### Fixed

@@ -8,6 +8,7 @@ use crate::app::AppState;
 use crate::errors::AppError;
 use crate::models::event::ToolCallEvent;
 use crate::services::event_service;
+use crate::services::ingest_buffer::TrySendEventError;
 
 /// Resolve client IP from proxy headers or a direct connection fallback.
 pub fn client_ip(headers: &HeaderMap, fallback: Option<&str>) -> String {
@@ -56,10 +57,10 @@ pub async fn enqueue_tool_call(
         .as_ref()
         .ok_or_else(|| AppError::Internal("ingest buffer unavailable".into()))?;
 
-    buffer
-        .send(event)
-        .await
-        .map_err(|_| AppError::ServiceUnavailable)?;
+    buffer.try_send(event).map_err(|e| match e {
+        TrySendEventError::Full => AppError::ServiceUnavailable,
+        TrySendEventError::Closed => AppError::Internal("ingest buffer closed".into()),
+    })?;
 
     Ok(Json(json!({
         "event_id": insert.event_id,
