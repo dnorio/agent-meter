@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 
 use crate::app::AppState;
 use crate::otlp;
+use crate::services::auth;
 
 async fn post_traces(
     State(state): State<AppState>,
@@ -17,6 +18,12 @@ async fn post_traces(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
+    if let Err(e) =
+        auth::authorize_ingest(state.db.as_ref(), &headers, state.config.require_api_key).await
+    {
+        return e.into_response();
+    }
+
     let content_type = headers.get("content-type").and_then(|v| v.to_str().ok());
     // X-Forwarded-For takes precedence (Ingress path); fall back to TCP socket addr
     let client_ip = headers

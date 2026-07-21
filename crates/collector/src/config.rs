@@ -11,6 +11,8 @@ pub struct Config {
     pub otel_endpoint: Option<String>,
     pub otel_service_name: String,
     pub log_level: String,
+    /// When true, ingest routes require a valid Bearer API key.
+    pub require_api_key: bool,
 }
 
 /// TOML file schema (all fields optional — env vars fill the gaps)
@@ -28,6 +30,7 @@ struct ServerSection {
     host: Option<String>,
     port: Option<u16>,
     otlp_port: Option<u16>,
+    require_api_key: Option<bool>,
 }
 
 #[derive(Deserialize, Default)]
@@ -89,6 +92,11 @@ impl Config {
                 .ok()
                 .or(file.telemetry.log_level)
                 .unwrap_or_else(|| "info".into()),
+            require_api_key: env::var("AGENT_METER_REQUIRE_API_KEY")
+                .ok()
+                .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+                .or(file.server.require_api_key)
+                .unwrap_or(false),
         }
     }
 }

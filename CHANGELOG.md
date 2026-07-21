@@ -7,15 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-21
+
 ### Added
 
+- Optional API key auth for ingest (`AGENT_METER_REQUIRE_API_KEY=1`).
+- Postgres CI smoke test (migrate + insert + cost summary).
+- `install.sh` verifies release tarball SHA256 when `SHA256SUMS` is available.
 - SVG embed badges at `/badge/cost.svg` and `/badge/events.svg` (5-minute cache).
 - Docker build + health smoke job in CI.
 - Dependabot coverage for npm and pip SDK ecosystems.
+- SQLite seeds default `personal` org for API key management.
 
 ### Security
 
-- Admin delete/reset routes now reject non-loopback clients (403).
+- Admin delete/reset routes reject non-loopback clients (403).
 
 ### Changed
 

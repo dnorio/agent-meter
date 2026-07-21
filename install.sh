@@ -74,6 +74,25 @@ try_release() {
     info "$url"
     tmpdir="$(mktemp -d)"
     if curl -fSL "$url" -o "$tmpdir/archive.tar.gz" 2>/dev/null; then
+      if command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1; then
+        sums_url="https://github.com/${REPO}/releases/download/${version}/SHA256SUMS"
+        if curl -fSL "$sums_url" -o "$tmpdir/SHA256SUMS" 2>/dev/null; then
+          expected="$(grep "  ${archive}$" "$tmpdir/SHA256SUMS" | awk '{print $1}' || true)"
+          if [ -n "$expected" ]; then
+            if command -v sha256sum >/dev/null 2>&1; then
+              actual="$(sha256sum "$tmpdir/archive.tar.gz" | awk '{print $1}')"
+            else
+              actual="$(shasum -a 256 "$tmpdir/archive.tar.gz" | awk '{print $1}')"
+            fi
+            if [ "$expected" != "$actual" ]; then
+              err "checksum mismatch for ${archive}"
+              rm -rf "$tmpdir"
+              return 1
+            fi
+            info "✓ SHA256 verified"
+          fi
+        fi
+      fi
       tar -xzf "$tmpdir/archive.tar.gz" -C "$tmpdir"
       cp "$tmpdir/$asset_base" "$DEST"
       chmod +x "$DEST"

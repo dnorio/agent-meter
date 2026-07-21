@@ -82,3 +82,31 @@ jobs:
           docker exec "$cid" agent-meter check
           curl -sf http://127.0.0.1:8081/badge/cost.svg | grep -q '<svg'
           curl -sf http://127.0.0.1:8081/badge/events.svg | grep -q '<svg'
+
+  postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agent_meter_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/agent_meter_test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: workspace
+          cache-on-failure: true
+
+      - run: cargo test -p agent-meter-db --test postgres_smoke

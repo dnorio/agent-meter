@@ -11,6 +11,9 @@ pub enum AppError {
     #[error("Db layer error: {0}")]
     Db(#[from] agent_meter_db::DbError),
 
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
     #[error("Validation error: {0}")]
     Validation(String),
 
@@ -43,6 +46,7 @@ impl IntoResponse for AppError {
                 }
             },
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::Internal(msg) => {
                 tracing::error!(error = %msg, "internal error");

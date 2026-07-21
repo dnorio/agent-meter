@@ -198,6 +198,7 @@ file (`--config agent-meter.toml`, see [`agent-meter.example.toml`](agent-meter.
 | `AGENT_METER_OTLP_PORT` | `4318` | OTLP receiver port |
 | `DATABASE_URL` | `sqlite://agent-meter.db` | SQLite by default; `postgres://…` also supported |
 | `AGENT_METER_NO_OPEN` | _(unset)_ | Set to skip auto-opening the browser |
+| `AGENT_METER_REQUIRE_API_KEY` | `0` | Set to `1` to require Bearer API keys on ingest |
 | `RUST_LOG` | `info` | Log level |
 
 > **PostgreSQL is optional.** Point `DATABASE_URL` at a `postgres://` URL for a

@@ -537,3 +537,60 @@ async fn test_embed_badges_svg() {
         assert!(body.contains("<title>"), "badge {path} should have title");
     }
 }
+
+#[tokio::test]
+async fn test_api_key_auth_when_required() {
+    use agent_meter_collector::services::auth;
+
+    let db = make_db().await;
+    let org = db.find_org_by_slug("personal").await.expect("personal org");
+    let secret = format!("am_live_{}", uuid::Uuid::new_v4().as_simple());
+    let prefix = &secret[..12];
+    db.create_api_key(org.id, "test", prefix, &auth::hash_key(&secret))
+        .await
+        .expect("create api key");
+
+    let mut config = agent_meter_collector::config::Config::from_env();
+    config.require_api_key = true;
+    let app = app::build(config, db, CancellationToken::new());
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let base_url = format!("http://{}", addr);
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .unwrap();
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let client = Client::new();
+
+    let event = json!({
+        "event_id": uuid::Uuid::new_v4().to_string(),
+        "tool_name": "auth_test_tool",
+        "conversation_id": "conv-auth-test",
+        "started_at": "2026-05-17T00:00:00Z",
+        "ended_at": "2026-05-17T00:00:01Z",
+        "ok": true
+    });
+
+    let denied = client
+        .post(format!("{}/events/tool-call", base_url))
+        .json(&event)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), 401);
+
+    let ok = client
+        .post(format!("{}/events/tool-call", base_url))
+        .header("Authorization", format!("Bearer {}", secret))
+        .json(&event)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ok.status(), 200);
+}

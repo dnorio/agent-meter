@@ -23,5 +23,5 @@ WHERE ide IN ('vscode', 'cursor')
   AND billing_model = 'token';
 
 -- Index for billing_model filtering
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_atc_billing_model
+CREATE INDEX IF NOT EXISTS idx_atc_billing_model
     ON agent_tool_calls (billing_model, started_at);
