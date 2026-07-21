@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, State},
+    middleware,
     routing::{delete, post},
     Json, Router,
 };
@@ -7,6 +8,7 @@ use serde_json::{json, Value};
 
 use crate::app::AppState;
 use crate::errors::AppError;
+use crate::middleware::localhost_only;
 
 /// DELETE /api/conversations/{conversation_id} — remove one session and its events.
 async fn delete_conversation(
@@ -36,4 +38,5 @@ pub fn router() -> Router<AppState> {
             delete(delete_conversation),
         )
         .route("/api/admin/reset", post(reset_all))
+        .route_layer(middleware::from_fn(localhost_only::localhost_only))
 }

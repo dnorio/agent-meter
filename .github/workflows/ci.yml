@@ -35,10 +35,12 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: sdk/python/pyproject.toml
-      - run: python3 -m pip install pytest httpx build
+      - run: python3 -m pip install pytest httpx build twine
       - run: python3 -m pytest -q
         working-directory: sdk/python
       - run: python3 -m build
+        working-directory: sdk/python
+      - run: python3 -m twine check dist/*
         working-directory: sdk/python
 
       - uses: actions/setup-node@v7
@@ -55,3 +57,28 @@ jobs:
       - run: npm pack --dry-run
         working-directory: sdk/node
       - run: bash scripts/ci/node-tarball-smoke.sh
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build runtime image
+        run: docker build -t agent-meter:ci .
+
+      - name: Health + check smoke
+        run: |
+          set -euo pipefail
+          cid="$(docker run -d --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            -v agent-meter-ci-data:/data \
+            -p 8081:8081 -p 4318:4318 \
+            agent-meter:ci)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8081/health >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8081/health | grep -q '"status":"ok"'
+          docker exec "$cid" agent-meter check
+          curl -sf http://127.0.0.1:8081/badge/cost.svg | grep -q '<svg'
+          curl -sf http://127.0.0.1:8081/badge/events.svg | grep -q '<svg'

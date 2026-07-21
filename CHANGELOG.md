@@ -7,10 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- SVG embed badges at `/badge/cost.svg` and `/badge/events.svg` (5-minute cache).
+- Docker build + health smoke job in CI.
+- Dependabot coverage for npm and pip SDK ecosystems.
+
+### Security
+
+- Admin delete/reset routes now reject non-loopback clients (403).
+
 ### Changed
 
-- Node SDK published as `@dnorio/agent-meter` under the dnorio npm org.
-- Python SDK available on PyPI as `agentmeter-obs` and `dnorio-agent-meter`.
+- README badges for CI, npm, and PyPI.
+- Python CI runs `twine check` on built wheels.
 
 ## [0.1.0] - 2026-07-21
 
