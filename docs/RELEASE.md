@@ -29,9 +29,20 @@ git push origin v0.1.x
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml):
 
-1. Cross-build Linux x86_64/arm64 + Windows artifacts
+1. Cross-build Linux x86_64/arm64 + Windows artifacts (collector + proxy)
 2. `release-smoke.sh` validation
 3. GitHub Release upload with `SHA256SUMS`
+
+Release artifacts:
+
+| Binary | Linux tarballs | macOS tarballs | Windows zip |
+|--------|----------------|----------------|-------------|
+| `agent-meter` (collector) | `agent-meter-linux-{x86_64,arm64}.tar.gz` | `agent-meter-darwin-{aarch64,x86_64}.tar.gz` | `agent-meter-windows-x86_64.exe.zip` |
+| `agent-meter-proxy` | `agent-meter-proxy-linux-{x86_64,arm64}.tar.gz` | `agent-meter-proxy-darwin-{aarch64,x86_64}.tar.gz` | `agent-meter-proxy-windows-x86_64.exe.zip` |
+
+macOS artifacts are built on `macos-latest` and appended to the release after Linux/Windows upload.
+
+To enable automated SDK publish on tag, add repository secrets `NPM_TOKEN_3` and `PYPI_TOKEN`.
 
 ## SDK registries
 

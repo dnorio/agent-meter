@@ -983,7 +983,17 @@ impl Database for PostgresDb {
 
     async fn conversation_detail(&self, conversation_id: &str) -> DbResult<Vec<ToolCallRow>> {
         let rows = sqlx::query_as::<_, PgToolCallRow>(
-            r#"SELECT * FROM agent_tool_calls WHERE conversation_id = $1 ORDER BY started_at ASC"#,
+            r#"SELECT id, event_id, task_id, repo, branch, ide, agent, skill,
+                mcp_server, tool_name, started_at, ended_at, duration_ms,
+                ok, error, request_bytes, response_bytes,
+                estimated_input_tokens, estimated_output_tokens, estimated_total_tokens,
+                request_sha256, response_sha256, metadata,
+                created_at, model, cached_tokens, conversation_id, client_ip, user_agent, user_prompt,
+                tool_arguments, tool_result,
+                reasoning_tokens, finish_reason, request_max_tokens, request_temperature,
+                llm_system, trace_id, span_id, parent_span_id, tool_call_id,
+                usd_cost::float8 AS usd_cost, billing_model
+               FROM agent_tool_calls WHERE conversation_id = $1 ORDER BY started_at ASC"#,
         )
         .bind(conversation_id)
         .fetch_all(&self.pool)

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-21
+
+### Added
+
+- macOS release artifacts (collector + proxy, arm64 + x86_64) via `macos-latest` CI job.
+- `install-proxy.ps1` Windows installer for HTTPS proxy.
+- Expanded Postgres CI smoke tests (query, top-tools, delete conversation).
+
+### Fixed
+
+- Release workflow SDK publish step no longer fails the run when registry secrets are missing.
+
 ## [0.1.5] - 2026-07-21
 
 ### Added
