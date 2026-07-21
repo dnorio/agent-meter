@@ -65,12 +65,21 @@ install_cross_toolchains() {
 should_use_cross() {
   local target="$1"
   case "$USE_CROSS" in
-    1|true|yes) return 0 ;;
     0|false|no) return 1 ;;
   esac
-  [[ "$have_cross" == true ]] || return 1
   case "$target" in
     x86_64-unknown-linux-gnu) return 1 ;;
+    x86_64-pc-windows-gnu)
+      if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
+        return 1
+      fi
+      ;;
+  esac
+  [[ "$have_cross" == true ]] || return 1
+  case "$USE_CROSS" in
+    1|true|yes) return 0 ;;
+  esac
+  case "$target" in
     *) return 0 ;;
   esac
 }
@@ -142,7 +151,7 @@ build_one x86_64-unknown-linux-gnu agent-meter-linux-x86_64 tar.gz
 build_one aarch64-unknown-linux-gnu agent-meter-linux-arm64 tar.gz
 
 if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || should_use_cross x86_64-pc-windows-gnu; then
-  build_one x86_64-pc-windows-gnu agent-meter-windows-x86_64.exe zip || log "WARN: windows cross-build failed (non-fatal)"
+  build_one x86_64-pc-windows-gnu agent-meter-windows-x86_64.exe zip
 else
   log "skip windows (mingw-w64 not installed; set INSTALL_MINGW=1 or USE_CROSS=1)"
 fi
