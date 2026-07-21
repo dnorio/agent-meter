@@ -553,6 +553,7 @@ cd agent-meter/eclipse-proxy
           <h2>REST API Reference</h2>
 
           <h3>Endpoints</h3>
+          <p>OpenAPI 3.1 spec: <a href="/openapi.json"><code>/openapi.json</code></a> · version info: <a href="/api/version"><code>/api/version</code></a></p>
           <table>
             <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
             <tbody>
@@ -566,6 +567,8 @@ cd agent-meter/eclipse-proxy
               <tr><td><code>GET</code></td><td><code>/reports/cost-daily</code></td><td>Daily cost breakdown</td></tr>
               <tr><td><code>GET</code></td><td><code>/reports/cost-by-model</code></td><td>Cost attribution by model</td></tr>
               <tr><td><code>GET</code></td><td><code>/health</code></td><td>Health check (200 = OK)</td></tr>
+              <tr><td><code>GET</code></td><td><code>/openapi.json</code></td><td>OpenAPI 3.1 spec</td></tr>
+              <tr><td><code>GET</code></td><td><code>/api/version</code></td><td>Collector version and flags</td></tr>
             </tbody>
           </table>
 

@@ -1,6 +1,6 @@
 {
   "name": "@dnorio/agent-meter",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "description": "Lightweight SDK to track AI agent tool calls, costs, and latency.",
   "main": "dist/index.js",

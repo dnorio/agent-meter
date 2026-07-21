@@ -43,6 +43,8 @@ pub fn build(config: Config, db: Arc<dyn Database>, cancel: CancellationToken) -
         .merge(routes::cost::router())
         .merge(routes::badges::router())
         .merge(routes::docs::router())
+        .merge(routes::openapi::router())
+        .merge(routes::version::router())
         .merge(routes::search::router())
         .merge(routes::static_assets::router())
         .fallback(routes::static_assets::not_found_page);

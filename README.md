@@ -188,8 +188,10 @@ curl -X POST http://127.0.0.1:8081/events/tool-call \
 | `DELETE` | `/api/conversations/:id` | Delete one session and all its events |
 | `POST` | `/api/admin/reset` | Wipe all ingested events (local reset) |
 | `GET` | `/health` | Health check |
+| `GET` | `/openapi.json` | OpenAPI 3.1 spec |
+| `GET` | `/api/version` | Collector version and config flags |
 
----
+Machine-readable API: [`/openapi.json`](http://127.0.0.1:8081/openapi.json) (also linked from [`/api/version`](http://127.0.0.1:8081/api/version)).
 
 ## ⚙️ Configuration
 

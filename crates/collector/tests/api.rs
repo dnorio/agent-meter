@@ -678,3 +678,29 @@ async fn test_rest_ingest_rate_limit() {
         "5"
     );
 }
+
+#[tokio::test]
+async fn test_openapi_and_version() {
+    let (base_url, client) = setup().await;
+
+    let spec = client
+        .get(format!("{}/openapi.json", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(spec.status(), 200);
+    let spec_body: serde_json::Value = spec.json().await.unwrap();
+    assert_eq!(spec_body["openapi"], "3.1.0");
+    assert!(spec_body["paths"]["/events/tool-call"].is_object());
+
+    let version = client
+        .get(format!("{}/api/version", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(version.status(), 200);
+    let version_body: serde_json::Value = version.json().await.unwrap();
+    assert_eq!(version_body["service"], "agent-meter-collector");
+    assert_eq!(version_body["openapi"], "/openapi.json");
+    assert_eq!(version_body["docs"], "/docs");
+}

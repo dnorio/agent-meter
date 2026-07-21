@@ -84,6 +84,8 @@ jobs:
           docker exec "$cid" agent-meter check
           curl -sf http://127.0.0.1:8081/badge/cost.svg | grep -q '<svg'
           curl -sf http://127.0.0.1:8081/badge/events.svg | grep -q '<svg'
+          curl -sf http://127.0.0.1:8081/openapi.json | grep -q '"openapi":"3.1.0"'
+          curl -sf http://127.0.0.1:8081/api/version | grep -q '"service":"agent-meter-collector"'
 
   postgres-smoke:
     runs-on: ubuntu-latest

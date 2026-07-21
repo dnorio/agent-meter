@@ -176,6 +176,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn try_send_returns_full_when_channel_at_capacity() {
+        let db = test_db().await;
+        let cancel = CancellationToken::new();
+        let buffer = IngestBuffer::spawn(db, 1, cancel);
+
+        buffer.try_send(burst_event(0)).expect("first send");
+        let err = buffer.try_send(burst_event(1));
+        assert!(matches!(err, Err(TrySendEventError::Full)));
+    }
+
+    #[tokio::test]
     async fn burst_ingest_flushes_all_events() {
         let db = test_db().await;
         let cancel = CancellationToken::new();
