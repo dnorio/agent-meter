@@ -1,24 +1,22 @@
-# @agent-meter/sdk
+# agentmeter-obs
 
 Lightweight Node.js/TypeScript SDK to track AI agent tool calls, costs, and latency.
 
 ## Install
 
 ```bash
-# Until the first npm release is published:
-cd sdk/node
-npm ci
-npm pack
-npm install ./agent-meter-sdk-0.1.0.tgz
+# From npm (after publication):
+npm install agentmeter-obs
 
-# After publication:
-npm install @agent-meter/sdk
+# From a local tarball:
+cd sdk/node && npm ci && npm pack
+npm install ./agentmeter-obs-0.1.0.tgz
 ```
 
 ## Quick Start (60 seconds)
 
 ```typescript
-import { AgentMeter } from "@agent-meter/sdk";
+import { AgentMeter } from "agentmeter-obs";
 
 const am = new AgentMeter({ apiKey: "am_live_..." });
 
