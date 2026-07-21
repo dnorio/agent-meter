@@ -53,7 +53,7 @@ describe("AgentMeter", () => {
     am.finish(span);
     const payload = am["buildOtlpPayload"]([span]);
     assert.ok(payload.resourceSpans);
-    assert.equal(payload.resourceSpans[0].scopeSpans[0].spans[0].name, "code_gen");
+    assert.equal(payload.resourceSpans[0].scopeSpans[0].spans[0].name, "execute_tool code_gen");
     await closeWithoutFlush(am);
   });
 });

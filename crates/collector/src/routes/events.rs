@@ -1,38 +1,25 @@
-use axum::{extract::State, http::HeaderMap, routing::post, Json, Router};
-use serde_json::{json, Value};
+use axum::{
+    extract::{ConnectInfo, State},
+    http::HeaderMap,
+    routing::post,
+    Json, Router,
+};
+use std::net::SocketAddr;
 
 use crate::app::AppState;
 use crate::errors::AppError;
 use crate::models::event::ToolCallEvent;
-use crate::services::{auth, event_service};
+use crate::services::{auth, ingest};
 
 async fn post_tool_call(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    Json(mut event): Json<ToolCallEvent>,
-) -> Result<Json<Value>, AppError> {
+    Json(event): Json<ToolCallEvent>,
+) -> Result<Json<serde_json::Value>, AppError> {
     auth::authorize_ingest(state.db.as_ref(), &headers, state.config.require_api_key).await?;
-    if event.client_ip.is_none() {
-        event.client_ip = headers
-            .get("x-forwarded-for")
-            .or_else(|| headers.get("x-real-ip"))
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
-    }
-    if event.user_agent.is_none() {
-        event.user_agent = headers
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
-    }
-    let insert = event_service::to_insert(event);
-    let record = state.db.insert_tool_call(&insert).await?;
-
-    Ok(Json(json!({
-        "event_id": record.event_id,
-        "duration_ms": record.duration_ms,
-        "estimated_total_tokens": record.estimated_total_tokens,
-    })))
+    let client_ip = ingest::client_ip(&headers, Some(&addr.ip().to_string()));
+    ingest::enqueue_tool_call(&state, event, &headers, &client_ip).await
 }
 
 pub fn router() -> Router<AppState> {

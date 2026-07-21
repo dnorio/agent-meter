@@ -49,3 +49,25 @@ jobs:
             dist/*.zip
             dist/SHA256SUMS
           fail_on_unmatched_files: true
+
+  publish-sdks:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: sdk/node/package-lock.json
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Publish npm + PyPI SDKs
+        env:
+          NPM_TOKEN_3: ${{ secrets.NPM_TOKEN_3 }}
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: bash scripts/ci/publish-sdks.sh

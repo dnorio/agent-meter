@@ -1,0 +1,42 @@
+# docker-compose.secure.yml — standalone with API key auth enabled
+#
+#   docker compose -f docker-compose.secure.yml up -d --build
+#   docker exec agent-meter agent-meter keys create --name docker-smoke
+#   export AGENT_METER_API_KEY=<secret>
+#
+# Ingest (REST/OTLP) requires Bearer token. Admin reset/delete remain
+# localhost-only inside the container network.
+
+services:
+  agent-meter:
+    build: .
+    image: agent-meter:secure
+    container_name: agent-meter
+    ports:
+      - "8081:8081"
+      - "4318:4318"
+    environment:
+      DATABASE_URL: "sqlite:///data/agent-meter.db"
+      AGENT_METER_HOST: "0.0.0.0"
+      AGENT_METER_PORT: "8081"
+      AGENT_METER_OTLP_PORT: "4318"
+      AGENT_METER_REQUIRE_API_KEY: "1"
+      RUST_LOG: "info"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - agent-meter-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "agent-meter", "check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  agent-meter-data:

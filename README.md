@@ -91,7 +91,7 @@ The Compose file runs as non-root with a read-only root filesystem, tmpfs at
 [docs/docker-runtime.md](docs/docker-runtime.md) for healthcheck behavior and
 troubleshooting.
 
-> 📦 **Prebuilt binaries** — [v0.1.3 release](https://github.com/dnorio/agent-meter/releases/tag/v0.1.3) (Linux x86_64/arm64, Windows).
+> 📦 **Prebuilt binaries** — [v0.1.4 release](https://github.com/dnorio/agent-meter/releases/tag/v0.1.4) (Linux x86_64/arm64, Windows).
 > SDKs: `npm install @dnorio/agent-meter` · `pip install agentmeter-obs` (or `dnorio-agent-meter`)
 
 ---
@@ -118,8 +118,10 @@ agent-meter accepts telemetry three ways:
 | Method | Source | How |
 |--------|--------|-----|
 | **REST** | Any agent / script | `POST /events/tool-call` (JSON) |
-| **OTLP** | VS Code (GitHub Copilot), any OTel exporter | Point the OTLP HTTP exporter at `:4318` |
+| **OTLP** | VS Code (GitHub Copilot), SDKs, any OTel exporter | `POST /v1/traces` on `:8081` or dedicated `:4318` |
 | **HTTPS proxy** | Cursor, Eclipse, Claude Code, Codex CLI | mitmproxy addons in [`eclipse-proxy/`](eclipse-proxy/) |
+
+See [docs/capture-setup.md](docs/capture-setup.md) for proxy and IDE-specific setup.
 
 ### Example — REST ingest
 
@@ -221,6 +223,10 @@ curl -X POST http://127.0.0.1:8081/api/admin/reset
 These admin endpoints are unauthenticated. Keep the collector bound to
 `127.0.0.1` for local use, or put it behind your own auth/reverse proxy when
 exposing it beyond a trusted machine.
+
+For Docker on a network interface, use
+[`docker-compose.secure.yml`](docker-compose.secure.yml) to require API keys on
+ingest (`AGENT_METER_REQUIRE_API_KEY=1`).
 
 ### API keys (SDK ingest)
 
