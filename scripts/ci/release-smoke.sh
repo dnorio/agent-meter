@@ -50,19 +50,26 @@ smoke_linux_archive() {
 
 shopt -s nullglob
 linux_archives=("$DIST"/agent-meter-linux-*.tar.gz)
+proxy_linux_archives=("$DIST"/agent-meter-proxy-linux-*.tar.gz)
 windows_archives=("$DIST"/agent-meter-windows-*.zip)
+proxy_windows_archives=("$DIST"/agent-meter-proxy-windows-*.zip)
 shopt -u nullglob
 
 [[ ${#linux_archives[@]} -gt 0 ]] || {
-  log "ERROR: no Linux release archives found in $DIST"
+  log "ERROR: no Linux collector release archives found in $DIST"
   exit 2
 }
 
-for archive in "${linux_archives[@]}"; do
+[[ ${#proxy_linux_archives[@]} -gt 0 ]] || {
+  log "ERROR: no Linux proxy release archives found in $DIST"
+  exit 2
+}
+
+for archive in "${linux_archives[@]}" "${proxy_linux_archives[@]}"; do
   smoke_linux_archive "$archive"
 done
 
-for zipf in "${windows_archives[@]}"; do
+for zipf in "${windows_archives[@]}" "${proxy_windows_archives[@]}"; do
   if command -v unzip >/dev/null 2>&1; then
     unzip -l "$zipf" | grep -q '\.exe$' || {
       log "ERROR: no Windows executable found in $zipf"

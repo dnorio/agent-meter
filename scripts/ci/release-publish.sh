@@ -31,6 +31,8 @@ shopt -u nullglob
 required=(
   "agent-meter-linux-x86_64.tar.gz"
   "agent-meter-linux-arm64.tar.gz"
+  "agent-meter-proxy-linux-x86_64.tar.gz"
+  "agent-meter-proxy-linux-arm64.tar.gz"
   "SHA256SUMS"
 )
 missing=()
