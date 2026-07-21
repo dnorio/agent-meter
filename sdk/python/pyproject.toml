@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agent-meter"
+name = "agentmeter-obs"
 version = "0.1.0"
 description = "Lightweight SDK to track AI agent tool calls, costs, and latency."
 readme = "README.md"

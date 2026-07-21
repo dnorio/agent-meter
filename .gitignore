@@ -10,3 +10,4 @@ sdk/node/dist/
 sdk/node/*.tgz
 sdk/python/dist/
 sdk/python/*.egg-info/
+dist/
