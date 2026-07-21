@@ -1,22 +1,24 @@
-# agentmeter-obs
+# @dnorio/agent-meter
 
 Lightweight Node.js/TypeScript SDK to track AI agent tool calls, costs, and latency.
 
 ## Install
 
 ```bash
-# From npm (after publication):
-npm install agentmeter-obs
+npm install @dnorio/agent-meter
+```
 
-# From a local tarball:
+From a local tarball:
+
+```bash
 cd sdk/node && npm ci && npm pack
-npm install ./agentmeter-obs-0.1.0.tgz
+npm install ./dnorio-agent-meter-0.1.0.tgz
 ```
 
 ## Quick Start (60 seconds)
 
 ```typescript
-import { AgentMeter } from "agentmeter-obs";
+import { AgentMeter } from "@dnorio/agent-meter";
 
 const am = new AgentMeter({ apiKey: "am_live_..." });
 

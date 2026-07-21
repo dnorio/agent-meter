@@ -89,7 +89,7 @@ The Compose file runs as non-root with a read-only root filesystem, tmpfs at
 troubleshooting.
 
 > 📦 **Prebuilt binaries** are attached to [Releases](https://github.com/dnorio/agent-meter/releases/tag/v0.1.0).
-> SDKs: `npm install agentmeter-obs` · `pip install agentmeter-obs`
+> SDKs: `npm install @dnorio/agent-meter` · `pip install agentmeter-obs` (or `dnorio-agent-meter`)
 
 ---
 

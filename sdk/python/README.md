@@ -6,6 +6,8 @@ Lightweight Python SDK to track AI agent tool calls, costs, and latency.
 
 ```bash
 pip install agentmeter-obs
+# or
+pip install dnorio-agent-meter
 
 # From source:
 cd sdk/python && python3 -m pip install -e .

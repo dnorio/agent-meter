@@ -18,7 +18,7 @@ npm init -y >/dev/null
 npm install --no-save "$SDK/$TARBALL"
 
 node --input-type=module <<'EOF'
-import { AgentMeter } from "agentmeter-obs";
+import { AgentMeter } from "@dnorio/agent-meter";
 if (typeof AgentMeter !== "function") {
   throw new Error("AgentMeter export missing from packed tarball");
 }
