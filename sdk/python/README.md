@@ -5,12 +5,10 @@ Lightweight Python SDK to track AI agent tool calls, costs, and latency.
 ## Install
 
 ```bash
-# Until the first PyPI release is published:
-cd sdk/python
-python3 -m pip install -e .
-
-# After publication:
 pip install agentmeter-obs
+
+# From source:
+cd sdk/python && python3 -m pip install -e .
 ```
 
 ## Quick Start (60 seconds)
