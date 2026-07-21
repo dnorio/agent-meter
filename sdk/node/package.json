@@ -1,5 +1,5 @@
 {
-  "name": "@agent-meter/sdk",
+  "name": "agentmeter-obs",
   "version": "0.1.0",
   "type": "module",
   "description": "Lightweight SDK to track AI agent tool calls, costs, and latency.",

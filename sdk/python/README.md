@@ -10,7 +10,7 @@ cd sdk/python
 python3 -m pip install -e .
 
 # After publication:
-pip install agent-meter
+pip install agentmeter-obs
 ```
 
 ## Quick Start (60 seconds)
