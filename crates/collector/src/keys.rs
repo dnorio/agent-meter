@@ -56,11 +56,30 @@ pub async fn list_keys(db: &Arc<dyn Database>, org_slug: &str) -> anyhow::Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_meter_db::SqliteDb;
+    use std::sync::Arc;
 
     #[test]
     fn generated_secret_has_usable_prefix() {
         let secret = generate_api_key_secret();
         assert!(secret.starts_with("am_live_"));
         assert!(auth::key_prefix(&secret).is_some());
+    }
+
+    #[tokio::test]
+    async fn create_key_roundtrip() {
+        let path = std::env::temp_dir().join(format!("am-keys-test-{}.db", Uuid::new_v4()));
+        let url = format!("sqlite://{}", path.display());
+        let sqlite = SqliteDb::connect(&url).await.expect("connect");
+        sqlite.migrate().await.expect("migrate");
+        let db: Arc<dyn Database> = Arc::new(sqlite);
+
+        let secret = create_key(&db, "personal", "test").await.expect("create");
+        let prefix = auth::key_prefix(&secret).unwrap();
+        let meta = db.find_key_by_prefix(prefix).await.expect("lookup");
+        assert!(meta.is_some());
+        assert_eq!(meta.unwrap().key_hash, auth::hash_key(&secret));
+
+        let _ = std::fs::remove_file(path);
     }
 }

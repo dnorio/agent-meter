@@ -41,6 +41,25 @@ function Try-Release {
         Write-Host "    $url"
         $tmpZip = Join-Path $env:TEMP "agent-meter-install.zip"
         Invoke-WebRequest -Uri $url -OutFile $tmpZip -UseBasicParsing -MaximumRedirection 5
+        try {
+            $sumsUrl = "https://github.com/$Repo/releases/download/$version/SHA256SUMS"
+            $sums = (Invoke-WebRequest -Uri $sumsUrl -UseBasicParsing).Content
+            $line = ($sums -split "`n" | Where-Object { $_ -match [regex]::Escape($asset) } | Select-Object -First 1)
+            if (-not $line) {
+                Write-Host "Error: no SHA256 entry for $asset" -ForegroundColor Red
+                return $false
+            }
+            $expected = ($line -split '\s+')[0].ToLower()
+            $actual = (Get-FileHash $tmpZip -Algorithm SHA256).Hash.ToLower()
+            if ($expected -ne $actual) {
+                Write-Host "Error: SHA256 mismatch for $asset" -ForegroundColor Red
+                return $false
+            }
+            Write-Host "    SHA256 verified"
+        } catch {
+            Write-Host "Error: SHA256 verification failed ($($_.Exception.Message))" -ForegroundColor Red
+            return $false
+        }
         Expand-Archive -Path $tmpZip -DestinationPath $env:TEMP -Force
         $extracted = Join-Path $env:TEMP "$Binary-windows-$Arch.exe"
         Copy-Item $extracted $Dest -Force

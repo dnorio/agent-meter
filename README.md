@@ -91,7 +91,7 @@ The Compose file runs as non-root with a read-only root filesystem, tmpfs at
 [docs/docker-runtime.md](docs/docker-runtime.md) for healthcheck behavior and
 troubleshooting.
 
-> 📦 **Prebuilt binaries** are attached to [Releases](https://github.com/dnorio/agent-meter/releases/tag/v0.1.0).
+> 📦 **Prebuilt binaries** — [v0.1.3 release](https://github.com/dnorio/agent-meter/releases/tag/v0.1.3) (Linux x86_64/arm64, Windows).
 > SDKs: `npm install @dnorio/agent-meter` · `pip install agentmeter-obs` (or `dnorio-agent-meter`)
 
 ---
