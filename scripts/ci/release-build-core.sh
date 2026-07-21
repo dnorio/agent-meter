@@ -103,12 +103,16 @@ PY
 }
 
 build_one() {
-  local target="$1" asset="$2" archive="$3"
-  log "building $target → $asset"
+  local target="$1"
+  local crate="$2"
+  local bin_name="$3"
+  local asset="$4"
+  local archive="$5"
+  log "building $crate ($target) → $asset"
   rustup target add "$target" >/dev/null 2>&1 || true
 
   if should_use_cross "$target"; then
-    cross build --release -p agent-meter-collector --target "$target"
+    cross build --release -p "$crate" --target "$target"
   else
     case "$target" in
       aarch64-unknown-linux-gnu)
@@ -126,10 +130,10 @@ build_one() {
         export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
         ;;
     esac
-    cargo build --release -p agent-meter-collector --target "$target"
+    cargo build --release -p "$crate" --target "$target"
   fi
 
-  local bin_path="target/${target}/release/agent-meter-collector"
+  local bin_path="target/${target}/release/${bin_name}"
   [[ -f "${bin_path}.exe" ]] && bin_path="${bin_path}.exe"
 
   cp "$bin_path" "$DIST/$asset"
@@ -147,11 +151,17 @@ if ! command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
   install_cross_toolchains || true
 fi
 
-build_one x86_64-unknown-linux-gnu agent-meter-linux-x86_64 tar.gz
-build_one aarch64-unknown-linux-gnu agent-meter-linux-arm64 tar.gz
+# Collector (dashboard + REST + OTLP)
+build_one x86_64-unknown-linux-gnu agent-meter-collector agent-meter-collector agent-meter-linux-x86_64 tar.gz
+build_one aarch64-unknown-linux-gnu agent-meter-collector agent-meter-collector agent-meter-linux-arm64 tar.gz
+
+# HTTPS proxy (Cursor / Claude / Codex capture)
+build_one x86_64-unknown-linux-gnu agent-meter-proxy agent-meter-proxy agent-meter-proxy-linux-x86_64 tar.gz
+build_one aarch64-unknown-linux-gnu agent-meter-proxy agent-meter-proxy agent-meter-proxy-linux-arm64 tar.gz
 
 if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || should_use_cross x86_64-pc-windows-gnu; then
-  build_one x86_64-pc-windows-gnu agent-meter-windows-x86_64.exe zip
+  build_one x86_64-pc-windows-gnu agent-meter-collector agent-meter-collector agent-meter-windows-x86_64.exe zip
+  build_one x86_64-pc-windows-gnu agent-meter-proxy agent-meter-proxy agent-meter-proxy-windows-x86_64.exe zip
 else
   log "skip windows (mingw-w64 not installed; set INSTALL_MINGW=1 or USE_CROSS=1)"
 fi

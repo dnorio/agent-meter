@@ -17,7 +17,7 @@ agent-meter demo
 |--------|----------------|-------|-----------|
 | **OTLP nativo** | VS Code + GitHub Copilot | 2 linhas no `settings.json` | ★★★★★ |
 | **REST direto** | OpenCode, Antigravity, scripts | env vars + `curl` | ★★★★★ |
-| **HTTPS proxy** | Cursor, Eclipse, Claude Code, Codex CLI | `agent-meter-proxy` (build local) | ★★★★☆ |
+| **HTTPS proxy** | Cursor, Eclipse, Claude Code, Codex CLI | `install-proxy.sh` ou release | ★★★★☆ |
 | **mitmproxy legado** | Eclipse, Cursor (scripts Python) | `eclipse-proxy/` no repo | ★★★☆☆ |
 
 **Recomendado para novos setups:** OTLP (VS Code) ou REST. Use o proxy nativo
@@ -103,14 +103,12 @@ curl -X POST "$AGENT_METER_COLLECTOR_URL/events/tool-call" \
 ## 3. agent-meter-proxy — HTTPS proxy nativo (Cursor, CLIs)
 
 Binário Rust em `crates/proxy/` — intercepta chamadas HTTPS para APIs de IA e
-envia OTLP ao collector local. **Não está nos releases GitHub ainda**; compile
-do source:
+envia OTLP ao collector local. **Prebuilt** em cada release GitHub
+(`agent-meter-proxy-linux-*`, `agent-meter-proxy-windows-*`).
 
 ```bash
-git clone https://github.com/dnorio/agent-meter.git
-cd agent-meter
-cargo build --release -p agent-meter-proxy
-export PATH="$PWD/target/release:$PATH"
+# Install (Linux / macOS)
+curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install-proxy.sh | bash
 
 agent-meter serve &          # collector em :8081 / :4318
 agent-meter-proxy setup      # gera CA (primeira vez)
@@ -118,6 +116,13 @@ agent-meter-proxy start --collector http://127.0.0.1:8081
 agent-meter-proxy wrap cursor .
 agent-meter-proxy wrap claude "explain this code"
 agent-meter-proxy wrap gh copilot suggest "list pods"
+```
+
+Build from source (fallback):
+
+```bash
+cargo build --release -p agent-meter-proxy
+export PATH="$PWD/target/release:$PATH"
 ```
 
 ```
