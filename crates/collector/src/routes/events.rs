@@ -4,13 +4,14 @@ use serde_json::{json, Value};
 use crate::app::AppState;
 use crate::errors::AppError;
 use crate::models::event::ToolCallEvent;
-use crate::services::event_service;
+use crate::services::{auth, event_service};
 
 async fn post_tool_call(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(mut event): Json<ToolCallEvent>,
 ) -> Result<Json<Value>, AppError> {
+    auth::authorize_ingest(state.db.as_ref(), &headers, state.config.require_api_key).await?;
     if event.client_ip.is_none() {
         event.client_ip = headers
             .get("x-forwarded-for")

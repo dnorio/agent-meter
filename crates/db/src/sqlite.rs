@@ -137,6 +137,9 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_prefix ON api_keys(key_prefix);
 
+INSERT OR IGNORE INTO organizations (id, slug, name, plan)
+VALUES ('00000000-0000-4000-8000-000000000001', 'personal', 'Personal', 'free');
+
 -- FTS5 virtual table for full-text search
 CREATE VIRTUAL TABLE IF NOT EXISTS atc_fts USING fts5(
     conversation_id,
