@@ -92,8 +92,9 @@ The Compose file runs as non-root with a read-only root filesystem, tmpfs at
 troubleshooting.
 
 > 📦 **Prebuilt binaries** — [latest release](https://github.com/dnorio/agent-meter/releases/latest)
-> - **Collector:** `agent-meter` (Linux x86_64/arm64, Windows)
-> - **HTTPS proxy:** `agent-meter-proxy` (same platforms) — `curl -fsSL …/install-proxy.sh | bash`
+> - **Collector:** `agent-meter` (Linux, macOS, Windows)
+> - **HTTPS proxy:** `agent-meter-proxy` (same platforms)
+> - Install: `install.sh` / `install.ps1` · proxy: `install-proxy.sh` / `install-proxy.ps1`
 > SDKs: `npm install @dnorio/agent-meter` · `pip install agentmeter-obs` (or `dnorio-agent-meter`)
 
 ---

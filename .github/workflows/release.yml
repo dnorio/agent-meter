@@ -50,6 +50,28 @@ jobs:
             dist/SHA256SUMS
           fail_on_unmatched_files: true
 
+  release-macos:
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: workspace-macos
+          cache-on-failure: true
+
+      - name: Build macOS artifacts
+        run: bash scripts/ci/release-build-macos.sh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+
+      - name: Upload macOS artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash scripts/ci/release-upload-macos.sh "$RELEASE_TAG"
+
   publish-sdks:
     needs: release
     runs-on: ubuntu-latest
@@ -67,6 +89,7 @@ jobs:
           python-version: "3.12"
 
       - name: Publish npm + PyPI SDKs
+        continue-on-error: true
         env:
           NPM_TOKEN_3: ${{ secrets.NPM_TOKEN_3 }}
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
