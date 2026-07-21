@@ -10,5 +10,5 @@ SET usd_cost = compute_event_usd(model, estimated_input_tokens, estimated_output
 WHERE usd_cost IS NULL;
 
 -- Index for cost aggregation queries
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_atc_usd_cost ON agent_tool_calls (started_at, usd_cost)
+CREATE INDEX IF NOT EXISTS idx_atc_usd_cost ON agent_tool_calls (started_at, usd_cost)
 WHERE usd_cost IS NOT NULL;

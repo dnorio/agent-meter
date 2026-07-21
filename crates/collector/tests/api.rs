@@ -541,7 +541,6 @@ async fn test_embed_badges_svg() {
 #[tokio::test]
 async fn test_api_key_auth_when_required() {
     use agent_meter_collector::services::auth;
-    use agent_meter_db::Database;
 
     let db = make_db().await;
     let org = db.find_org_by_slug("personal").await.expect("personal org");
