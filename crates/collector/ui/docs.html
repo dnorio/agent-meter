@@ -633,10 +633,19 @@ am.finish(span2);</code></pre>
             <thead><tr><th>Env Variable</th><th>Description</th><th>Default</th></tr></thead>
             <tbody>
               <tr><td><code>AGENT_METER_ENDPOINT</code></td><td>Collector URL</td><td><code>http://127.0.0.1:8081</code></td></tr>
+              <tr><td><code>AGENT_METER_API_KEY</code></td><td>Bearer token for ingest</td><td>—</td></tr>
               <tr><td><code>AGENT_METER_IDE</code></td><td>IDE identifier</td><td><code>python-sdk</code> / <code>node-sdk</code></td></tr>
               <tr><td><code>AGENT_METER_AGENT</code></td><td>Agent name tag</td><td>—</td></tr>
             </tbody>
           </table>
+
+          <h3>API keys</h3>
+          <p>Create keys with the CLI, then optionally require them on ingest.</p>
+          <pre><code>agent-meter keys create --name my-sdk
+agent-meter keys list
+
+export AGENT_METER_REQUIRE_API_KEY=1
+agent-meter serve</code></pre>
         </section>
 
         <!-- OTLP PROTOCOL -->

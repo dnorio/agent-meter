@@ -6,6 +6,7 @@
 host = "127.0.0.1"
 port = 8081
 otlp_port = 4318
+# require_api_key = false   # or set AGENT_METER_REQUIRE_API_KEY=1
 
 [database]
 # SQLite (default — zero-config, single file):
