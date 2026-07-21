@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-07-21
+
+### Fixed
+
+- macOS release build script syntax error (v0.1.6 macOS job failed).
+
 ## [0.1.6] - 2026-07-21
 
 ### Added
