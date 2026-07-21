@@ -17,11 +17,21 @@ services:
       AGENT_METER_PORT: "8081"
       AGENT_METER_OTLP_PORT: "4318"
       RUST_LOG: "info"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
-      - ./data:/data
+      - agent-meter-data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/health"]
+      test: ["CMD", "agent-meter", "check"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  agent-meter-data:

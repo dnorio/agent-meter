@@ -29,17 +29,17 @@ pub struct AgentToolCall {
     pub response_sha256: Option<String>,
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
-    // Enriched fields (T-239)
+    // Enriched fields
     pub model: Option<String>,
     pub cached_tokens: Option<i32>,
     pub conversation_id: Option<String>,
     pub client_ip: Option<String>,
     pub user_agent: Option<String>,
     pub user_prompt: Option<String>,
-    // T-331: full agentic payload
+    // Full agentic payload
     pub tool_arguments: Option<serde_json::Value>,
     pub tool_result: Option<String>,
-    // T-332: deep telemetry
+    // Deep telemetry
     pub reasoning_tokens: Option<i32>,
     pub finish_reason: Option<String>,
     pub request_max_tokens: Option<i32>,
@@ -49,9 +49,9 @@ pub struct AgentToolCall {
     pub span_id: Option<String>,
     pub parent_span_id: Option<String>,
     pub tool_call_id: Option<String>,
-    // T-355: pre-computed cost
+    // Pre-computed cost
     pub usd_cost: Option<f64>,
-    // T-357: billing model (token/credit/subscription)
+    // Billing model (token/credit/subscription)
     pub billing_model: String,
 }
 

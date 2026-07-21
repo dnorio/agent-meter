@@ -29,10 +29,19 @@ async fn handle_mcp(
             "jsonrpc": "2.0", "id": id,
             "result": {"tools": [{"name": "mock_tool", "description": "mock", "inputSchema": {"type": "object"}}]}
         })),
-        "tools/call" => axum::Json(serde_json::json!({
-            "jsonrpc": "2.0", "id": id,
-            "result": {"content": [{"type": "text", "text": "ok"}], "isError": false}
-        })),
+        "tools/call" => {
+            let name = body["params"]["name"].as_str().unwrap_or("");
+            if name == "missing_tool" {
+                return axum::Json(serde_json::json!({
+                    "jsonrpc": "2.0", "id": id,
+                    "error": {"code": -32602, "message": "tool not found: missing_tool"}
+                }));
+            }
+            axum::Json(serde_json::json!({
+                "jsonrpc": "2.0", "id": id,
+                "result": {"content": [{"type": "text", "text": "ok"}], "isError": false}
+            }))
+        }
         _ => axum::Json(serde_json::json!({
             "jsonrpc": "2.0", "id": id,
             "error": {"code": -32601, "message": "method not found"}
@@ -164,4 +173,89 @@ async fn test_proxy_upstream_down() {
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("error").is_some(), "should return upstream error");
     assert_eq!(body["error"]["code"], -32603);
+}
+
+#[tokio::test]
+async fn test_proxy_invalid_json_returns_parse_error() {
+    let upstream = mock_upstream().await;
+    let proxy = spawned_proxy(&upstream).await;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{}/", proxy))
+        .header("content-type", "application/json")
+        .body("{not-json")
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["jsonrpc"], "2.0");
+    assert_eq!(body["error"]["code"], -32700);
+    assert!(body["error"]["message"]
+        .as_str()
+        .unwrap_or("")
+        .starts_with("Parse error:"));
+}
+
+#[tokio::test]
+async fn test_proxy_tools_call_unknown_tool_returns_stable_error() {
+    let upstream = mock_upstream().await;
+    let proxy = spawned_proxy(&upstream).await;
+    let client = reqwest::Client::new();
+
+    let req = serde_json::json!({
+        "jsonrpc":"2.0","id":4,"method":"tools/call",
+        "params":{"name":"missing_tool","arguments":{}}
+    });
+    let resp = client
+        .post(format!("{}/", proxy))
+        .json(&req)
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["jsonrpc"], "2.0");
+    assert_eq!(body["id"], 4);
+    assert_eq!(body["error"]["code"], -32602);
+    assert_eq!(body["error"]["message"], "tool not found: missing_tool");
+}
+
+#[tokio::test]
+async fn test_proxy_survives_collector_unavailable() {
+    let upstream = mock_upstream().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let base_url = format!("http://{}", addr);
+
+    let app = proxy::router(
+        upstream.clone(),
+        "http://127.0.0.1:1".into(),
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .unwrap(),
+    );
+
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let client = reqwest::Client::new();
+    let req = serde_json::json!({"jsonrpc":"2.0","id":5,"method":"tools/list","params":{}});
+    let resp = client
+        .post(format!("{}/", base_url))
+        .json(&req)
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["jsonrpc"], "2.0");
+    assert!(body["result"]["tools"].is_array());
 }

@@ -66,6 +66,11 @@ impl InterceptorState {
         &self.collector_url
     }
 
+    #[cfg(test)]
+    fn pending_count(&self) -> usize {
+        self.pending.lock().unwrap().len()
+    }
+
     /// Process an outgoing request. We read the body for metadata but pass it through.
     pub async fn on_request(&self, req: Request<Body>) -> RequestOrResponse {
         let host = req.uri().host().unwrap_or("").to_string();
@@ -658,5 +663,292 @@ fn parse_sse_usage(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::Request;
+    use serde_json::json;
+
+    #[test]
+    fn prefers_explicit_session_headers() {
+        let req = Request::builder()
+            .header("x-session-id", "session-123")
+            .header(header::AUTHORIZATION, "Bearer abcdefghijklmnopqrstuvwxyz")
+            .body(())
+            .expect("request should build");
+
+        assert_eq!(extract_session_id(&req), "session-123");
+    }
+
+    #[test]
+    fn falls_back_to_bearer_prefix_for_session_id() {
+        let req = Request::builder()
+            .header(header::AUTHORIZATION, "Bearer abcdefghijklmnopqrstuvwxyz")
+            .body(())
+            .expect("request should build");
+
+        assert_eq!(extract_session_id(&req), "token-abcdefghijklmnop");
+    }
+
+    #[test]
+    fn clean_prompt_extracts_user_request_from_wrapped_context() {
+        let prompt = "<context>ignore</context><userRequest>ship it now</userRequest>";
+
+        assert_eq!(clean_prompt(prompt), "ship it now");
+    }
+
+    #[test]
+    fn clean_prompt_drops_oversized_context_only_payloads() {
+        let prompt = format!("<workspace_info>{}</workspace_info>", "x".repeat(3000));
+
+        assert!(clean_prompt(&prompt).is_empty());
+    }
+
+    #[test]
+    fn extract_user_prompt_skips_tool_results_and_finds_real_text() {
+        let messages = vec![
+            json!({
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "content": "ignore this"}
+                ]
+            }),
+            json!({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "actual user prompt"}
+                ]
+            }),
+        ];
+
+        assert_eq!(
+            extract_user_prompt_from_messages(&messages).as_deref(),
+            Some("actual user prompt")
+        );
+    }
+
+    #[test]
+    fn extract_user_prompt_uses_last_text_part() {
+        let messages = vec![json!({
+            "role": "user",
+            "parts": [
+                {"type": "text", "content": "<context>ignore</context>"},
+                {"type": "text", "content": "real prompt from parts"}
+            ]
+        })];
+
+        assert_eq!(
+            extract_user_prompt_from_messages(&messages).as_deref(),
+            Some("real prompt from parts")
+        );
+    }
+
+    #[test]
+    fn extract_json_usage_handles_openai_usage_and_tool_calls() {
+        let body = json!({
+            "model": "gpt-5.4",
+            "usage": {
+                "prompt_tokens": 123,
+                "completion_tokens": 45,
+                "prompt_tokens_details": {"cached_tokens": 12}
+            },
+            "choices": [{
+                "message": {
+                    "tool_calls": [
+                        {"function": {"name": "read_file"}},
+                        {"function": {"name": "run_in_terminal"}}
+                    ]
+                },
+                "finish_reason": "tool_calls"
+            }]
+        });
+        let mut input_tokens = 0;
+        let mut output_tokens = 0;
+        let mut cached_tokens = 0;
+        let mut model = None;
+        let mut tool_calls = vec![];
+        let mut finish_reason = String::new();
+
+        extract_json_usage(
+            &body,
+            &mut input_tokens,
+            &mut output_tokens,
+            &mut cached_tokens,
+            &mut model,
+            &mut tool_calls,
+            &mut finish_reason,
+        );
+
+        assert_eq!(input_tokens, 123);
+        assert_eq!(output_tokens, 45);
+        assert_eq!(cached_tokens, 12);
+        assert_eq!(model.as_deref(), Some("gpt-5.4"));
+        assert_eq!(tool_calls, vec!["read_file", "run_in_terminal"]);
+        assert_eq!(finish_reason, "tool_calls");
+    }
+
+    #[test]
+    fn parse_sse_usage_handles_response_completed_payload() {
+        let body = concat!(
+            "event: response.completed\n",
+            "data: {\"response\":{\"model\":\"gpt-5.4\",\"usage\":{\"input_tokens\":88,\"output_tokens\":21},\"stop_reason\":\"end_turn\"}}\n\n",
+            "data: [DONE]\n"
+        );
+        let mut input_tokens = 0;
+        let mut output_tokens = 0;
+        let mut cached_tokens = 0;
+        let mut model = None;
+        let mut tool_calls = vec![];
+        let mut finish_reason = String::new();
+
+        parse_sse_usage(
+            body,
+            &mut input_tokens,
+            &mut output_tokens,
+            &mut cached_tokens,
+            &mut model,
+            &mut tool_calls,
+            &mut finish_reason,
+        );
+
+        assert_eq!(input_tokens, 88);
+        assert_eq!(output_tokens, 21);
+        assert_eq!(cached_tokens, 0);
+        assert_eq!(model.as_deref(), Some("gpt-5.4"));
+        assert!(tool_calls.is_empty());
+        assert_eq!(finish_reason, "end_turn");
+    }
+
+    #[test]
+    fn host_and_path_filters_are_specific() {
+        assert!(is_ai_host("api.openai.com"));
+        assert!(is_ai_host("proxy.cursor.sh"));
+        assert!(!is_ai_host("example.com"));
+
+        assert!(is_llm_path("/v1/chat/completions"));
+        assert!(is_llm_path("/responses"));
+        assert!(!is_llm_path("/health"));
+    }
+
+    fn test_interceptor() -> InterceptorState {
+        InterceptorState::new("http://127.0.0.1:1".into())
+    }
+
+    #[tokio::test]
+    async fn on_request_skips_non_ai_host() {
+        let interceptor = test_interceptor();
+        let body = json!({"model": "gpt-5.4", "messages": []}).to_string();
+        let req = Request::builder()
+            .method("POST")
+            .uri("https://example.com/v1/chat/completions")
+            .header("content-type", "application/json")
+            .body(Body::from(body.clone()))
+            .expect("request should build");
+
+        let out = interceptor.on_request(req).await;
+        let req = match out {
+            RequestOrResponse::Request(req) => req,
+            _ => panic!("expected passthrough request"),
+        };
+
+        assert_eq!(interceptor.pending_count(), 0);
+        let bytes = req.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(std::str::from_utf8(&bytes).unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn on_request_skips_non_llm_path_on_ai_host() {
+        let interceptor = test_interceptor();
+        let req = Request::builder()
+            .method("GET")
+            .uri("https://api.openai.com/health")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let out = interceptor.on_request(req).await;
+        assert!(matches!(out, RequestOrResponse::Request(_)));
+        assert_eq!(interceptor.pending_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn on_request_registers_pending_and_preserves_body() {
+        let interceptor = test_interceptor();
+        let body = json!({
+            "model": "gpt-5.4",
+            "messages": [{"role": "user", "content": "hello proxy"}]
+        })
+        .to_string();
+        let req = Request::builder()
+            .method("POST")
+            .uri("https://api.openai.com/v1/chat/completions")
+            .header("content-type", "application/json")
+            .header("x-session-id", "corr-session-1")
+            .body(Body::from(body.clone()))
+            .expect("request should build");
+
+        let out = interceptor.on_request(req).await;
+        let req = match out {
+            RequestOrResponse::Request(req) => req,
+            _ => panic!("expected passthrough request"),
+        };
+
+        assert_eq!(interceptor.pending_count(), 1);
+        let bytes = req.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(std::str::from_utf8(&bytes).unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn on_response_consumes_pending_and_preserves_body() {
+        let interceptor = test_interceptor();
+        let request_body = json!({
+            "model": "gpt-5.4",
+            "messages": [{"role": "user", "content": "count tokens"}]
+        })
+        .to_string();
+        let req = Request::builder()
+            .method("POST")
+            .uri("https://api.openai.com/v1/chat/completions")
+            .header("content-type", "application/json")
+            .header("x-session-id", "corr-session-2")
+            .body(Body::from(request_body))
+            .expect("request should build");
+        interceptor.on_request(req).await;
+
+        let response_body = json!({
+            "model": "gpt-5.4",
+            "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+            "choices": [{"finish_reason": "stop"}]
+        })
+        .to_string();
+        let res = Response::builder()
+            .status(200)
+            .header("content-type", "application/json")
+            .body(Body::from(response_body.clone()))
+            .expect("response should build");
+
+        let out = interceptor.on_response(res).await;
+        assert_eq!(interceptor.pending_count(), 0);
+
+        let bytes = out.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(std::str::from_utf8(&bytes).unwrap(), response_body);
+    }
+
+    #[tokio::test]
+    async fn on_response_noops_when_no_pending_request() {
+        let interceptor = test_interceptor();
+        let response_body = r#"{"ok":true}"#;
+        let res = Response::builder()
+            .status(200)
+            .body(Body::from(response_body))
+            .expect("response should build");
+
+        let out = interceptor.on_response(res).await;
+        assert_eq!(interceptor.pending_count(), 0);
+
+        let bytes = out.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(std::str::from_utf8(&bytes).unwrap(), response_body);
     }
 }

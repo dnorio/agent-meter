@@ -15,9 +15,15 @@ RUN touch crates/collector/src/main.rs && \
     cargo build --release -p agent-meter-collector
 
 FROM debian:trixie-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system agent-meter \
+    && useradd --system --gid agent-meter --home-dir /nonexistent --shell /usr/sbin/nologin agent-meter \
+    && mkdir -p /data /tmp \
+    && chown -R agent-meter:agent-meter /data /tmp
 COPY --from=builder /app/target/release/agent-meter-collector /usr/local/bin/agent-meter
 ENV AGENT_METER_HOST=0.0.0.0 AGENT_METER_PORT=8081 AGENT_METER_OTLP_PORT=4318 DATABASE_URL=sqlite:///data/agent-meter.db
+USER agent-meter:agent-meter
 EXPOSE 8081 4318
 VOLUME ["/data"]
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD agent-meter check || exit 1
 CMD ["agent-meter", "serve"]

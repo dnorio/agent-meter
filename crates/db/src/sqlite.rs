@@ -1206,3 +1206,195 @@ fn sqlite_row_to_tool_call(r: &sqlx::sqlite::SqliteRow) -> ToolCallRow {
         billing_model: r.get("billing_model"),
     }
 }
+
+#[cfg(test)]
+impl SqliteDb {
+    fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Database, DbError};
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    fn sample_event(tool_name: &str, conversation_id: &str) -> InsertToolCall {
+        let started = Utc::now();
+        let ended = started + chrono::Duration::milliseconds(120);
+        InsertToolCall {
+            event_id: Uuid::new_v4(),
+            task_id: Some("task-1".into()),
+            repo: Some("agent-meter".into()),
+            branch: Some("main".into()),
+            ide: Some("cursor".into()),
+            agent: Some("composer".into()),
+            skill: None,
+            mcp_server: Some("filesystem".into()),
+            tool_name: tool_name.into(),
+            started_at: started,
+            ended_at: ended,
+            duration_ms: 120,
+            ok: true,
+            error: None,
+            request_bytes: Some(256),
+            response_bytes: Some(512),
+            estimated_input_tokens: Some(100),
+            estimated_output_tokens: Some(40),
+            estimated_total_tokens: Some(140),
+            request_sha256: None,
+            response_sha256: None,
+            metadata: serde_json::json!({}),
+            model: Some("gpt-5.4".into()),
+            cached_tokens: Some(10),
+            conversation_id: Some(conversation_id.into()),
+            client_ip: None,
+            user_agent: None,
+            user_prompt: Some("write sqlite tests".into()),
+            tool_arguments: None,
+            tool_result: None,
+            reasoning_tokens: None,
+            finish_reason: Some("stop".into()),
+            request_max_tokens: None,
+            request_temperature: None,
+            llm_system: None,
+            trace_id: None,
+            span_id: None,
+            parent_span_id: None,
+            tool_call_id: None,
+        }
+    }
+
+    async fn in_memory_db() -> SqliteDb {
+        let db = SqliteDb::connect("sqlite::memory:")
+            .await
+            .expect("sqlite memory connect");
+        db.migrate().await.expect("migrate");
+        db
+    }
+
+    #[tokio::test]
+    async fn connect_and_migrate_bootstraps_schema() {
+        let db = in_memory_db().await;
+        db.health_check().await.expect("health check");
+
+        let tables: Vec<(String,)> = sqlx::query_as(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='agent_tool_calls'",
+        )
+        .fetch_all(db.pool())
+        .await
+        .expect("schema query");
+
+        assert_eq!(tables.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn connect_rejects_directory_path_as_database_file() {
+        let dir = std::env::temp_dir().join(format!("agent-meter-db-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let url = format!("sqlite:{}", dir.display());
+
+        let err = match SqliteDb::connect(&url).await {
+            Ok(_) => {
+                let _ = std::fs::remove_dir_all(&dir);
+                panic!("directory path should not open as sqlite db");
+            }
+            Err(e) => e,
+        };
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(matches!(err, DbError::Internal(_)));
+    }
+
+    #[tokio::test]
+    async fn insert_and_query_events_roundtrip() {
+        let db = in_memory_db().await;
+        let event = sample_event("read_file", "conv-sqlite-1");
+        let event_id = event.event_id;
+
+        db.insert_tool_call(&event).await.expect("insert tool call");
+
+        let rows = db
+            .query_events(&EventQuery {
+                conversation_id: Some("conv-sqlite-1".into()),
+                limit: 10,
+                offset: 0,
+                ..Default::default()
+            })
+            .await
+            .expect("query events");
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].event_id, event_id);
+        assert_eq!(rows[0].tool_name, "read_file");
+        assert_eq!(rows[0].model.as_deref(), Some("gpt-5.4"));
+    }
+
+    #[tokio::test]
+    async fn reporting_queries_return_inserted_rows() {
+        let db = in_memory_db().await;
+        db.insert_tool_call(&sample_event("read_file", "conv-report-1"))
+            .await
+            .expect("insert first");
+        db.insert_tool_call(&sample_event("read_file", "conv-report-2"))
+            .await
+            .expect("insert second");
+
+        let tools = db
+            .top_tools(&ReportQuery {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .await
+            .expect("top tools");
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].tool_name, "read_file");
+        assert_eq!(tools[0].calls, 2);
+
+        let agents = db
+            .top_agents(&ReportQuery {
+                limit: Some(10),
+                ..Default::default()
+            })
+            .await
+            .expect("top agents");
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0].agent, "composer");
+        assert_eq!(agents[0].calls, 2);
+
+        let conversations = db
+            .list_conversations(&ConversationQuery::default())
+            .await
+            .expect("list conversations");
+        assert_eq!(conversations.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn conversation_detail_and_delete_work() {
+        let db = in_memory_db().await;
+        db.insert_tool_call(&sample_event("grep", "conv-detail-1"))
+            .await
+            .expect("insert");
+
+        let detail = db
+            .conversation_detail("conv-detail-1")
+            .await
+            .expect("conversation detail");
+        assert_eq!(detail.len(), 1);
+        assert_eq!(detail[0].tool_name, "grep");
+
+        let removed = db
+            .delete_conversation("conv-detail-1")
+            .await
+            .expect("delete conversation");
+        assert_eq!(removed, 1);
+
+        let detail_after = db
+            .conversation_detail("conv-detail-1")
+            .await
+            .expect("detail after delete");
+        assert!(detail_after.is_empty());
+    }
+}

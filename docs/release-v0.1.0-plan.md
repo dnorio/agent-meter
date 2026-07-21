@@ -13,7 +13,7 @@ cargo test --workspace
 bash scripts/ci/smoke-demo.sh
 bash scripts/ci/history-audit.sh
 
-cd sdk/python && python -m pytest -q
+cd sdk/python && python3 -m pytest -q
 cd ../node && npm ci && npm run build && npm test && npm pack --dry-run
 
 docker build -t agent-meter:v0.1.0-rc .
@@ -77,10 +77,10 @@ Only publish after building and inspecting the sdist/wheel.
 
 ```bash
 cd sdk/python
-python -m pip install --upgrade build twine
-python -m build --sdist --wheel
-python -m twine check dist/*
-python -m twine upload dist/*
+python3 -m pip install --upgrade build twine
+python3 -m build --sdist --wheel
+python3 -m twine check dist/*
+python3 -m twine upload dist/*
 ```
 
 ## Not in v0.1.0 unless explicitly validated

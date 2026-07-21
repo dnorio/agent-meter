@@ -147,3 +147,84 @@ async fn flush_batch(db: &Arc<dyn Database>, batch: &mut Vec<ToolCallEvent>) {
         warn!("ingest_buffer: flushed {success}/{count} ({failed} errors)");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_meter_db::params::EventQuery;
+    use agent_meter_db::{Database, SqliteDb};
+    use chrono::Utc;
+    use std::sync::Arc;
+    use tokio_util::sync::CancellationToken;
+
+    fn burst_event(index: usize) -> ToolCallEvent {
+        let now = Utc::now();
+        serde_json::from_value(serde_json::json!({
+            "tool_name": format!("burst-{index}"),
+            "started_at": now.to_rfc3339(),
+            "ended_at": now.to_rfc3339(),
+            "ok": true,
+            "conversation_id": "burst-conv"
+        }))
+        .expect("event json")
+    }
+
+    async fn test_db() -> Arc<dyn Database> {
+        let db = SqliteDb::connect("sqlite::memory:").await.expect("connect");
+        db.migrate().await.expect("migrate");
+        Arc::new(db)
+    }
+
+    #[tokio::test]
+    async fn burst_ingest_flushes_all_events() {
+        let db = test_db().await;
+        let cancel = CancellationToken::new();
+        let buffer = IngestBuffer::spawn(db.clone(), 256, cancel.clone());
+
+        const BURST: usize = 130;
+        for i in 0..BURST {
+            buffer.send(burst_event(i)).await.expect("send");
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(700)).await;
+
+        let rows = db
+            .query_events(&EventQuery {
+                conversation_id: Some("burst-conv".into()),
+                limit: 500,
+                offset: 0,
+                ..Default::default()
+            })
+            .await
+            .expect("query");
+
+        assert_eq!(rows.len(), BURST);
+        assert_eq!(buffer.queued(), 0);
+    }
+
+    #[tokio::test]
+    async fn graceful_shutdown_flushes_pending_batch() {
+        let db = test_db().await;
+        let cancel = CancellationToken::new();
+        let buffer = IngestBuffer::spawn(db.clone(), 64, cancel.clone());
+
+        for i in 0..10 {
+            buffer.send(burst_event(i)).await.expect("send");
+        }
+
+        cancel.cancel();
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+        let rows = db
+            .query_events(&EventQuery {
+                conversation_id: Some("burst-conv".into()),
+                limit: 50,
+                offset: 0,
+                ..Default::default()
+            })
+            .await
+            .expect("query");
+
+        assert_eq!(rows.len(), 10);
+    }
+}

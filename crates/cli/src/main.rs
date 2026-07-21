@@ -583,3 +583,164 @@ async fn main() -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_task_start_with_optional_metadata() {
+        let cli = Cli::try_parse_from([
+            "agent-meter",
+            "--collector",
+            "http://127.0.0.1:9999",
+            "task",
+            "start",
+            "TASK-123",
+            "--repo",
+            "dnorio/agent-meter",
+            "--branch",
+            "main",
+            "--ide",
+            "vscode",
+            "--agent",
+            "copilot",
+            "--skill",
+            "release",
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.collector, "http://127.0.0.1:9999");
+        match cli.command {
+            Commands::Task { action } => match action {
+                TaskAction::Start {
+                    task_id,
+                    repo,
+                    branch,
+                    ide,
+                    agent,
+                    skill,
+                } => {
+                    assert_eq!(task_id, "TASK-123");
+                    assert_eq!(repo.as_deref(), Some("dnorio/agent-meter"));
+                    assert_eq!(branch.as_deref(), Some("main"));
+                    assert_eq!(ide.as_deref(), Some("vscode"));
+                    assert_eq!(agent.as_deref(), Some("copilot"));
+                    assert_eq!(skill.as_deref(), Some("release"));
+                }
+                _ => panic!("expected task start command"),
+            },
+            _ => panic!("expected task command"),
+        }
+    }
+
+    #[test]
+    fn parses_tool_call_with_default_ok_true() {
+        let cli = Cli::try_parse_from([
+            "agent-meter",
+            "event",
+            "tool-call",
+            "--tool-name",
+            "read_file",
+            "--mcp-server",
+            "filesystem",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Event { action } => match action {
+                EventAction::ToolCall {
+                    tool_name,
+                    mcp_server,
+                    ok,
+                    ..
+                } => {
+                    assert_eq!(tool_name, "read_file");
+                    assert_eq!(mcp_server.as_deref(), Some("filesystem"));
+                    assert!(ok);
+                }
+            },
+            _ => panic!("expected event command"),
+        }
+    }
+
+    #[test]
+    fn uses_collector_env_default() {
+        let previous = std::env::var("AGENT_METER_COLLECTOR_URL").ok();
+        unsafe {
+            std::env::set_var("AGENT_METER_COLLECTOR_URL", "http://env-collector:8081");
+        }
+
+        let cli =
+            Cli::try_parse_from(["agent-meter", "report", "top-tools"]).expect("cli should parse");
+
+        assert_eq!(cli.collector, "http://env-collector:8081");
+
+        match previous {
+            Some(value) => unsafe { std::env::set_var("AGENT_METER_COLLECTOR_URL", value) },
+            None => unsafe { std::env::remove_var("AGENT_METER_COLLECTOR_URL") },
+        }
+    }
+
+    #[test]
+    fn build_report_params_includes_limit_only_by_default() {
+        let cli = Cli::try_parse_from(["agent-meter", "report", "top-tools"]).expect("parse");
+        let from = None;
+        let to = None;
+        let repo = None;
+        let ide = None;
+        let agent = None;
+        let skill = None;
+
+        let query = cli.build_report_params(ReportParams {
+            from: &from,
+            to: &to,
+            repo: &repo,
+            ide: &ide,
+            agent: &agent,
+            skill: &skill,
+            limit: 20,
+        });
+
+        assert_eq!(query, "limit=20");
+    }
+
+    #[test]
+    fn build_report_params_encodes_all_filters() {
+        let cli = Cli::try_parse_from(["agent-meter", "report", "top-tools"]).expect("parse");
+        let from = Some("2026-05-01T00:00:00Z".into());
+        let to = Some("2026-05-18T00:00:00Z".into());
+        let repo = Some("dnorio/agent-meter".into());
+        let ide = Some("cursor".into());
+        let agent = Some("composer".into());
+        let skill = Some("release".into());
+
+        let query = cli.build_report_params(ReportParams {
+            from: &from,
+            to: &to,
+            repo: &repo,
+            ide: &ide,
+            agent: &agent,
+            skill: &skill,
+            limit: 50,
+        });
+
+        assert_eq!(
+            query,
+            "limit=50&from=2026-05-01T00:00:00Z&to=2026-05-18T00:00:00Z&repo=dnorio/agent-meter&ide=cursor&agent=composer&skill=release"
+        );
+    }
+
+    #[test]
+    fn format_tokens_scales_values() {
+        assert_eq!(format_tokens(500), "500");
+        assert_eq!(format_tokens(1500), "1.5k");
+        assert_eq!(format_tokens(2_500_000), "2.5M");
+    }
+
+    #[test]
+    fn truncate_shortens_long_strings() {
+        assert_eq!(truncate("hello".into(), 10), "hello");
+        assert_eq!(truncate("hello world".into(), 5), "hello…");
+    }
+}

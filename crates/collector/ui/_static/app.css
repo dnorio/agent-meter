@@ -367,7 +367,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .am-skel { background: linear-gradient(90deg, var(--am-surface) 0%, var(--am-surface-2) 50%, var(--am-surface) 100%); background-size: 200% 100%; animation: amSkel 1.4s linear infinite; border-radius: 4px; }
 @keyframes amSkel { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
-/* ============== Accessibility (T-324.16) ============== */
+/* ============== Accessibility ============== */
 /* Skip to main content link */
 .am-skip-link {
   position: absolute;
@@ -415,7 +415,7 @@ button:focus-visible, .am-btn:focus-visible, .am-input:focus-visible, select:foc
   .am-card { border: 2px solid; }
 }
 
-/* ── T-353: Global Search Modal ────────────────────────────────────────────── */
+/* ── Global Search Modal ───────────────────────────────────────────────────── */
 .am-search-overlay {
   position: fixed; inset: 0; z-index: 9999;
   background: rgba(0,0,0,.55); backdrop-filter: blur(4px);

@@ -105,3 +105,52 @@ pub fn install_system_ca(cert_path: &Path) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "agent-meter-proxy-ca-test-{}-{nanos}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn generate_ca_creates_key_and_cert_files() {
+        let dir = unique_temp_dir();
+        std::fs::create_dir_all(&dir).expect("temp dir should be created");
+
+        let result = generate_ca(&dir).expect("ca generation should succeed");
+
+        assert_eq!(result.0, dir.join("ca-key.pem"));
+        assert_eq!(result.1, dir.join("ca-cert.pem"));
+        assert!(result.0.exists());
+        assert!(result.1.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn generate_ca_is_idempotent_when_files_already_exist() {
+        let dir = unique_temp_dir();
+        std::fs::create_dir_all(&dir).expect("temp dir should be created");
+
+        let first = generate_ca(&dir).expect("initial generation should succeed");
+        let cert_before = std::fs::read_to_string(&first.1).expect("cert should be readable");
+
+        let second = generate_ca(&dir).expect("second generation should succeed");
+        let cert_after = std::fs::read_to_string(&second.1).expect("cert should be readable");
+
+        assert_eq!(first, second);
+        assert_eq!(cert_before, cert_after);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

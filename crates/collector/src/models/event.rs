@@ -25,7 +25,7 @@ pub struct ToolCallEvent {
     pub request_sha256: Option<String>,
     pub response_sha256: Option<String>,
     pub metadata: Option<serde_json::Value>,
-    // Enriched fields (T-239)
+    // Enriched fields
     pub model: Option<String>,
     pub cached_tokens: Option<i32>,
     pub conversation_id: Option<String>,
@@ -36,7 +36,7 @@ pub struct ToolCallEvent {
     pub tool_arguments: Option<serde_json::Value>,
     /// Tool output/result content, truncated at 8 KB (from mcp-wrapper)
     pub tool_result: Option<String>,
-    // T-332: deep telemetry
+    // Deep telemetry
     /// Reasoning/thinking tokens (o1, o3, Claude extended thinking — billed separately)
     pub reasoning_tokens: Option<i32>,
     /// Why the LLM stopped: "stop", "length", "tool_calls", "content_filter"

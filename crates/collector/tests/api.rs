@@ -268,3 +268,244 @@ async fn test_cost_summary_burn_rate_nonzero() {
         "burn rate should be computed from spend / hours"
     );
 }
+
+async fn seed_filter_fixtures(base_url: &str, client: &Client) {
+    let fixtures = [
+        (
+            "read_file",
+            "cursor",
+            "composer",
+            "agent-meter",
+            "refactor",
+            "conv-filter-a",
+        ),
+        (
+            "grep",
+            "cursor",
+            "composer",
+            "agent-meter",
+            "refactor",
+            "conv-filter-a",
+        ),
+        (
+            "run_terminal",
+            "vscode",
+            "copilot",
+            "other-repo",
+            "debug",
+            "conv-filter-b",
+        ),
+    ];
+
+    for (tool, ide, agent, repo, skill, conversation_id) in fixtures {
+        let event = json!({
+            "event_id": uuid::Uuid::new_v4().to_string(),
+            "tool_name": tool,
+            "ide": ide,
+            "agent": agent,
+            "repo": repo,
+            "skill": skill,
+            "conversation_id": conversation_id,
+            "started_at": "2026-05-17T00:00:00Z",
+            "ended_at": "2026-05-17T00:00:01Z",
+            "ok": true
+        });
+        let resp = client
+            .post(format!("{}/events/tool-call", base_url))
+            .json(&event)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+}
+
+#[tokio::test]
+async fn test_reports_empty_dataset_returns_stable_arrays() {
+    let (base_url, client) = setup().await;
+
+    for path in [
+        "/reports/top-tools",
+        "/reports/top-agents",
+        "/reports/top-mcp-servers",
+        "/reports/events?limit=5",
+        "/api/conversations?limit=5",
+    ] {
+        let resp = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "path {path}");
+        let body: serde_json::Value = resp.json().await.unwrap();
+        assert!(body.is_array(), "{path} should return array");
+        assert_eq!(body.as_array().unwrap().len(), 0, "{path} should be empty");
+    }
+}
+
+#[tokio::test]
+async fn test_events_feed_pagination_and_filters() {
+    let (base_url, client) = setup().await;
+    seed_filter_fixtures(&base_url, &client).await;
+
+    let page1: serde_json::Value = client
+        .get(format!("{}/reports/events?limit=2&offset=0", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let page2: serde_json::Value = client
+        .get(format!("{}/reports/events?limit=2&offset=2", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert_eq!(page1.as_array().unwrap().len(), 2);
+    assert_eq!(page2.as_array().unwrap().len(), 1);
+
+    let filtered: serde_json::Value = client
+        .get(format!(
+            "{}/reports/events?ide=vscode&agent=copilot&limit=10",
+            base_url
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let rows = filtered.as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["tool_name"], "run_terminal");
+    assert_eq!(rows[0]["ide"], "vscode");
+}
+
+#[tokio::test]
+async fn test_report_filters_by_repo_and_skill() {
+    let (base_url, client) = setup().await;
+    seed_filter_fixtures(&base_url, &client).await;
+
+    let tools: serde_json::Value = client
+        .get(format!(
+            "{}/reports/top-tools?repo=agent-meter&skill=refactor&limit=10",
+            base_url
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    let rows = tools.as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| row["calls"].as_i64() == Some(1)));
+
+    let agents: serde_json::Value = client
+        .get(format!(
+            "{}/reports/top-agents?ide=cursor&limit=10",
+            base_url
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(agents.as_array().unwrap().len(), 1);
+    assert_eq!(agents[0]["agent"], "composer");
+    assert_eq!(agents[0]["calls"], 2);
+}
+
+#[tokio::test]
+async fn test_conversations_pagination_and_empty_page() {
+    let (base_url, client) = setup().await;
+    seed_filter_fixtures(&base_url, &client).await;
+
+    let page: serde_json::Value = client
+        .get(format!("{}/api/conversations?limit=1&offset=0", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(page.as_array().unwrap().len(), 1);
+
+    let empty_page: serde_json::Value = client
+        .get(format!("{}/api/conversations?limit=10&offset=99", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(empty_page.as_array().unwrap().is_empty());
+
+    let filtered: serde_json::Value = client
+        .get(format!(
+            "{}/api/conversations?ide=vscode&limit=10",
+            base_url
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(filtered.as_array().unwrap().len(), 1);
+    assert_eq!(filtered[0]["conversation_id"], "conv-filter-b");
+}
+
+#[tokio::test]
+async fn test_docs_and_static_assets_smoke() {
+    let (base_url, client) = setup().await;
+
+    let html_routes = ["/docs", "/conversations", "/reports", "/cost"];
+    for path in html_routes {
+        let resp = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "route {path}");
+        let body = resp.text().await.unwrap();
+        assert!(body.starts_with("<!DOCTYPE html>"), "{path} should be html");
+        assert!(body.contains("/_static/app.css"), "{path} should link css");
+        assert!(body.contains("/_static/app.js"), "{path} should link js");
+    }
+
+    let assets = [
+        ("/_static/tokens.css", "text/css"),
+        ("/_static/app.css", "text/css"),
+        ("/_static/app.js", "application/javascript"),
+        ("/_static/icons.svg", "image/svg+xml"),
+        ("/_static/favicon.svg", "image/svg+xml"),
+    ];
+    for (path, content_type) in assets {
+        let resp = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "asset {path}");
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            ct.contains(content_type),
+            "asset {path} content-type expected {content_type}, got {ct}"
+        );
+        let body = resp.text().await.unwrap();
+        assert!(!body.is_empty(), "asset {path} should not be empty");
+    }
+}
