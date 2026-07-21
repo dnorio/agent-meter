@@ -5,3 +5,8 @@ target/
 *.db-wal
 scripts/ci/tools/
 scripts/ci/private-patterns.txt
+sdk/node/node_modules/
+sdk/node/dist/
+sdk/node/*.tgz
+sdk/python/dist/
+sdk/python/*.egg-info/
