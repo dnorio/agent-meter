@@ -593,9 +593,8 @@ cd agent-meter/eclipse-proxy
           <p>Official SDKs wrap the OTLP endpoint with ergonomic APIs. Both auto-flush in the background and work with any <code>AGENT_METER_ENDPOINT</code>.</p>
 
           <h3>Python</h3>
-          <pre><code># Until the package is published to PyPI:
-cd sdk/python
-python3 -m pip install -e .</code></pre>
+          <pre><code>pip install agentmeter-obs
+# or: pip install dnorio-agent-meter</code></pre>
           <pre><code>from agent_meter import AgentMeter
 
 am = AgentMeter(endpoint="http://127.0.0.1:8081")
@@ -613,10 +612,7 @@ span.usd_cost = 0.012
 span.finish()</code></pre>
 
           <h3>Node.js / TypeScript</h3>
-          <pre><code># Until the package is published to npm:
-cd sdk/node
-npm ci
-npm run build</code></pre>
+          <pre><code>npm install @dnorio/agent-meter</code></pre>
           <pre><code>import { AgentMeter } from "@dnorio/agent-meter";
 
 const am = new AgentMeter({ endpoint: "http://127.0.0.1:8081" });
