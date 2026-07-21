@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- SDK packages renamed to `agentmeter-obs` on npm and PyPI (avoids registry name conflicts).
-- Release build script uses `cross`/Docker when apt cross-toolchains are unavailable.
+- Node SDK published as `@dnorio/agent-meter` under the dnorio npm org.
+- Python SDK available on PyPI as `agentmeter-obs` and `dnorio-agent-meter`.
 
 ## [0.1.0] - 2026-07-21
 

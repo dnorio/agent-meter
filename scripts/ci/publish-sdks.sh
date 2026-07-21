@@ -2,15 +2,17 @@
 # publish-sdks.sh — publish Node + Python SDKs to npm and PyPI
 set -euo pipefail
 
-log() { printf '[publish-sdks] %s\n' "$*'; }
+log() { printf '[publish-sdks] %s\n' "$*"; }
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DRY_RUN="${DRY_RUN:-false}"
+PYPI_NAMES=(agentmeter-obs dnorio-agent-meter)
 
 publish_npm() {
   local sdk="$ROOT/sdk/node"
-  [[ -n "${NPM_TOKEN:-}" ]] || {
-    log "ERROR: NPM_TOKEN required for npm publish"
+  local token="${NPM_TOKEN_3:-${NPM_TOKEN_2:-${NPM_TOKEN:-}}}"
+  [[ -n "$token" ]] || {
+    log "ERROR: NPM_TOKEN_3, NPM_TOKEN_2, or NPM_TOKEN required"
     return 1
   }
   cd "$sdk"
@@ -21,30 +23,52 @@ publish_npm() {
     npm pack --dry-run
     return 0
   fi
-  printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$sdk/.npmrc"
+  printf '//registry.npmjs.org/:_authToken=%s\n' "$token" > "$sdk/.npmrc"
   trap 'rm -f "$sdk/.npmrc"' RETURN
-  npm publish --access public
-  log "✓ npm publish OK"
+  local npm_args=(publish --access public)
+  [[ -n "${NPM_OTP:-}" ]] && npm_args+=(--otp="$NPM_OTP")
+  npm "${npm_args[@]}"
+  log "✓ npm publish OK (@dnorio/agent-meter)"
+}
+
+publish_pypi_name() {
+  local name="$1"
+  local sdk="$ROOT/sdk/python"
+  local pyproject="$sdk/pyproject.toml"
+  local backup
+  backup="$(mktemp)"
+  cp "$pyproject" "$backup"
+
+  sed -i "s/^name = \".*\"/name = \"$name\"/" "$pyproject"
+  cd "$sdk"
+  rm -rf dist build *.egg-info
+  python3 -m build
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY_RUN — would twine upload $name from $sdk/dist"
+    ls -la dist/
+    mv "$backup" "$pyproject"
+    return 0
+  fi
+  if TWINE_USERNAME=__token__ TWINE_PASSWORD="$PYPI_TOKEN" \
+    python3 -m twine upload --non-interactive dist/*; then
+    log "✓ PyPI publish OK ($name)"
+  else
+    log "WARN: PyPI upload failed for $name (may already exist at this version)"
+  fi
+  mv "$backup" "$pyproject"
 }
 
 publish_pypi() {
-  local sdk="$ROOT/sdk/python"
   [[ -n "${PYPI_TOKEN:-}" ]] || {
     log "ERROR: PYPI_TOKEN required for PyPI publish"
     return 1
   }
-  cd "$sdk"
   python3 -m pip install -q --upgrade build twine 2>/dev/null || pip install -q --upgrade build twine
-  rm -rf dist build *.egg-info
-  python3 -m build
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY_RUN — would twine upload from $sdk/dist"
-    ls -la dist/
-    return 0
-  fi
-  TWINE_USERNAME=__token__ TWINE_PASSWORD="$PYPI_TOKEN" \
-    python3 -m twine upload --non-interactive dist/*
-  log "✓ PyPI publish OK"
+  local name failed=0
+  for name in "${PYPI_NAMES[@]}"; do
+    publish_pypi_name "$name" || failed=1
+  done
+  return "$failed"
 }
 
 failed=0
