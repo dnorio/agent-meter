@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Tag-triggered GitHub Actions release workflow (cross-build + smoke + upload).
 - Maintainer release guide (`docs/RELEASE.md`) and `scripts/ci/release-tag.sh`.
-- Windows installer SHA256 verification (`install.ps1`).
+- Windows installer SHA256 verification (mandatory), embedded API keys docs, keys integration test
 - Embedded docs: API keys section + `AGENT_METER_API_KEY`.
 
 ## [0.1.2] - 2026-07-21
