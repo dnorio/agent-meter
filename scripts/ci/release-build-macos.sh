@@ -18,7 +18,7 @@ build_one() {
   local target="$1"
   local crate="$2"
   local bin_name="$3"
-  local asset="$4
+  local asset="$4"
 
   log "building $crate ($target) → $asset"
   rustup target add "$target" >/dev/null 2>&1 || true
