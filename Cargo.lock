@@ -10,7 +10,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agent-meter-cli"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "agent-meter-collector"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "agent-meter-db",
  "anyhow",
@@ -57,7 +57,7 @@ dependencies = [
 
 [[package]]
 name = "agent-meter-db"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-trait",
  "chrono",
@@ -72,7 +72,7 @@ dependencies = [
 
 [[package]]
 name = "agent-meter-mcp-wrapper"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "axum",
@@ -90,7 +90,7 @@ dependencies = [
 
 [[package]]
 name = "agent-meter-proxy"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "bytes",

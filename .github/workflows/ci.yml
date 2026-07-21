@@ -27,6 +27,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - run: bash scripts/ci/check-versions.sh
       - run: bash scripts/ci/smoke-demo.sh
       - run: bash scripts/ci/history-audit.sh
 
@@ -57,6 +58,7 @@ jobs:
       - run: npm pack --dry-run
         working-directory: sdk/node
       - run: bash scripts/ci/node-tarball-smoke.sh
+      - run: bash scripts/ci/sdk-integration-smoke.sh
 
   docker-smoke:
     runs-on: ubuntu-latest

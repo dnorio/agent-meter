@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-21
+
+### Added
+
+- REST ingest uses shared async buffer + per-IP rate limit (parity with OTLP).
+- OTLP on main port (`:8081/v1/traces`) so SDKs work out of the box.
+- `503` + `Retry-After` when ingest buffer is full (no silent drops).
+- CI: version sync check, SDK→collector integration smoke.
+- `docker-compose.secure.yml` with API key auth enabled.
+- `CONTRIBUTING.md` contributor guide.
+
+### Fixed
+
+- SDK OTLP payloads use `execute_tool` span naming (collector-compatible).
+- PyPI publish script fails on upload errors unless `ALLOW_EXISTING=1`.
+
 ## [0.1.3] - 2026-07-21
 
 ### Added

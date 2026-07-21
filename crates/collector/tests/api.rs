@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_meter_collector::{app, config::Config};
 use agent_meter_db::{Database, SqliteDb};
+use axum::Router;
 use reqwest::Client;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
@@ -26,6 +27,10 @@ async fn make_db() -> Arc<dyn Database> {
         .await
         .unwrap_or_else(|e| panic!("sqlite migrate: {e}"));
     Arc::new(db)
+}
+
+async fn wait_ingest_flush() {
+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
 }
 
 async fn setup() -> (String, Client) {
@@ -151,6 +156,8 @@ async fn test_conversations_list_and_cost_summary() {
         assert_eq!(resp.status(), 200);
     }
 
+    wait_ingest_flush().await;
+
     let convs: serde_json::Value = client
         .get(format!("{}/api/conversations?limit=10", base_url))
         .send()
@@ -194,6 +201,8 @@ async fn test_admin_delete_and_reset() {
         .await
         .unwrap();
 
+    wait_ingest_flush().await;
+
     let del: serde_json::Value = client
         .delete(format!("{}/api/conversations/conv-admin-test", base_url))
         .send()
@@ -210,6 +219,8 @@ async fn test_admin_delete_and_reset() {
         .send()
         .await
         .unwrap();
+
+    wait_ingest_flush().await;
 
     let reset: serde_json::Value = client
         .post(format!("{}/api/admin/reset", base_url))
@@ -253,6 +264,8 @@ async fn test_cost_summary_burn_rate_nonzero() {
         .send()
         .await
         .unwrap();
+
+    wait_ingest_flush().await;
 
     let cost: serde_json::Value = client
         .get(format!(
@@ -593,4 +606,75 @@ async fn test_api_key_auth_when_required() {
         .await
         .unwrap();
     assert_eq!(ok.status(), 200);
+}
+
+#[tokio::test]
+async fn test_rest_ingest_rate_limit() {
+    let db = make_db().await;
+    let mut config = Config::from_env();
+    config.require_api_key = false;
+    let cancel = CancellationToken::new();
+    let ingest = agent_meter_collector::services::ingest_buffer::IngestBuffer::spawn(
+        db.clone(),
+        4096,
+        cancel.clone(),
+    );
+    let rate_limiter =
+        std::sync::Arc::new(agent_meter_collector::middleware::rate_limit::RateLimiter::new(1, 60));
+    let state = agent_meter_collector::app::AppState {
+        config: std::sync::Arc::new(config),
+        db,
+        ingest: Some(ingest),
+        rate_limiter,
+    };
+
+    let app = Router::new()
+        .merge(agent_meter_collector::routes::events::router())
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let base_url = format!("http://{}", addr);
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .unwrap();
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let client = Client::new();
+
+    let event = json!({
+        "tool_name": "rate_limit_tool",
+        "started_at": "2026-05-17T00:00:00Z",
+        "ended_at": "2026-05-17T00:00:01Z",
+        "ok": true
+    });
+
+    let first = client
+        .post(format!("{}/events/tool-call", base_url))
+        .json(&event)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 200);
+
+    let second = client
+        .post(format!("{}/events/tool-call", base_url))
+        .json(&event)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(second.status(), 429);
+    assert_eq!(
+        second
+            .headers()
+            .get("retry-after")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "5"
+    );
 }

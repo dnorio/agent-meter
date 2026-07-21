@@ -42,6 +42,20 @@ docker volume inspect agent-meter_agent-meter-data
 
 - Only `/data` and `/tmp` are writable. Logs go to stdout/stderr (`RUST_LOG`).
 
+## Exposed deployments
+
+`docker-compose.standalone.yml` binds ingest on `0.0.0.0` without auth. For LAN or
+shared hosts, prefer the secure profile:
+
+```bash
+docker compose -f docker-compose.secure.yml up -d --build
+docker exec agent-meter agent-meter keys create --name my-client
+```
+
+Set `AGENT_METER_REQUIRE_API_KEY=1` (enabled in the secure compose file) and pass
+`Authorization: Bearer <secret>` from SDKs and agents. Admin reset/delete remain
+localhost-only inside the container.
+
 ## CVE posture
 
 - **Runtime base:** `debian:trixie-slim` — track Debian security advisories.

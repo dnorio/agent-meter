@@ -52,8 +52,12 @@ publish_pypi_name() {
   if TWINE_USERNAME=__token__ TWINE_PASSWORD="$PYPI_TOKEN" \
     python3 -m twine upload --non-interactive dist/*; then
     log "✓ PyPI publish OK ($name)"
+  elif [[ "${ALLOW_EXISTING:-0}" == "1" ]]; then
+    log "WARN: PyPI upload failed for $name (ALLOW_EXISTING=1)"
   else
-    log "WARN: PyPI upload failed for $name (may already exist at this version)"
+    log "ERROR: PyPI upload failed for $name"
+    mv "$backup" "$pyproject"
+    return 1
   fi
   mv "$backup" "$pyproject"
 }

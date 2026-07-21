@@ -1,4 +1,4 @@
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
@@ -22,6 +22,12 @@ pub enum AppError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Rate limit exceeded")]
+    TooManyRequests,
+
+    #[error("Ingest buffer full")]
+    ServiceUnavailable,
 }
 
 impl IntoResponse for AppError {
@@ -55,12 +61,25 @@ impl IntoResponse for AppError {
                     "Internal server error".into(),
                 )
             }
+            AppError::TooManyRequests => {
+                (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded".into())
+            }
+            AppError::ServiceUnavailable => {
+                (StatusCode::SERVICE_UNAVAILABLE, "Ingest buffer full".into())
+            }
         };
 
         let body = json!({
             "error": message,
             "code": status.as_u16(),
         });
+
+        if matches!(
+            self,
+            AppError::TooManyRequests | AppError::ServiceUnavailable
+        ) {
+            return (status, [(header::RETRY_AFTER, "5")], Json(body)).into_response();
+        }
 
         (status, Json(body)).into_response()
     }

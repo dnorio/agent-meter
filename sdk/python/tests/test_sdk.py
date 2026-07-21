@@ -44,7 +44,7 @@ def test_client_build_payload():
     payload = am._build_otlp_payload([span])
     assert "resourceSpans" in payload
     rs = payload["resourceSpans"][0]
-    assert rs["scopeSpans"][0]["spans"][0]["name"] == "code_gen"
+    assert rs["scopeSpans"][0]["spans"][0]["name"] == "execute_tool code_gen"
     am._closed = True
     if am._timer:
         am._timer.cancel()

@@ -126,7 +126,7 @@ export class AgentMeter {
         traceId: s.traceId,
         spanId: s.spanId,
         parentSpanId: s.parentSpanId ?? "",
-        name: s.toolName,
+        name: `execute_tool ${s.toolName}`,
         kind: 3,
         startTimeUnixNano: startNs,
         endTimeUnixNano: endNs,

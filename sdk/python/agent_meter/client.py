@@ -165,7 +165,7 @@ class AgentMeter:
                 "traceId": s.trace_id,
                 "spanId": s.span_id,
                 "parentSpanId": s.parent_span_id or "",
-                "name": s.tool_name,
+                "name": f"execute_tool {s.tool_name}",
                 "kind": 3,  # INTERNAL
                 "startTimeUnixNano": str(s.started_at_ns),
                 "endTimeUnixNano": str(end_ns),

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentmeter-obs"
-version = "0.1.3"
+version = "0.1.4"
 description = "Lightweight SDK to track AI agent tool calls, costs, and latency."
 readme = "README.md"
 license = "MIT"

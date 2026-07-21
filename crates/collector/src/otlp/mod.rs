@@ -7,7 +7,7 @@ use self::ide::infer_ide;
 
 use crate::errors::AppError;
 use crate::models::event::ToolCallEvent;
-use crate::services::ingest_buffer::IngestBuffer;
+use crate::services::ingest_buffer::{IngestBuffer, TrySendEventError};
 
 /// Persist a parsed event via the async ingest buffer (fire-and-forget).
 fn persist_event(
@@ -15,21 +15,21 @@ fn persist_event(
     event: ToolCallEvent,
     results: &mut Vec<serde_json::Value>,
     label: &str,
-) {
+) -> Result<(), AppError> {
     let Some(buf) = buffer else {
-        warn!("no ingest buffer available ({label}), dropping event");
-        return;
+        tracing::warn!("no ingest buffer available ({label}), dropping event");
+        return Err(AppError::Internal("ingest buffer unavailable".into()));
     };
     let tool_name = event.tool_name.clone();
-    match buf.try_send(event) {
-        Ok(()) => {
-            results.push(serde_json::json!({
-                "buffered": true,
-                "tool_name": tool_name,
-            }));
-        }
-        Err(e) => warn!("ingest buffer full ({label}), dropping event: {e}"),
-    }
+    buf.try_send(event).map_err(|err| match err {
+        TrySendEventError::Full => AppError::ServiceUnavailable,
+        TrySendEventError::Closed => AppError::Internal("ingest buffer closed".into()),
+    })?;
+    results.push(serde_json::json!({
+        "buffered": true,
+        "tool_name": tool_name,
+    }));
+    Ok(())
 }
 
 /// Dispatcher: selects protobuf or JSON parser based on Content-Type.
@@ -106,7 +106,7 @@ fn handle_trace_request_json(
                         tool_hint,
                     ) {
                         Ok(event) => {
-                            persist_event(buffer, event, &mut results, "JSON OTLP tool_call");
+                            persist_event(buffer, event, &mut results, "JSON OTLP tool_call")?;
                         }
                         Err(e) => warn!("failed to map JSON OTLP execute_tool span: {e}"),
                     }
@@ -126,7 +126,7 @@ fn handle_trace_request_json(
                         model_hint,
                     ) {
                         Ok(event) => {
-                            persist_event(buffer, event, &mut results, "JSON OTLP chat");
+                            persist_event(buffer, event, &mut results, "JSON OTLP chat")?;
                         }
                         Err(e) => warn!("failed to map JSON OTLP chat span: {e}"),
                     }
@@ -151,7 +151,7 @@ fn handle_trace_request_json(
                         tool_hint,
                     ) {
                         Ok(event) => {
-                            persist_event(buffer, event, &mut results, "JSON OTLP mcp tools/call");
+                            persist_event(buffer, event, &mut results, "JSON OTLP mcp tools/call")?;
                         }
                         Err(e) => warn!("failed to map JSON OTLP tools/call span: {e}"),
                     }
@@ -171,7 +171,7 @@ fn handle_trace_request_json(
                         ) {
                             Ok(mut event) => {
                                 event.tool_name = tool_name;
-                                persist_event(buffer, event, &mut results, "copilot HTTP chat");
+                                persist_event(buffer, event, &mut results, "copilot HTTP chat")?;
                             }
                             Err(e) => warn!("failed to map copilot HTTP chat span: {e}"),
                         }
@@ -186,7 +186,7 @@ fn handle_trace_request_json(
                             Some(&tool_name),
                         ) {
                             Ok(event) => {
-                                persist_event(buffer, event, &mut results, "copilot HTTP tool");
+                                persist_event(buffer, event, &mut results, "copilot HTTP tool")?;
                             }
                             Err(e) => warn!("failed to map copilot HTTP tool span: {e}"),
                         }
@@ -1063,7 +1063,7 @@ fn handle_trace_request_proto(
                         tool_hint,
                     ) {
                         Ok(event) => {
-                            persist_event(buffer, event, &mut results, "OTLP tool_call");
+                            persist_event(buffer, event, &mut results, "OTLP tool_call")?;
                         }
                         Err(e) => warn!("failed to map OTLP execute_tool span: {e}"),
                     }
@@ -1084,7 +1084,7 @@ fn handle_trace_request_proto(
                         model_hint,
                     ) {
                         Ok(event) => {
-                            persist_event(buffer, event, &mut results, "OTLP chat");
+                            persist_event(buffer, event, &mut results, "OTLP chat")?;
                         }
                         Err(e) => warn!("failed to map OTLP chat span: {e}"),
                     }
@@ -1110,7 +1110,7 @@ fn handle_trace_request_proto(
                         tool_hint,
                     ) {
                         Ok(event) => {
-                            persist_event(buffer, event, &mut results, "OTLP mcp tools/call");
+                            persist_event(buffer, event, &mut results, "OTLP mcp tools/call")?;
                         }
                         Err(e) => warn!("failed to map OTLP tools/call span: {e}"),
                     }
@@ -1138,7 +1138,7 @@ fn handle_trace_request_proto(
                                     event,
                                     &mut results,
                                     "copilot HTTP chat (proto)",
-                                );
+                                )?;
                             }
                             Err(e) => warn!("failed to map copilot HTTP chat span (proto): {e}"),
                         }
@@ -1159,7 +1159,7 @@ fn handle_trace_request_proto(
                                     event,
                                     &mut results,
                                     "copilot HTTP tool (proto)",
-                                );
+                                )?;
                             }
                             Err(e) => warn!("failed to map copilot HTTP tool span (proto): {e}"),
                         }
