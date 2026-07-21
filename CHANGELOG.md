@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - SDK OTLP payloads use `execute_tool` span naming (collector-compatible).
+- PyPI publish script fails on upload errors unless `ALLOW_EXISTING=1`.
 
 ## [0.1.3] - 2026-07-21
 
