@@ -43,7 +43,12 @@ curl -sf -X POST "http://127.0.0.1:$PORT/events/tool-call" \
     "ok": true
   }' >/dev/null
 
-sleep 1
+for _ in $(seq 1 15); do
+  if curl -sf "http://127.0.0.1:$PORT/api/conversations?limit=5" | grep -q sdk-smoke-conv; then
+    break
+  fi
+  sleep 0.5
+done
 curl -sf "http://127.0.0.1:$PORT/api/conversations?limit=5" | grep -q sdk-smoke-conv
 
 log "Python SDK OTLP smoke"
