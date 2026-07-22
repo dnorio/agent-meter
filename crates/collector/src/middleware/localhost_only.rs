@@ -59,10 +59,8 @@ mod tests {
 
         let mut svc = app.into_service();
         let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
-        req.extensions_mut().insert(ConnectInfo(SocketAddr::from((
-            Ipv4Addr::LOCALHOST,
-            8081,
-        ))));
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 8081))));
 
         let resp = svc.ready().await.unwrap().call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
