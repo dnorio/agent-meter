@@ -12,6 +12,7 @@
 #   AGENT_METER_VERSION       release tag to install (default: latest release)
 #   AGENT_METER_FROM_SOURCE=1 skip release download and always build from source
 #   AGENT_METER_SRC           source checkout dir (default: ~\.agent-meter\src)
+#   AGENT_METER_WITH_PROXY=1    also install agent-meter-proxy after the collector
 
 $ErrorActionPreference = "Stop"
 
@@ -127,3 +128,10 @@ Write-Host "    # UI + REST -> http://127.0.0.1:8081"
 Write-Host "    # OTLP       -> http://127.0.0.1:4318/v1/traces"
 Write-Host ""
 Write-Host "  Docs: https://github.com/$Repo"
+
+if ($env:AGENT_METER_WITH_PROXY -eq "1") {
+    Write-Host ""
+    Write-Host "==> Installing agent-meter-proxy..." -ForegroundColor Cyan
+    $proxy = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/install-proxy.ps1" -UseBasicParsing).Content
+    Invoke-Expression $proxy
+}

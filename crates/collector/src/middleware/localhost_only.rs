@@ -35,6 +35,12 @@ fn is_loopback(ip: IpAddr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::Body;
+    use axum::routing::get;
+    use axum::Router;
+    use std::net::{Ipv4Addr, SocketAddr};
+    use tower::Service;
+    use tower::ServiceExt;
 
     #[test]
     fn loopback_detection() {
@@ -43,5 +49,37 @@ mod tests {
         assert!(is_loopback("::1".parse().unwrap()));
         assert!(!is_loopback("10.0.0.1".parse().unwrap()));
         assert!(!is_loopback("192.168.1.1".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn middleware_allows_loopback_connect_info() {
+        let app = Router::new()
+            .route("/", get(|| async { "ok" }))
+            .layer(axum::middleware::from_fn(localhost_only));
+
+        let mut svc = app.into_service();
+        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 8081))));
+
+        let resp = svc.ready().await.unwrap().call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn middleware_blocks_non_loopback_connect_info() {
+        let app = Router::new()
+            .route("/", get(|| async { "ok" }))
+            .layer(axum::middleware::from_fn(localhost_only));
+
+        let mut svc = app.into_service();
+        let mut req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        req.extensions_mut().insert(ConnectInfo(SocketAddr::from((
+            Ipv4Addr::new(10, 0, 0, 1),
+            8081,
+        ))));
+
+        let resp = svc.ready().await.unwrap().call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     }
 }

@@ -13,6 +13,7 @@
 #   AGENT_METER_VERSION   release tag to install (default: latest release)
 #   AGENT_METER_FROM_SOURCE=1   skip release download and always build from source
 #   AGENT_METER_SRC       source checkout dir (default: ~/.cache/agent-meter/src)
+#   AGENT_METER_WITH_PROXY=1    also install agent-meter-proxy after the collector
 
 set -euo pipefail
 
@@ -177,3 +178,13 @@ cat <<EOF
 
   Docs: https://github.com/${REPO}
 EOF
+
+if [ "${AGENT_METER_WITH_PROXY:-0}" = "1" ]; then
+  step "Installing agent-meter-proxy..."
+  curl -fsSL "https://raw.githubusercontent.com/${REPO}/main/install-proxy.sh" | \
+    env AGENT_METER_DIR="${INSTALL_DIR}" \
+        AGENT_METER_VERSION="${AGENT_METER_VERSION:-}" \
+        AGENT_METER_FROM_SOURCE="${AGENT_METER_FROM_SOURCE:-0}" \
+        AGENT_METER_SRC="${SRC_DIR}" \
+        bash
+fi
