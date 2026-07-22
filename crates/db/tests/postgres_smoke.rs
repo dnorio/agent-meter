@@ -169,3 +169,70 @@ async fn postgres_conversation_list_and_delete() {
         .expect("list after delete");
     assert!(!after.iter().any(|c| c.conversation_id == conv));
 }
+
+#[tokio::test]
+async fn postgres_reset_all_events() {
+    let Some(db) = postgres_db().await else {
+        return;
+    };
+
+    let conv = format!("pg-reset-{}", Uuid::new_v4());
+    db.insert_tool_call(&sample_event("write_file", &conv))
+        .await
+        .expect("insert first");
+    db.insert_tool_call(&sample_event("read_file", &conv))
+        .await
+        .expect("insert second");
+
+    let removed = db.reset_all_events().await.expect("reset all");
+    assert!(removed >= 2);
+
+    let rows = db
+        .query_events(&EventQuery {
+            conversation_id: Some(conv),
+            limit: 10,
+            offset: 0,
+            ..Default::default()
+        })
+        .await
+        .expect("query after reset");
+    assert!(rows.is_empty());
+}
+
+#[tokio::test]
+async fn postgres_reporting_agents_and_calls_over_time() {
+    let Some(db) = postgres_db().await else {
+        return;
+    };
+
+    let conv = format!("pg-report-{}", Uuid::new_v4());
+    db.insert_tool_call(&sample_event("edit_file", &conv))
+        .await
+        .expect("insert first");
+    db.insert_tool_call(&sample_event("edit_file", &conv))
+        .await
+        .expect("insert second");
+
+    let agents = db
+        .top_agents(&ReportQuery {
+            limit: Some(10),
+            ..Default::default()
+        })
+        .await
+        .expect("top agents");
+    assert!(agents
+        .iter()
+        .any(|a| a.agent == "postgres-smoke" && a.calls >= 2));
+
+    let buckets = db
+        .calls_over_time(
+            &ReportQuery {
+                limit: Some(10),
+                ..Default::default()
+            },
+            "day",
+        )
+        .await
+        .expect("calls over time");
+    assert!(buckets.iter().any(|b| b.calls >= 2));
+}

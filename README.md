@@ -95,6 +95,11 @@ troubleshooting.
 > - **Collector:** `agent-meter` (Linux, macOS, Windows)
 > - **HTTPS proxy:** `agent-meter-proxy` (same platforms)
 > - Install: `install.sh` / `install.ps1` · proxy: `install-proxy.sh` / `install-proxy.ps1`
+> - **Full stack** (collector + proxy): `install-full.sh` / `install-full.ps1`
+>   ```bash
+>   curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install-full.sh | bash
+>   ```
+>   Or: `AGENT_METER_WITH_PROXY=1 curl -fsSL …/install.sh | bash`
 > SDKs: `npm install @dnorio/agent-meter` · `pip install agentmeter-obs` (or `dnorio-agent-meter`)
 
 ---

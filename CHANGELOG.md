@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-07-21
+
+### Added
+
+- `install-full.sh` / `install-full.ps1` — one-liner for collector + HTTPS proxy.
+- `AGENT_METER_WITH_PROXY=1` on `install.sh` / `install.ps1` to chain proxy install.
+- Postgres smoke tests: `reset_all_events`, `top_agents`, `calls_over_time`.
+- Admin middleware integration tests (loopback allow / remote 403).
+- CI `install-scripts-check.sh` — `bash -n` on all installers.
+
 ## [0.1.8] - 2026-07-21
 
 ### Added

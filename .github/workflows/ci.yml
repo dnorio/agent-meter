@@ -28,6 +28,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: bash scripts/ci/check-versions.sh
+      - run: bash scripts/ci/install-scripts-check.sh
       - run: bash scripts/ci/smoke-demo.sh
       - run: bash scripts/ci/history-audit.sh
 
