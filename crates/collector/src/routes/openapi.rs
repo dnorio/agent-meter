@@ -181,6 +181,16 @@ fn build_spec() -> Value {
                 "get": {
                     "tags": ["query"],
                     "summary": "Embeddable cost badge (SVG)",
+                    "parameters": [{
+                        "name": "style",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["flat", "flat-square", "for-the-badge"],
+                            "default": "flat-square"
+                        }
+                    }],
                     "responses": { "200": { "description": "image/svg+xml" } }
                 }
             },
@@ -188,6 +198,16 @@ fn build_spec() -> Value {
                 "get": {
                     "tags": ["query"],
                     "summary": "Embeddable events badge (SVG)",
+                    "parameters": [{
+                        "name": "style",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["flat", "flat-square", "for-the-badge"],
+                            "default": "flat-square"
+                        }
+                    }],
                     "responses": { "200": { "description": "image/svg+xml" } }
                 }
             }
@@ -218,6 +238,14 @@ mod tests {
             "/health",
         ] {
             assert!(paths.contains_key(path), "missing path {path}");
+        }
+        for path in ["/badge/cost.svg", "/badge/events.svg"] {
+            let schema = &spec["paths"][path]["get"]["parameters"][0]["schema"];
+            assert_eq!(schema["default"], "flat-square");
+            assert_eq!(
+                schema["enum"],
+                serde_json::json!(["flat", "flat-square", "for-the-badge"])
+            );
         }
         assert_eq!(spec["openapi"], "3.1.0");
     }
