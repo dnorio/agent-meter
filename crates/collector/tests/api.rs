@@ -552,6 +552,49 @@ async fn test_embed_badges_svg() {
 }
 
 #[tokio::test]
+async fn test_embed_badge_styles() {
+    let (base_url, client) = setup().await;
+
+    for path in ["/badge/cost.svg", "/badge/events.svg"] {
+        let default_body = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        for style in ["flat", "flat-square", "for-the-badge"] {
+            let resp = client
+                .get(format!("{base_url}{path}?style={style}"))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), 200, "badge {path} with style {style}");
+            let body = resp.text().await.unwrap();
+
+            match style {
+                "flat" => assert!(body.contains(r#"id="s""#)),
+                "flat-square" => {
+                    assert!(!body.contains(r#"id="s""#));
+                    assert_eq!(body, default_body);
+                }
+                "for-the-badge" => assert!(body.contains(r#"height="28""#)),
+                _ => unreachable!(),
+            }
+        }
+
+        let resp = client
+            .get(format!("{base_url}{path}?style=unknown"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 400, "invalid badge style for {path}");
+    }
+}
+
+#[tokio::test]
 async fn test_api_key_auth_when_required() {
     use agent_meter_collector::services::auth;
 
