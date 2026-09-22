@@ -168,13 +168,13 @@ if ! command -v sonar-scanner >/dev/null 2>&1; then
   unzip -q /tmp/sonar.zip -d /opt
   ln -sf /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner
 fi
-curl -sS -u "${SONAR_TOKEN}:" -X POST \
+curl -sS -H "Authorization: Bearer ${SONAR_TOKEN}" -X POST \
   "${SONAR_HOST_URL}/api/projects/create?project=${SONAR_PROJECT_KEY}&name=agent-meter-oss" >/dev/null 2>&1 || true
+# Scanner reads SONAR_TOKEN from environment (no -Dsonar.token=).
 sonar-scanner \
   -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
   -Dsonar.projectName=agent-meter-oss \
   -Dsonar.host.url="${SONAR_HOST_URL}" \
-  -Dsonar.token="${SONAR_TOKEN}" \
   -Dsonar.sources=crates \
   -Dsonar.exclusions="**/target/**,**/ui/**/*.html,**/migrations/**" \
   -Dsonar.tests=crates \
