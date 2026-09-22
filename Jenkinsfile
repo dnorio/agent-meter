@@ -75,13 +75,24 @@ echo "HEAD=${CODEQL_SHA} TAG=${TAG_NAME:-none}"
       }
       steps {
         container('rust') {
+          // Inline status POST — never execute workspace scripts with github-pat
+          // (PR-controlled tree must not see GITHUB_TOKEN via scripts/ci/*).
           withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GITHUB_TOKEN')]) {
             sh '''#!/usr/bin/env bash
 set -euo pipefail
-export CODEQL_SHA="$(git rev-parse HEAD)"
-export GITHUB_TOKEN="${GITHUB_TOKEN}"
-export BUILD_URL="${BUILD_URL}"
-bash scripts/ci/github-status.sh pending "agent-meter CI running" "${BUILD_URL}" || true
+SHA="$(git rev-parse HEAD)"
+REPO="${GITHUB_REPOSITORY:-dnorio/agent-meter}"
+CONTEXT="${GITHUB_STATUS_CONTEXT:-jenkins/agent-meter}"
+DESC="agent-meter CI running"
+payload=$(printf '{"state":"pending","context":"%s","description":"%s","target_url":"%s"}' \
+  "$CONTEXT" "$DESC" "${BUILD_URL:-}")
+curl -sS -o /tmp/gh-status.json -w '%{http_code}' \
+  -X POST \
+  -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/${REPO}/statuses/${SHA}" \
+  -d "$payload" >/tmp/gh-status.code || true
+echo "[github-status] pending → ${CONTEXT} (${SHA:0:8}) HTTP $(cat /tmp/gh-status.code 2>/dev/null || echo ?)"
 '''
           }
         }
@@ -252,15 +263,27 @@ bash scripts/ci/release-publish.sh "${TAG_NAME}"
           return
         }
         def state = currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'
-        def desc = "Build #${env.BUILD_NUMBER} ${currentBuild.currentResult}"
-        withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GITHUB_TOKEN')]) {
-          sh """#!/usr/bin/env bash
+        def desc = "Build #${env.BUILD_NUMBER} ${currentBuild.currentResult}".take(140)
+        // withEnv + single-quoted sh: no Groovy interpolation of secrets into argv
+        withEnv(["STATUS_STATE=${state}", "STATUS_DESC=${desc}"]) {
+          withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+            sh '''#!/usr/bin/env bash
 set -euo pipefail
-export CODEQL_SHA="${env.CODEQL_SHA}"
-export GITHUB_TOKEN="\${GITHUB_TOKEN}"
-export BUILD_URL="${env.BUILD_URL}"
-bash scripts/ci/github-status.sh ${state} "${desc}" "${env.BUILD_URL}" || true
-"""
+SHA="${CODEQL_SHA:-$(git rev-parse HEAD 2>/dev/null || true)}"
+REPO="${GITHUB_REPOSITORY:-dnorio/agent-meter}"
+CONTEXT="${GITHUB_STATUS_CONTEXT:-jenkins/agent-meter}"
+DESC=$(printf '%s' "${STATUS_DESC}" | head -c 140 | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+payload=$(printf '{"state":"%s","context":"%s","description":"%s","target_url":"%s"}' \
+  "${STATUS_STATE}" "$CONTEXT" "$DESC" "${BUILD_URL:-}")
+code=$(curl -sS -o /tmp/gh-status.json -w '%{http_code}' \
+  -X POST \
+  -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/${REPO}/statuses/${SHA}" \
+  -d "$payload" || echo 000)
+echo "[github-status] ${STATUS_STATE} → ${CONTEXT} (${SHA:0:8}) HTTP ${code}"
+'''
+          }
         }
       }
     }
