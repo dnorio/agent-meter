@@ -40,7 +40,6 @@ spec:
     INSTALL_MINGW = '1'
     SONAR_HOST_URL = 'https://sonar.ssdnodes.dnor.io'
     SONAR_PROJECT_KEY = 'agent-meter-oss'
-    SONAR_TOKEN = credentials('sonar-token')
   }
 
   options {
@@ -150,7 +149,8 @@ echo "✓ release build"
         stage('SonarQube') {
           steps {
             container('rust') {
-              sh '''#!/usr/bin/env bash
+              withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                sh '''#!/usr/bin/env bash
 set -euo pipefail
 if [ -z "${SONAR_TOKEN:-}" ]; then
   echo "SONAR_TOKEN unset — skip"
@@ -161,7 +161,10 @@ apt-get update -qq
 apt-get install -y -qq --no-install-recommends openjdk-17-jre-headless ca-certificates unzip curl
 if ! command -v sonar-scanner >/dev/null 2>&1; then
   SONAR_VERSION="7.1.0.4889"
+  # Pin from binaries.sonarsource.com …linux-x64.zip.sha256
+  SONAR_SHA256="b4d2a001d65b489f9effe1ea8a78495db1b152f124d7f7b058aad8651c7e1484"
   curl -sSL "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_VERSION}-linux-x64.zip" -o /tmp/sonar.zip
+  echo "${SONAR_SHA256}  /tmp/sonar.zip" | sha256sum -c -
   unzip -q /tmp/sonar.zip -d /opt
   ln -sf /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner
 fi
@@ -180,6 +183,7 @@ sonar-scanner \
   -Dsonar.scm.revision="$(git rev-parse HEAD)"
 echo "✓ Sonar submitted → ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
 '''
+              }
             }
           }
         }
