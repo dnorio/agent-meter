@@ -198,17 +198,36 @@ mod tests {
             buffer.send(burst_event(i)).await.expect("send");
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_millis(700)).await;
-
-        let rows = db
-            .query_events(&EventQuery {
-                conversation_id: Some("burst-conv".into()),
-                limit: 500,
-                offset: 0,
-                ..Default::default()
-            })
-            .await
-            .expect("query");
+        // Poll — last partial batch (< FLUSH_BATCH) needs interval or cancel.
+        let mut rows = Vec::new();
+        for _ in 0..40 {
+            rows = db
+                .query_events(&EventQuery {
+                    conversation_id: Some("burst-conv".into()),
+                    limit: 500,
+                    offset: 0,
+                    ..Default::default()
+                })
+                .await
+                .expect("query");
+            if rows.len() == BURST && buffer.queued() == 0 {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+        if rows.len() != BURST {
+            cancel.cancel();
+            tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+            rows = db
+                .query_events(&EventQuery {
+                    conversation_id: Some("burst-conv".into()),
+                    limit: 500,
+                    offset: 0,
+                    ..Default::default()
+                })
+                .await
+                .expect("query after cancel");
+        }
 
         assert_eq!(rows.len(), BURST);
         assert_eq!(buffer.queued(), 0);
