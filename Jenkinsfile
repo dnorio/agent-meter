@@ -17,7 +17,7 @@ metadata:
 spec:
   containers:
   - name: rust
-    image: rust:1.88-bookworm
+    image: rust:1.97-bookworm
     command: ["sleep"]
     args: ["infinity"]
     tty: true

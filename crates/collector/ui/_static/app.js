@@ -64,9 +64,18 @@
   };
 
   // money formatter
+  // money formatter (no nested-quantifier regex — Sonar ReDoS hotspot)
   window.amMoney = function(n){
     if (n == null) return '$0';
-    if (n >= 1000) return '$' + n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (n >= 1000) {
+      const whole = Math.round(n).toString();
+      let out = '';
+      for (let i = whole.length; i > 0; i -= 3) {
+        const start = Math.max(0, i - 3);
+        out = whole.slice(start, i) + (out ? ',' + out : '');
+      }
+      return '$' + out;
+    }
     if (n >= 10) return '$' + n.toFixed(2);
     if (n >= 1) return '$' + n.toFixed(3);
     return '$' + n.toFixed(4);

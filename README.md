@@ -10,15 +10,16 @@ store events in SQLite by default, and inspect usage through the built-in dashbo
 
 [![CI](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml)
 [![Jenkins](https://img.shields.io/badge/Jenkins-agent--meter--oss-blue?logo=jenkins)](https://jenkins.ssdnodes.dnor.io/job/agent-meter-oss/)
-[![Quality Gate](https://sonar.ssdnodes.dnor.io/api/project_badges/measure?project=agent-meter-oss&metric=alert_status)](https://sonar.ssdnodes.dnor.io/dashboard?id=agent-meter-oss)
+[![Quality Gate](https://sonar.ssdnodes.dnor.io/api/project_badges/measure?project=agent-meter-oss&metric=alert_status&token=sqb_31023a6435d71a4c016b5dcd5bc3adafdb116427)](https://sonar.ssdnodes.dnor.io/dashboard?id=agent-meter-oss)
+[![Bugs](https://sonar.ssdnodes.dnor.io/api/project_badges/measure?project=agent-meter-oss&metric=bugs&token=sqb_31023a6435d71a4c016b5dcd5bc3adafdb116427)](https://sonar.ssdnodes.dnor.io/dashboard?id=agent-meter-oss)
+[![Coverage](https://img.shields.io/badge/coverage-gate-brightgreen.svg)](https://sonar.ssdnodes.dnor.io/dashboard?id=agent-meter-oss)
 [![Release](https://img.shields.io/github/v/release/dnorio/agent-meter?label=release)](https://github.com/dnorio/agent-meter/releases)
 [![npm](https://img.shields.io/npm/v/@dnorio/agent-meter?label=npm)](https://www.npmjs.com/package/@dnorio/agent-meter)
 [![PyPI](https://img.shields.io/pypi/v/agentmeter-obs?label=pypi)](https://pypi.org/project/agentmeter-obs/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)
+![Rust](https://img.shields.io/badge/rust-1.97%2B-orange.svg)
 ![OTLP](https://img.shields.io/badge/ingest-OTLP-blue.svg)
 ![SQLite](https://img.shields.io/badge/storage-SQLite-success.svg)
-![Coverage](https://img.shields.io/badge/coverage-gate-brightgreen.svg)
 
 <br/>
 
