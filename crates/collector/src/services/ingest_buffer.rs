@@ -49,6 +49,7 @@ impl IngestBuffer {
     }
 
     /// Send an event to the buffer. Returns Err if the channel is full or closed.
+    #[allow(clippy::result_large_err)] // mpsc::SendError owns ToolCallEvent by design
     pub async fn send(
         &self,
         event: ToolCallEvent,
