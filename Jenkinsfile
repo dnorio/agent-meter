@@ -70,13 +70,16 @@ echo "HEAD=${CODEQL_SHA} TAG=${TAG_NAME:-none}"
     }
 
     stage('GitHub status pending') {
+      // Credentials never share a pod with untrusted PR cargo (CodeQL).
+      // Status updates run on branch pushes only; GHA covers PR checks.
       when {
-        not { buildingTag() }
+        allOf {
+          not { buildingTag() }
+          not { changeRequest() }
+        }
       }
       steps {
         container('rust') {
-          // Inline status POST — never execute workspace scripts with github-pat
-          // (PR-controlled tree must not see GITHUB_TOKEN via scripts/ci/*).
           withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GITHUB_TOKEN')]) {
             sh '''#!/usr/bin/env bash
 set -euo pipefail
@@ -158,6 +161,10 @@ echo "✓ release build"
         }
 
         stage('SonarQube') {
+          // Sonar token only on trusted branch builds — never after PR cargo (CodeQL).
+          when {
+            not { changeRequest() }
+          }
           steps {
             container('rust') {
               withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
@@ -259,12 +266,12 @@ bash scripts/ci/release-publish.sh "${TAG_NAME}"
     }
     always {
       script {
-        if (env.TAG_NAME) {
+        // No github-pat after untrusted PR cargo (CodeQL). Branch builds only.
+        if (env.TAG_NAME || env.CHANGE_ID) {
           return
         }
         def state = currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'
         def desc = "Build #${env.BUILD_NUMBER} ${currentBuild.currentResult}".take(140)
-        // withEnv + single-quoted sh: no Groovy interpolation of secrets into argv
         withEnv(["STATUS_STATE=${state}", "STATUS_DESC=${desc}"]) {
           withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GITHUB_TOKEN')]) {
             sh '''#!/usr/bin/env bash
