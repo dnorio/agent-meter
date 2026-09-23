@@ -187,6 +187,52 @@ mod tests {
         assert!(matches!(err, Err(TrySendEventError::Full)));
     }
 
+    async fn wait_for_rows(
+        db: &Arc<dyn Database>,
+        conversation_id: &str,
+        expected: usize,
+        queued: impl Fn() -> usize,
+        cancel: &CancellationToken,
+    ) -> usize {
+        let mut n = 0;
+        for _ in 0..50 {
+            n = db
+                .query_events(&EventQuery {
+                    conversation_id: Some(conversation_id.into()),
+                    limit: 500,
+                    offset: 0,
+                    ..Default::default()
+                })
+                .await
+                .expect("query")
+                .len();
+            if n >= expected && queued() == 0 {
+                return n;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+        if n < expected {
+            cancel.cancel();
+            for _ in 0..30 {
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                n = db
+                    .query_events(&EventQuery {
+                        conversation_id: Some(conversation_id.into()),
+                        limit: 500,
+                        offset: 0,
+                        ..Default::default()
+                    })
+                    .await
+                    .expect("query after cancel")
+                    .len();
+                if n >= expected && queued() == 0 {
+                    break;
+                }
+            }
+        }
+        n
+    }
+
     #[tokio::test]
     async fn burst_ingest_flushes_all_events() {
         let db = test_db().await;
@@ -198,19 +244,8 @@ mod tests {
             buffer.send(burst_event(i)).await.expect("send");
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_millis(700)).await;
-
-        let rows = db
-            .query_events(&EventQuery {
-                conversation_id: Some("burst-conv".into()),
-                limit: 500,
-                offset: 0,
-                ..Default::default()
-            })
-            .await
-            .expect("query");
-
-        assert_eq!(rows.len(), BURST);
+        let n = wait_for_rows(&db, "burst-conv", BURST, || buffer.queued(), &cancel).await;
+        assert_eq!(n, BURST);
         assert_eq!(buffer.queued(), 0);
     }
 
@@ -225,18 +260,7 @@ mod tests {
         }
 
         cancel.cancel();
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-
-        let rows = db
-            .query_events(&EventQuery {
-                conversation_id: Some("burst-conv".into()),
-                limit: 50,
-                offset: 0,
-                ..Default::default()
-            })
-            .await
-            .expect("query");
-
-        assert_eq!(rows.len(), 10);
+        let n = wait_for_rows(&db, "burst-conv", 10, || buffer.queued(), &cancel).await;
+        assert_eq!(n, 10);
     }
 }

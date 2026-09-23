@@ -17,7 +17,7 @@ metadata:
 spec:
   containers:
   - name: rust
-    image: rust:1.88-bookworm
+    image: rust:1.97-bookworm
     command: ["sleep"]
     args: ["infinity"]
     tty: true
@@ -140,6 +140,7 @@ echo "✓ clippy"
             container('rust') {
               sh '''#!/usr/bin/env bash
 set -euo pipefail
+export RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}"
 cargo test -p agent-meter-collector -p agent-meter-db
 echo "✓ tests"
 '''
