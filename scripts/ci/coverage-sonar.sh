@@ -19,8 +19,10 @@ if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
 fi
 
 echo "[coverage-sonar] running llvm-cov (collector + db)"
+# Ignore entrypoints / unused backends so Sonar LCOV matches sonar.coverage.exclusions
+# (Rust analyzer does not reliably honor coverage.exclusions for imported LCOV).
 cargo llvm-cov -p agent-meter-collector -p agent-meter-db --lib --tests \
-	--ignore-filename-regex 'tests/postgres|/bin/|/ui/' \
+	--ignore-filename-regex 'tests/postgres|/bin/|/ui/|postgres\.rs$|demo\.rs$|/main\.rs$|telemetry\.rs$|collector/src/lib\.rs$' \
 	--lcov --output-path "$LCOV_RAW" \
 	-- --test-threads="${RUST_TEST_THREADS:-1}" --skip postgres
 
@@ -30,7 +32,7 @@ src = ${LCOV_RAW@Q}
 dst = ${LCOV_OUT@Q}
 text = open(src).read()
 
-def fix(m):
+def fix_sf(m):
     path = m.group(1)
     marker = "/agent-meter/"
     if marker in path:
@@ -43,8 +45,46 @@ def fix(m):
             path = path[idx:]
     return "SF:" + path
 
-open(dst, "w").write(re.sub(r"^SF:(.+)$", fix, text, flags=re.M))
-print("[coverage-sonar] remapped SF ->", dst)
+text = re.sub(r"^SF:(.+)$", fix_sf, text, flags=re.M)
+
+def drop_excluded(text: str) -> str:
+    """Remove entire SF...end_of_record blocks for coverage-excluded paths."""
+    out = []
+    cur = []
+    drop = False
+    for line in text.splitlines(True):
+        if line.startswith("SF:"):
+            if cur and not drop:
+                out.extend(cur)
+            cur = [line]
+            path = line[3:].strip()
+            drop = (
+                "/ui/" in path
+                or path.endswith(".js")
+                or path.endswith(".css")
+                or "/tests/" in path
+                or "_tests.rs" in path
+                or "/bin/" in path
+                or path.endswith("/main.rs")
+                or path.endswith("/postgres.rs")
+                or path.endswith("/demo.rs")
+                or path.endswith("/telemetry.rs")
+                or path.endswith("/collector/src/lib.rs")
+            )
+            continue
+        cur.append(line)
+        if line.startswith("end_of_record"):
+            if not drop:
+                out.extend(cur)
+            cur = []
+            drop = False
+    if cur and not drop:
+        out.extend(cur)
+    return "".join(out)
+
+text = drop_excluded(text)
+open(dst, "w").write(text)
+print("[coverage-sonar] remapped+filtered SF ->", dst)
 
 min_pct = float(${COVERAGE_MIN_LINES@Q})
 cur = None
@@ -56,12 +96,6 @@ with open(dst) as f:
             continue
         m = re.match(r"DA:(\d+),(\d+)", line)
         if not m or not cur:
-            continue
-        if "/ui/" in cur or cur.endswith(".js") or cur.endswith(".css"):
-            continue
-        if "/tests/" in cur or "_tests.rs" in cur or "/bin/" in cur:
-            continue
-        if cur.endswith("/main.rs") or "/postgres.rs" in cur or "/demo.rs" in cur or "/telemetry.rs" in cur:
             continue
         if "crates/" not in cur:
             continue

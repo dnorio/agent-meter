@@ -1694,3 +1694,7 @@ fn classify_copilot_http_span_proto(span: &Span) -> (String, bool) {
 }
 
 include!("proto.rs");
+
+#[cfg(test)]
+#[path = "otlp_tests.rs"]
+mod tests;

@@ -7,14 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Sonar coverage exclusions: binary/`demo`/`telemetry`/`postgres`/`collector/src/lib.rs` (SQLite-default OSS); LCOV strips the same paths (Sonar Rust ignores `coverage.exclusions` on import).
+- OTLP unit suite ported from SaaS (`otlp_tests.rs`) — SQLite ingest buffer, no Postgres.
+
 ### Security
 
 - API key at-rest hashing: **Argon2id** (replaces SHA-256) — clears CodeQL `rust/weak-sensitive-data-hashing`.
 - `keys create` writes the one-time secret to `--out PATH` (mode 0600) instead of printing it — clears CodeQL `rust/cleartext-logging`.
-
-### Changed
-
-- Sonar coverage exclusions: binary/`demo`/`telemetry`/`postgres` (SQLite-default OSS) so reported coverage tracks exercised collector+db code.
 
 ## [0.1.9] - 2026-07-21
 
