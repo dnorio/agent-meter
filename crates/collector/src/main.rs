@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::sync::Arc;
 
-use agent_meter_collector::services::auth;
 use agent_meter_collector::{config, db, keys, run};
 use agent_meter_db::{Database, PostgresDb, SqliteDb};
 
