@@ -161,6 +161,25 @@ echo "✓ release build"
           }
         }
 
+        stage('Coverage') {
+          // LCOV for Sonar — trusted branches only (heavy llvm-cov).
+          when {
+            not { changeRequest() }
+          }
+          steps {
+            container('rust') {
+              sh '''#!/usr/bin/env bash
+set -euo pipefail
+chmod +x scripts/ci/coverage-sonar.sh
+export RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}"
+export COVERAGE_MIN_LINES="${COVERAGE_MIN_LINES:-0}"
+bash scripts/ci/coverage-sonar.sh
+echo "✓ coverage LCOV"
+'''
+            }
+          }
+        }
+
         stage('SonarQube') {
           // Sonar token only on trusted branch builds — never after PR cargo (CodeQL).
           when {
@@ -177,7 +196,7 @@ if [ -z "${SONAR_TOKEN:-}" ]; then
 fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends openjdk-17-jre-headless ca-certificates unzip curl
+apt-get install -y -qq --no-install-recommends openjdk-17-jre-headless ca-certificates unzip curl python3
 if ! command -v sonar-scanner >/dev/null 2>&1; then
   SONAR_VERSION="7.1.0.4889"
   # Pin from binaries.sonarsource.com …linux-x64.zip.sha256
@@ -189,17 +208,27 @@ if ! command -v sonar-scanner >/dev/null 2>&1; then
 fi
 curl -sS -H "Authorization: Bearer ${SONAR_TOKEN}" -X POST \
   "${SONAR_HOST_URL}/api/projects/create?project=${SONAR_PROJECT_KEY}&name=agent-meter-oss" >/dev/null 2>&1 || true
-# Scanner reads SONAR_TOKEN from environment (no -Dsonar.token=).
-sonar-scanner \
-  -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
-  -Dsonar.projectName=agent-meter-oss \
-  -Dsonar.host.url="${SONAR_HOST_URL}" \
-  -Dsonar.sources=crates \
-  -Dsonar.exclusions="**/target/**,**/ui/**/*.html,**/migrations/**" \
-  -Dsonar.tests=crates \
-  -Dsonar.test.inclusions="**/*_test.rs,**/tests/**" \
-  -Dsonar.sourceEncoding=UTF-8 \
+# Bind Sonar way QG (idempotent)
+curl -sS -H "Authorization: Bearer ${SONAR_TOKEN}" -X POST \
+  "${SONAR_HOST_URL}/api/qualitygates/select?projectKey=${SONAR_PROJECT_KEY}&gateName=Sonar%20way" \
+  >/dev/null 2>&1 || true
+ARGS=(
+  -Dsonar.projectKey="${SONAR_PROJECT_KEY}"
+  -Dsonar.projectName=agent-meter-oss
+  -Dsonar.host.url="${SONAR_HOST_URL}"
+  -Dsonar.sources=crates
+  -Dsonar.exclusions="**/target/**,**/ui/**/*.html,**/migrations/**"
+  -Dsonar.coverage.exclusions="**/ui/**,**/*.js,**/*.css"
+  -Dsonar.tests=crates
+  -Dsonar.test.inclusions="**/*_test.rs,**/tests/**"
+  -Dsonar.sourceEncoding=UTF-8
   -Dsonar.scm.revision="$(git rev-parse HEAD)"
+)
+if [[ -f target/coverage/lcov.info ]]; then
+  ARGS+=(-Dsonar.rust.lcov.reportPaths=target/coverage/lcov.info)
+fi
+# Scanner reads SONAR_TOKEN from environment (no -Dsonar.token=).
+sonar-scanner "${ARGS[@]}"
 echo "✓ Sonar submitted → ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
 '''
               }
