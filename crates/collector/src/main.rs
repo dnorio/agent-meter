@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::sync::Arc;
 
+use agent_meter_collector::services::auth;
 use agent_meter_collector::{config, db, keys, run};
 use agent_meter_db::{Database, PostgresDb, SqliteDb};
 
@@ -69,7 +70,7 @@ enum Command {
 
 #[derive(Subcommand)]
 enum KeysAction {
-    /// Create a new API key (secret shown once)
+    /// Create a new API key (secret written to a file once — never logged)
     Create {
         /// Key label
         #[arg(long, default_value = "default")]
@@ -77,6 +78,9 @@ enum KeysAction {
         /// Organization slug
         #[arg(long, default_value = "personal")]
         org: String,
+        /// Write the one-time secret to this path (mode 0600). Required.
+        #[arg(long)]
+        out: std::path::PathBuf,
     },
     /// List API keys for an organization (prefixes only)
     List {
@@ -153,14 +157,17 @@ async fn main() -> anyhow::Result<()> {
         Command::Keys { action } => {
             let db = connect_db(&cfg.database_url).await?;
             match action {
-                KeysAction::Create { name, org } => {
+                KeysAction::Create { name, org, out } => {
                     let secret = keys::create_key(&db, &org, &name).await?;
+                    let prefix = auth::key_prefix(&secret).unwrap_or("am_live_????");
+                    write_secret_file(&out, &secret)?;
                     println!("✓ API key created for org '{org}' (name: {name})");
-                    println!();
-                    println!("  {secret}");
-                    println!();
-                    println!("Store this secret now — it won't be shown again.");
-                    println!("Use: export AGENT_METER_API_KEY='{secret}'");
+                    println!("  prefix: {prefix}");
+                    println!(
+                        "  secret written to {} (mode 0600) — copy then delete the file.",
+                        out.display()
+                    );
+                    println!("Use: export AGENT_METER_API_KEY=$(cat {})", out.display());
                     Ok(())
                 }
                 KeysAction::List { org } => keys::list_keys(&db, &org).await,
@@ -176,4 +183,28 @@ fn mask_url(url: &str) -> String {
         }
     }
     url.to_string()
+}
+
+/// Persist a freshly minted API key secret to disk (0600). Avoids cleartext logging.
+fn write_secret_file(path: &std::path::Path, secret: &str) -> anyhow::Result<()> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)?;
+        f.write_all(secret.as_bytes())?;
+        f.write_all(b"\n")?;
+    }
+    #[cfg(not(unix))]
+    {
+        let mut f = OpenOptions::new().write(true).create_new(true).open(path)?;
+        f.write_all(secret.as_bytes())?;
+        f.write_all(b"\n")?;
+    }
+    Ok(())
 }

@@ -49,7 +49,8 @@ shared hosts, prefer the secure profile:
 
 ```bash
 docker compose -f docker-compose.secure.yml up -d --build
-docker exec agent-meter agent-meter keys create --name my-client
+docker exec agent-meter agent-meter keys create --name my-client --out /tmp/am-key.txt
+docker exec agent-meter cat /tmp/am-key.txt
 ```
 
 Set `AGENT_METER_REQUIRE_API_KEY=1` (enabled in the secure compose file) and pass

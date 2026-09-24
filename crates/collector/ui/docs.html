@@ -644,7 +644,9 @@ am.finish(span2);</code></pre>
 
           <h3>API keys</h3>
           <p>Create keys with the CLI, then optionally require them on ingest.</p>
-          <pre><code>agent-meter keys create --name my-sdk
+          <pre><code>agent-meter keys create --name my-sdk --out ./am-key.txt
+export AGENT_METER_API_KEY="$(cat ./am-key.txt)"
+rm -f ./am-key.txt
 agent-meter keys list
 
 export AGENT_METER_REQUIRE_API_KEY=1

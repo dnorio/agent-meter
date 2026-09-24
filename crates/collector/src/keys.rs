@@ -78,7 +78,7 @@ mod tests {
         let prefix = auth::key_prefix(&secret).unwrap();
         let meta = db.find_key_by_prefix(prefix).await.expect("lookup");
         assert!(meta.is_some());
-        assert_eq!(meta.unwrap().key_hash, auth::hash_key(&secret));
+        assert!(auth::verify_key(&secret, &meta.unwrap().key_hash));
 
         let _ = std::fs::remove_file(path);
     }
