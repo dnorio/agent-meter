@@ -30,7 +30,26 @@ async fn make_db() -> Arc<dyn Database> {
 }
 
 async fn wait_ingest_flush() {
-    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    // FLUSH_INTERVAL_MS=500; leave margin under CI load.
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+}
+
+async fn wait_until_event_count(base_url: &str, client: &Client, min: usize) {
+    for _ in 0..50 {
+        let events: serde_json::Value = client
+            .get(format!("{base_url}/reports/events?limit=50"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        if events.as_array().map(|a| a.len()).unwrap_or(0) >= min {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    panic!("ingest did not flush {min} events in time");
 }
 
 async fn setup() -> (String, Client) {
@@ -337,7 +356,7 @@ async fn seed_filter_fixtures(base_url: &str, client: &Client) {
         assert_eq!(resp.status(), 200);
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    wait_until_event_count(base_url, client, fixtures.len()).await;
 }
 
 #[tokio::test]
