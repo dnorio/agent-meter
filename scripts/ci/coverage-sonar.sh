@@ -61,6 +61,8 @@ with open(dst) as f:
             continue
         if "/tests/" in cur or "_tests.rs" in cur or "/bin/" in cur:
             continue
+        if cur.endswith("/main.rs") or "/postgres.rs" in cur or "/demo.rs" in cur or "/telemetry.rs" in cur:
+            continue
         if "crates/" not in cur:
             continue
         cnt = int(m.group(2))

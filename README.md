@@ -245,8 +245,10 @@ ingest (`AGENT_METER_REQUIRE_API_KEY=1`).
 ### API keys (SDK ingest)
 
 ```bash
-# Create a key (secret shown once)
-agent-meter keys create --name my-sdk
+# Create a key — secret goes to a 0600 file (never logged)
+agent-meter keys create --name my-sdk --out ./am-key.txt
+export AGENT_METER_API_KEY="$(cat ./am-key.txt)"
+rm -f ./am-key.txt
 
 # List key prefixes
 agent-meter keys list

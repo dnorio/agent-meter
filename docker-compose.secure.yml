@@ -1,8 +1,8 @@
 # docker-compose.secure.yml — standalone with API key auth enabled
 #
 #   docker compose -f docker-compose.secure.yml up -d --build
-#   docker exec agent-meter agent-meter keys create --name docker-smoke
-#   export AGENT_METER_API_KEY=<secret>
+#   docker exec agent-meter agent-meter keys create --name docker-smoke --out /tmp/am-key.txt
+#   export AGENT_METER_API_KEY=$(docker exec agent-meter cat /tmp/am-key.txt)
 #
 # Ingest (REST/OTLP) requires Bearer token. Admin reset/delete remain
 # localhost-only inside the container network.

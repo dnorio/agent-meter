@@ -1,6 +1,10 @@
 //! API key validation for ingest endpoints (optional via `AGENT_METER_REQUIRE_API_KEY`).
 
 use agent_meter_db::Database;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use axum::http::HeaderMap;
 use uuid::Uuid;
 
@@ -15,9 +19,23 @@ pub fn extract_bearer(headers: &HeaderMap) -> Option<String> {
         .filter(|t| !t.is_empty())
 }
 
+/// Hash an API key for at-rest storage (Argon2id — not a fast checksum).
 pub fn hash_key(token: &str) -> String {
-    use sha2::{Digest, Sha256};
-    hex::encode(Sha256::digest(token.as_bytes()))
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(token.as_bytes(), &salt)
+        .expect("argon2 hash")
+        .to_string()
+}
+
+/// Verify a presented token against a stored Argon2 PHC string.
+pub fn verify_key(token: &str, stored_hash: &str) -> bool {
+    let Ok(parsed) = PasswordHash::new(stored_hash) else {
+        return false;
+    };
+    Argon2::default()
+        .verify_password(token.as_bytes(), &parsed)
+        .is_ok()
 }
 
 pub fn key_prefix(token: &str) -> Option<&str> {
@@ -46,7 +64,7 @@ pub async fn authorize_ingest(
         .await
         .map_err(AppError::from)?;
     let meta = meta.ok_or_else(|| AppError::Unauthorized("invalid api key".into()))?;
-    if meta.key_hash != hash_key(&token) {
+    if !verify_key(&token, &meta.key_hash) {
         return Err(AppError::Unauthorized("invalid api key".into()));
     }
     Ok(Some(meta.org_id))
@@ -57,11 +75,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hash_is_stable() {
-        assert_eq!(
-            hash_key("am_live_testsecret"),
-            hash_key("am_live_testsecret")
-        );
+    fn hash_roundtrip_verifies() {
+        let secret = "am_live_testsecret";
+        let hashed = hash_key(secret);
+        assert!(hashed.starts_with("$argon2"));
+        assert!(verify_key(secret, &hashed));
+        assert!(!verify_key("am_live_wrong", &hashed));
     }
 
     #[test]
