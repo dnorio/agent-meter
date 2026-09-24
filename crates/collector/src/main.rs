@@ -159,15 +159,19 @@ async fn main() -> anyhow::Result<()> {
             match action {
                 KeysAction::Create { name, org, out } => {
                     let secret = keys::create_key(&db, &org, &name).await?;
-                    let prefix = auth::key_prefix(&secret).unwrap_or("am_live_????");
                     write_secret_file(&out, &secret)?;
+                    // Do not print prefix/secret — both are sensitive (CodeQL cleartext-logging).
+                    // Prefix is visible later via `keys list`.
                     println!("✓ API key created for org '{org}' (name: {name})");
-                    println!("  prefix: {prefix}");
                     println!(
                         "  secret written to {} (mode 0600) — copy then delete the file.",
                         out.display()
                     );
-                    println!("Use: export AGENT_METER_API_KEY=$(cat {})", out.display());
+                    println!("  list prefixes: agent-meter keys list --org {org}");
+                    println!(
+                        "  load: export AGENT_METER_API_KEY=\"$(cat {})\"",
+                        out.display()
+                    );
                     Ok(())
                 }
                 KeysAction::List { org } => keys::list_keys(&db, &org).await,
