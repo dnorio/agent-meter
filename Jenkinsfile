@@ -161,6 +161,20 @@ echo "✓ release build"
           }
         }
 
+        stage('Capture e2e') {
+          // Replay OTLP fixtures against the binary — IDE GUIs stay off-cluster.
+          steps {
+            container('rust') {
+              sh '''#!/usr/bin/env bash
+set -euo pipefail
+chmod +x scripts/ci/capture-e2e.sh
+bash scripts/ci/capture-e2e.sh
+echo "✓ capture e2e"
+'''
+            }
+          }
+        }
+
         stage('Coverage') {
           // LCOV for Sonar — trusted branches only (heavy llvm-cov).
           when {

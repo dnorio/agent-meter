@@ -11,10 +11,12 @@
 /// Ferramentas cobertas (por prioridade de produto):
 ///   1. VS Code Copilot        (execute_tool + chat)
 ///   2. Cursor                 (execute_tool + chat; service.name=cursor)
-///   3. Antigravity            (proto — testado no api.rs com mcp-wrapper)
+///   3. Antigravity            (execute_tool + chat; service.name=antigravity)
 ///   4. Claude Code            (execute_tool + chat; service.name=claude)
 ///   5. Codex CLI              (execute_tool; service.name=codex)
 ///   6. MCP OTel semconv       (tools/call <tool>; novo padrão)
+///
+/// CI also runs binary HTTP replay: `scripts/ci/capture-e2e.sh` (see docs/capture-e2e.md).
 use agent_meter_collector::{app, config::Config};
 use agent_meter_db::{Database, SqliteDb};
 use reqwest::Client;
@@ -95,6 +97,7 @@ fn infer_ua_from_fixture(fixture: &str) -> &'static str {
         f if f.starts_with("vscode") => "vscode/1.100.0 (darwin arm64)",
         f if f.starts_with("cursor") => "cursor/0.48.0 (darwin arm64)",
         f if f.starts_with("eclipse") => "eclipse/2026-03 jdt-language-server",
+        f if f.starts_with("antigravity") => "antigravity/1.0.0 (linux arm64)",
         f if f.starts_with("claude") => "claude-code/1.0.0 (linux arm64)",
         f if f.starts_with("codex") => "codex/0.1.0 (linux amd64)",
         f if f.starts_with("mcp") => "my-agent/1.0.0",
@@ -172,6 +175,24 @@ async fn test_otlp_cursor_execute_tool_and_chat() {
     let chat_event = events.iter().find(|e| e["tool_name"] == "llm_chat");
     assert!(tool_event.is_some(), "should have a tool event");
     assert!(chat_event.is_some(), "should have a chat/llm_chat event");
+    assert_eq!(tool_event.unwrap()["tool_name"], "read_file");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Antigravity
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_otlp_antigravity_execute_tool_and_chat() {
+    let (base_url, client) = setup().await;
+    let events = post_otlp(&base_url, &client, "antigravity_execute_tool.json").await;
+    assert_eq!(
+        events.len(),
+        2,
+        "antigravity fixture should produce 2 events (tool + chat)"
+    );
+    let tool_event = events.iter().find(|e| e["tool_name"] != "llm_chat");
+    assert!(tool_event.is_some());
     assert_eq!(tool_event.unwrap()["tool_name"], "read_file");
 }
 
