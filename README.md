@@ -134,6 +134,7 @@ agent-meter accepts telemetry three ways:
 | **HTTPS proxy** | Cursor, Eclipse, Claude Code, Codex CLI | mitmproxy addons in [`eclipse-proxy/`](eclipse-proxy/) |
 
 See [docs/capture-setup.md](docs/capture-setup.md) for proxy and IDE-specific setup.
+Capture CI contracts (fixture replay, no GUI IDEs): [docs/capture-e2e.md](docs/capture-e2e.md).
 
 ### Example — REST ingest
 

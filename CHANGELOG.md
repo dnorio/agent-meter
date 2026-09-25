@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Sonar: exclude full `**/ui/**` from analysis (static JS smells); strip `collector/src/db.rs` (Postgres connect) from LCOV.
-- Coverage push: API routes (search/health/timeline/reports extras), `AppError` IntoResponse, keys list, sqlite report helpers, config file load.
+- Capture e2e harness: `scripts/ci/capture-e2e.sh` + `fixtures/manifest.json` (VS Code, Eclipse, Cursor, Antigravity, Claude, Codex, MCP) — Jenkins/GHA gate without GUI IDEs. See `docs/capture-e2e.md`.
 
 ### Security
 
