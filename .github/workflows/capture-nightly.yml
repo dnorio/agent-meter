@@ -1,0 +1,34 @@
+name: Capture nightly
+
+# Full capture contract suite on a schedule — catches IDE harness drift overnight.
+on:
+  schedule:
+    - cron: "17 6 * * *" # 06:17 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: capture-nightly
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  capture-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: workspace
+          cache-on-failure: true
+
+      - name: Capture e2e (fixture contracts)
+        run: bash scripts/ci/capture-e2e.sh
+
+      - name: Capture proxy e2e (+ proxy/mcp unit)
+        run: bash scripts/ci/capture-proxy-e2e.sh
+
+      - name: OTLP regression suite
+        run: cargo test -p agent-meter-collector --test otlp_regression -- --test-threads=1

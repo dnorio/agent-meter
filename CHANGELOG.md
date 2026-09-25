@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Capture e2e harness: `scripts/ci/capture-e2e.sh` + `fixtures/manifest.json` (VS Code, Eclipse, Cursor, Antigravity, Claude, Codex, MCP) — Jenkins/GHA gate without GUI IDEs. See `docs/capture-e2e.md`.
+- Capture e2e hardened: strict manifest (conversation_id/model/orphan guard), proxy-shaped OTLP path + proxy/mcp tests, `capture-record.sh`, nightly GHA workflow.
 
 ### Security
 
