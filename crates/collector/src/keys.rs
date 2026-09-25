@@ -80,6 +80,23 @@ mod tests {
         assert!(meta.is_some());
         assert!(auth::verify_key(&secret, &meta.unwrap().key_hash));
 
+        list_keys(&db, "personal").await.expect("list with keys");
+        list_keys(&db, "personal").await.expect("list again");
+
+        let empty_org_path =
+            std::env::temp_dir().join(format!("am-keys-empty-{}.db", Uuid::new_v4()));
+        let empty_url = format!("sqlite://{}", empty_org_path.display());
+        let empty_sqlite = SqliteDb::connect(&empty_url).await.expect("connect empty");
+        empty_sqlite.migrate().await.expect("migrate empty");
+        let empty_db: Arc<dyn Database> = Arc::new(empty_sqlite);
+        list_keys(&empty_db, "personal")
+            .await
+            .expect("list empty org keys");
+
+        let missing = create_key(&db, "no-such-org", "x").await;
+        assert!(missing.is_err());
+
         let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(empty_org_path);
     }
 }

@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Sonar coverage exclusions: binary/`demo`/`telemetry`/`postgres`/`collector/src/lib.rs` (SQLite-default OSS); LCOV strips the same paths (Sonar Rust ignores `coverage.exclusions` on import).
-- OTLP unit suite ported from SaaS (`otlp_tests.rs`) — SQLite ingest buffer, no Postgres.
+- Sonar: exclude full `**/ui/**` from analysis (static JS smells); strip `collector/src/db.rs` (Postgres connect) from LCOV.
+- Coverage push: API routes (search/health/timeline/reports extras), `AppError` IntoResponse, keys list, sqlite report helpers, config file load.
 
 ### Security
 

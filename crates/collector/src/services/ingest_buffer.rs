@@ -263,4 +263,32 @@ mod tests {
         let n = wait_for_rows(&db, "burst-conv", 10, || buffer.queued(), &cancel).await;
         assert_eq!(n, 10);
     }
+
+    #[test]
+    fn try_send_error_display() {
+        assert_eq!(TrySendEventError::Full.to_string(), "channel full");
+        assert_eq!(TrySendEventError::Closed.to_string(), "channel closed");
+    }
+
+    #[tokio::test]
+    async fn try_send_after_cancel_is_closed() {
+        let db = test_db().await;
+        let cancel = CancellationToken::new();
+        let buffer = IngestBuffer::spawn(db, 8, cancel.clone());
+        cancel.cancel();
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        // Drop remaining capacity then expect Closed once worker exits
+        for i in 0..20 {
+            let _ = buffer.try_send(burst_event(i));
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+        let err = buffer.try_send(burst_event(99));
+        assert!(
+            matches!(
+                err,
+                Err(TrySendEventError::Closed | TrySendEventError::Full)
+            ),
+            "got {err:?}"
+        );
+    }
 }

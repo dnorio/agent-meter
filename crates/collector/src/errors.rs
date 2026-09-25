@@ -84,3 +84,83 @@ impl IntoResponse for AppError {
         (status, Json(body)).into_response()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+    use axum::http::StatusCode;
+
+    async fn status_of(err: AppError) -> (StatusCode, serde_json::Value) {
+        let resp = err.into_response();
+        let status = resp.status();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.expect("body");
+        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        (status, json)
+    }
+
+    #[tokio::test]
+    async fn into_response_maps_variants() {
+        let cases: Vec<(AppError, StatusCode, &str)> = vec![
+            (
+                AppError::Db(agent_meter_db::DbError::NotFound),
+                StatusCode::NOT_FOUND,
+                "Not found",
+            ),
+            (
+                AppError::Db(agent_meter_db::DbError::Conflict("dup".into())),
+                StatusCode::CONFLICT,
+                "dup",
+            ),
+            (
+                AppError::Db(agent_meter_db::DbError::Internal("boom".into())),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error",
+            ),
+            (
+                AppError::Validation("bad".into()),
+                StatusCode::BAD_REQUEST,
+                "bad",
+            ),
+            (
+                AppError::Unauthorized("nope".into()),
+                StatusCode::UNAUTHORIZED,
+                "nope",
+            ),
+            (
+                AppError::NotFound("gone".into()),
+                StatusCode::NOT_FOUND,
+                "gone",
+            ),
+            (
+                AppError::Internal("x".into()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error",
+            ),
+            (
+                AppError::TooManyRequests,
+                StatusCode::TOO_MANY_REQUESTS,
+                "Rate limit exceeded",
+            ),
+            (
+                AppError::ServiceUnavailable,
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Ingest buffer full",
+            ),
+        ];
+        for (err, want_status, want_msg) in cases {
+            let (status, body) = status_of(err).await;
+            assert_eq!(status, want_status);
+            assert_eq!(body["error"], want_msg);
+            assert_eq!(body["code"], want_status.as_u16());
+        }
+    }
+
+    #[tokio::test]
+    async fn retry_after_on_throttle_errors() {
+        for err in [AppError::TooManyRequests, AppError::ServiceUnavailable] {
+            let resp = err.into_response();
+            assert_eq!(resp.headers().get(header::RETRY_AFTER).unwrap(), "5");
+        }
+    }
+}
