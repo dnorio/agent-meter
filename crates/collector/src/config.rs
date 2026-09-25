@@ -100,3 +100,57 @@ impl Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn from_file_and_env_reads_toml() {
+        let path = std::env::temp_dir().join(format!(
+            "am-config-{}.toml",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[server]
+host = "0.0.0.0"
+port = 9090
+otlp_port = 4319
+require_api_key = true
+
+[database]
+url = "sqlite://from-file.db"
+
+[telemetry]
+log_level = "debug"
+service_name = "am-test"
+"#
+        )
+        .unwrap();
+        let cfg = Config::from_file_and_env(path.to_str().unwrap()).expect("load");
+        // Env overrides file — only assert file wins when env unset.
+        if std::env::var_os("AGENT_METER_PORT").is_none() {
+            assert_eq!(cfg.port, 9090);
+        }
+        if std::env::var_os("DATABASE_URL").is_none() {
+            assert_eq!(cfg.database_url, "sqlite://from-file.db");
+        }
+        if std::env::var_os("AGENT_METER_REQUIRE_API_KEY").is_none() {
+            assert!(cfg.require_api_key);
+        }
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn from_file_missing_errors() {
+        let err = Config::from_file_and_env("/no/such/am-config.toml");
+        assert!(err.is_err());
+    }
+}

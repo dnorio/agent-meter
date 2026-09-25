@@ -723,3 +723,197 @@ async fn test_openapi_and_version() {
     assert_eq!(version_body["openapi"], "/openapi.json");
     assert_eq!(version_body["docs"], "/docs");
 }
+
+#[tokio::test]
+async fn test_health_ready_and_otlp_status() {
+    let (base_url, client) = setup().await;
+
+    let ready: serde_json::Value = client
+        .get(format!("{}/health/ready", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(ready["status"], "ok");
+    assert_eq!(ready["checks"]["database"], true);
+    assert!(
+        ready["checks"]["ingest_buffer"]["capacity"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+
+    let otlp: serde_json::Value = client
+        .get(format!("{}/api/status/otlp", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(otlp["status"], "ok");
+    assert!(otlp["capacity"].as_u64().unwrap() > 0);
+    assert_eq!(otlp["pct_used"], 0);
+}
+
+#[tokio::test]
+async fn test_search_and_static_meta_routes() {
+    let (base_url, client) = setup().await;
+
+    let event = json!({
+        "tool_name": "search_me_tool",
+        "conversation_id": "conv-search-1",
+        "started_at": "2026-05-17T00:00:00Z",
+        "ended_at": "2026-05-17T00:00:01Z",
+        "ok": true,
+        "user_prompt": "uniquesearchtokenxyz coverage"
+    });
+    assert_eq!(
+        client
+            .post(format!("{}/events/tool-call", base_url))
+            .json(&event)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    wait_until_event_count(&base_url, &client, 1).await;
+
+    let empty: serde_json::Value = client
+        .get(format!("{}/api/search?q=a", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(empty.as_array().unwrap().is_empty());
+
+    let hits: serde_json::Value = client
+        .get(format!(
+            "{}/api/search?q=uniquesearchtokenxyz&limit=100",
+            base_url
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        !hits.as_array().unwrap().is_empty(),
+        "expected search hit for unique prompt"
+    );
+
+    for (path, needle) in [
+        ("/robots.txt", "User-agent"),
+        ("/sitemap.xml", "<urlset"),
+        ("/favicon.ico", "<svg"),
+        ("/favicon.svg", "<svg"),
+    ] {
+        let resp = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "{path}");
+        let body = resp.text().await.unwrap();
+        assert!(body.contains(needle), "{path} missing {needle}");
+    }
+
+    let missing = client
+        .get(format!("{}/no-such-page-xyz", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), 404);
+    let html = missing.text().await.unwrap();
+    assert!(html.contains("<!DOCTYPE html>") || html.contains("<html"));
+}
+
+#[tokio::test]
+async fn test_reports_extras_and_timeline() {
+    let (base_url, client) = setup().await;
+
+    let ok_event = json!({
+        "tool_name": "read_file",
+        "conversation_id": "conv-tl-1",
+        "task_id": "task-cov",
+        "ide": "vscode",
+        "model": "gpt-4o",
+        "started_at": "2026-05-17T00:00:00Z",
+        "ended_at": "2026-05-17T00:00:02Z",
+        "ok": true,
+        "estimated_input_tokens": 10,
+        "estimated_output_tokens": 5,
+        "user_prompt": "timeline coverage prompt"
+    });
+    let err_event = json!({
+        "tool_name": "bash",
+        "conversation_id": "conv-tl-1",
+        "task_id": "task-cov",
+        "ide": "vscode",
+        "model": "gpt-4o",
+        "started_at": "2026-05-17T00:00:03Z",
+        "ended_at": "2026-05-17T00:00:04Z",
+        "ok": false,
+        "error": "boom coverage",
+        "estimated_input_tokens": 3,
+        "estimated_output_tokens": 1
+    });
+    for event in [&ok_event, &err_event] {
+        assert_eq!(
+            client
+                .post(format!("{}/events/tool-call", base_url))
+                .json(event)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
+    }
+    wait_until_event_count(&base_url, &client, 2).await;
+
+    let timeline: serde_json::Value = client
+        .get(format!("{}/api/conversations/conv-tl-1/timeline", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(timeline["events"].as_array().unwrap().len() >= 2);
+    assert!(timeline["error_count"].as_u64().unwrap() >= 1);
+
+    let html = client
+        .get(format!("{}/conversations/conv-tl-1/timeline", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(html.status(), 200);
+    assert!(html.text().await.unwrap().contains("<!DOCTYPE html>"));
+
+    let paths = [
+        "/reports/top-tasks",
+        "/reports/calls-over-time?bucket=hour",
+        "/reports/by-ide",
+        "/reports/error-patterns",
+        "/reports/cost-over-time",
+        "/reports/models",
+        "/reports/top-tools?from=not-a-date",
+        "/api/conversations?limit=999",
+    ];
+    for path in paths {
+        let resp = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "path {path}");
+        let _: serde_json::Value = resp.json().await.unwrap();
+    }
+}

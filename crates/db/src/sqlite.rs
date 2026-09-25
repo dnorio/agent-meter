@@ -1400,4 +1400,120 @@ mod tests {
             .expect("detail after delete");
         assert!(detail_after.is_empty());
     }
+
+    #[tokio::test]
+    async fn search_cost_and_report_helpers_cover_gaps() {
+        let db = in_memory_db().await;
+
+        let mut ok = sample_event("read_file", "conv-gap-1");
+        ok.user_prompt = Some("uniquesearchtokenxyz coverage".into());
+        ok.model = Some("gpt-4o-mini".into());
+        ok.ok = true;
+        db.insert_tool_call(&ok).await.expect("insert ok");
+
+        let mut bad = sample_event("bash", "conv-gap-1");
+        bad.user_prompt = Some("another prompt".into());
+        bad.model = Some("claude-sonnet".into());
+        bad.ok = false;
+        bad.error = Some("permission denied".into());
+        bad.estimated_input_tokens = Some(50);
+        bad.estimated_output_tokens = Some(10);
+        db.insert_tool_call(&bad).await.expect("insert bad");
+
+        let hits = db.search("uniquesearchtokenxyz", 10).await.expect("search");
+        assert!(!hits.is_empty());
+
+        let q = ReportQuery {
+            limit: Some(20),
+            ..Default::default()
+        };
+        assert!(!db.top_tasks(&q).await.expect("top_tasks").is_empty());
+        assert!(!db.ide_breakdown(&q).await.expect("ide").is_empty());
+        assert!(!db.error_patterns(&q).await.expect("errors").is_empty());
+        assert!(!db.cost_over_time(&q).await.expect("cost ot").is_empty());
+        assert!(!db
+            .calls_over_time(&q, "hour")
+            .await
+            .expect("calls hour")
+            .is_empty());
+        assert!(!db
+            .calls_over_time(&q, "day")
+            .await
+            .expect("calls day")
+            .is_empty());
+        let models = db.distinct_models().await.expect("models");
+        assert!(models
+            .iter()
+            .any(|m| m.contains("gpt-4o") || m.contains("claude")));
+
+        let cost = db
+            .cost_summary(&CostQuery {
+                from: Utc::now() - chrono::Duration::days(30),
+                to: Utc::now() + chrono::Duration::days(1),
+                model: None,
+            })
+            .await
+            .expect("cost summary");
+        assert!(cost.kpis.total_events >= 2);
+
+        let from = (Utc::now() - chrono::Duration::days(7))
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
+        let _ = db.leaderboard_agents(&from, 10).await.expect("lb agents");
+        let _ = db.leaderboard_ides(&from, 10).await.expect("lb ides");
+        let _ = db.leaderboard_models(&from, 10).await.expect("lb models");
+
+        // exercise estimate_usd branches + parse_dt fallbacks via varied models
+        for model in [
+            "gpt-4o",
+            "o3-mini",
+            "o3",
+            "claude-opus",
+            "claude-haiku",
+            "gemini-flash",
+            "gemini-pro",
+            "unknown-model-xyz",
+        ] {
+            let mut e = sample_event("tool", &format!("conv-{model}"));
+            e.model = Some(model.into());
+            e.estimated_input_tokens = Some(1_000_000);
+            e.estimated_output_tokens = Some(1_000_000);
+            db.insert_tool_call(&e).await.expect("model insert");
+        }
+
+        let removed = db.reset_all_events().await.expect("reset");
+        assert!(removed >= 2);
+        assert!(db
+            .query_events(&EventQuery {
+                limit: 10,
+                offset: 0,
+                ..Default::default()
+            })
+            .await
+            .expect("after reset")
+            .is_empty());
+    }
+
+    #[test]
+    fn parse_dt_and_estimate_usd_helpers() {
+        let rfc = parse_dt("2026-05-17T12:00:00.123Z");
+        assert_eq!(rfc.date_naive().to_string(), "2026-05-17");
+        let naive = parse_dt("2026-05-17T12:00:00.5Z");
+        assert_eq!(naive.date_naive().to_string(), "2026-05-17");
+        let junk = parse_dt("not-a-date");
+        assert_eq!(junk.timestamp(), 0);
+
+        assert!(estimate_usd(Some("gpt-4o-mini"), Some(1_000_000), Some(0)) > 0.0);
+        assert!(estimate_usd(Some("gpt-4o"), Some(1_000_000), Some(0)) > 1.0);
+        assert!(estimate_usd(Some("o3-mini"), Some(1_000_000), Some(0)) > 0.0);
+        assert!(estimate_usd(Some("o3"), Some(1_000_000), Some(0)) > 5.0);
+        assert!(estimate_usd(Some("opus"), Some(1_000_000), Some(0)) > 10.0);
+        assert!(estimate_usd(Some("haiku"), Some(1_000_000), Some(0)) > 0.0);
+        assert!(estimate_usd(Some("sonnet"), Some(1_000_000), Some(0)) > 1.0);
+        assert!(estimate_usd(Some("flash"), Some(1_000_000), Some(0)) > 0.0);
+        assert!(estimate_usd(Some("gemini"), Some(1_000_000), Some(0)) > 0.0);
+        assert!(estimate_usd(None, None, None) == 0.0);
+        assert!(parse_dt_opt(None).is_none());
+        assert!(parse_dt_opt(Some("2026-01-01T00:00:00Z")).is_some());
+    }
 }

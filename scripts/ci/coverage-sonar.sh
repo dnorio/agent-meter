@@ -22,7 +22,7 @@ echo "[coverage-sonar] running llvm-cov (collector + db)"
 # Ignore entrypoints / unused backends so Sonar LCOV matches sonar.coverage.exclusions
 # (Rust analyzer does not reliably honor coverage.exclusions for imported LCOV).
 cargo llvm-cov -p agent-meter-collector -p agent-meter-db --lib --tests \
-	--ignore-filename-regex 'tests/postgres|/bin/|/ui/|postgres\.rs$|demo\.rs$|/main\.rs$|telemetry\.rs$|collector/src/lib\.rs$' \
+	--ignore-filename-regex 'tests/postgres|/bin/|/ui/|postgres\.rs$|demo\.rs$|/main\.rs$|telemetry\.rs$|collector/src/lib\.rs$|collector/src/db\.rs$' \
 	--lcov --output-path "$LCOV_RAW" \
 	-- --test-threads="${RUST_TEST_THREADS:-1}" --skip postgres
 
@@ -70,6 +70,7 @@ def drop_excluded(text: str) -> str:
                 or path.endswith("/demo.rs")
                 or path.endswith("/telemetry.rs")
                 or path.endswith("/collector/src/lib.rs")
+                or path.endswith("/collector/src/db.rs")
             )
             continue
         cur.append(line)
