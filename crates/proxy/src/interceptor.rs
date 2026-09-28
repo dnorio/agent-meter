@@ -407,9 +407,8 @@ fn detect_service_name(host: &str, user_agent: &str) -> String {
         "cursor".to_string()
     } else if host.contains("anthropic") {
         "claude-code".to_string()
-    } else if host.contains("githubcopilot") || host.contains("githubusercontent.com") {
-        "copilot".to_string()
     } else {
+        // openai / github copilot hosts — UA already handled above
         "copilot".to_string()
     }
 }
