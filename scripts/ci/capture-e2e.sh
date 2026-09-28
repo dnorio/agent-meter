@@ -85,6 +85,15 @@ orphan = sorted(
 if orphan:
     raise SystemExit(f"fixtures not in manifest (orphan): {orphan}")
 
+# Product-critical IDEs must stay covered — fail CI if someone drops a contract.
+required_ides = set(manifest.get("required_ides") or [])
+covered_ides = {
+    fx["expect_ide"] for fx in fixtures if fx.get("expect_ide")
+}
+missing_ides = sorted(required_ides - covered_ides)
+if missing_ides:
+    raise SystemExit(f"manifest missing required_ides coverage: {missing_ides}")
+
 
 def http(method, url, body=None, headers=None):
     req = urllib.request.Request(url, data=body, method=method, headers=headers or {})

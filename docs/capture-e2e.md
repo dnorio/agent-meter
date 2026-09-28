@@ -2,7 +2,7 @@
 
 ## Does it make sense?
 
-Yes. Capture must not break when Copilot / Cursor / Antigravity / Eclipse /
+Yes. Capture must not break when Copilot / Cursor / Antigravity / OpenCode /
 Claude / Codex change OTLP shapes.
 
 ## What Jenkins / GHA do (every PR)
@@ -15,7 +15,16 @@ Claude / Codex change OTLP shapes.
 | Nightly schedule | [`.github/workflows/capture-nightly.yml`](../.github/workflows/capture-nightly.yml) |
 
 Contracts live in [`fixtures/manifest.json`](../crates/collector/tests/fixtures/manifest.json)
-(`tool_name`, `ide`, `conversation_id`, `model`, orphan-fixture guard).
+(`tool_name`, `ide`, `conversation_id`, `model`, orphan-fixture guard,
+`required_ides` gate).
+
+## Required IDEs (CI fails if missing)
+
+`cursor` · `antigravity` · `codex` · `claude-code` · `opencode` ·
+`copilot-vscode` · `copilot-cli`
+
+Listed in `manifest.json` → `required_ides`. Dropping a fixture without
+updating that list (or vice-versa) fails `capture-e2e.sh`.
 
 ## What CI does NOT do
 
@@ -45,5 +54,6 @@ CAPTURE_RECORD_OTLP=http://127.0.0.1:4318/v1/traces \
 
 ## Harnesses covered
 
-VS Code Copilot · Eclipse Copilot · Cursor · Antigravity · Claude Code ·
-Codex CLI · MCP OTel semconv · proxy-shaped Cursor/Claude/Codex payloads
+VS Code Copilot · Copilot CLI · Eclipse Copilot · Cursor · Antigravity ·
+Claude Code · Codex CLI · OpenCode · MCP OTel semconv ·
+proxy-shaped payloads for the required IDE matrix

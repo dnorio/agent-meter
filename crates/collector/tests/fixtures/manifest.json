@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "description": "Capture contracts — OTLP fixture replay. Refresh when IDE harnesses change span shapes.",
   "required_keys": [
     "id",
@@ -8,6 +8,15 @@
     "user_agent",
     "expect_tool_names",
     "min_events"
+  ],
+  "required_ides": [
+    "cursor",
+    "antigravity",
+    "codex",
+    "claude-code",
+    "opencode",
+    "copilot-vscode",
+    "copilot-cli"
   ],
   "fixtures": [
     {
@@ -30,6 +39,17 @@
       "expect_tool_names": ["llm_chat"],
       "expect_models_any": ["gpt-4o"],
       "min_events": 1
+    },
+    {
+      "id": "copilot-cli",
+      "file": "copilot_cli_execute_tool.json",
+      "harness": "copilot-cli",
+      "user_agent": "github-copilot-cli/1.0.0 (linux amd64)",
+      "expect_ide": "copilot-cli",
+      "expect_tool_names": ["shell", "llm_chat"],
+      "expect_conversation_ids": ["copilot-cli-conv-001"],
+      "expect_models_any": ["gpt-4.1"],
+      "min_events": 2
     },
     {
       "id": "eclipse-copilot",
@@ -85,6 +105,17 @@
       "expect_conversation_ids": ["codex-conv-001"],
       "expect_models_any": ["gpt-5"],
       "min_events": 1
+    },
+    {
+      "id": "opencode",
+      "file": "opencode_execute_tool.json",
+      "harness": "opencode",
+      "user_agent": "opencode/0.5.0 (linux arm64)",
+      "expect_ide": "opencode",
+      "expect_tool_names": ["bash", "llm_chat"],
+      "expect_conversation_ids": ["opencode-conv-001"],
+      "expect_models_any": ["claude-sonnet-4-5"],
+      "min_events": 2
     },
     {
       "id": "mcp-semconv",

@@ -99,6 +99,7 @@ def proxy_payload(service, span_name, attrs):
         }]
     }
 
+# Core agent matrix — must match manifest required_ides (+ eclipse optional).
 cases = [
     (
         "cursor",
@@ -113,6 +114,20 @@ cases = [
         "cursor",
         "read_file",
         "Mozilla/5.0 cursor/0.48",
+    ),
+    (
+        "antigravity",
+        "execute_tool read_file",
+        [
+            ("gen_ai.tool.name", "read_file"),
+            ("gen_ai.request.model", "claude-sonnet-4-5"),
+            ("gen_ai.conversation.id", "proxy-antigravity-conv"),
+            ("gen_ai.usage.input_tokens", 12),
+            ("gen_ai.usage.output_tokens", 4),
+        ],
+        "antigravity",
+        "read_file",
+        "antigravity/1.0.0",
     ),
     (
         "claude",
@@ -140,6 +155,48 @@ cases = [
         "codex",
         "shell",
         "codex/0.1.0",
+    ),
+    (
+        "opencode",
+        "execute_tool bash",
+        [
+            ("gen_ai.tool.name", "bash"),
+            ("gen_ai.request.model", "claude-sonnet-4-5"),
+            ("gen_ai.conversation.id", "proxy-opencode-conv"),
+            ("gen_ai.usage.input_tokens", 15),
+            ("gen_ai.usage.output_tokens", 6),
+        ],
+        "opencode",
+        "bash",
+        "opencode/0.5.0",
+    ),
+    (
+        "copilot",
+        "execute_tool run_in_terminal",
+        [
+            ("gen_ai.tool.name", "run_in_terminal"),
+            ("gen_ai.request.model", "gpt-4o"),
+            ("gen_ai.conversation.id", "proxy-copilot-vscode-conv"),
+            ("gen_ai.usage.input_tokens", 9),
+            ("gen_ai.usage.output_tokens", 3),
+        ],
+        "copilot-vscode",
+        "run_in_terminal",
+        "vscode/1.100.0",
+    ),
+    (
+        "copilot-cli",
+        "execute_tool shell",
+        [
+            ("gen_ai.tool.name", "shell"),
+            ("gen_ai.request.model", "gpt-4.1"),
+            ("gen_ai.conversation.id", "proxy-copilot-cli-conv"),
+            ("gen_ai.usage.input_tokens", 7),
+            ("gen_ai.usage.output_tokens", 2),
+        ],
+        "copilot-cli",
+        "shell",
+        "github-copilot-cli/1.0.0",
     ),
 ]
 
