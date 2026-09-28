@@ -1,59 +1,47 @@
-# Capture e2e — CI contracts vs live IDEs
+# Capture e2e — contracts + LIVE path
 
-## Does it make sense?
+## Layers (what is / isn't real)
 
-Yes. Capture must not break when Copilot / Cursor / Antigravity / OpenCode /
-Claude / Codex change OTLP shapes.
+| Layer | Real? | What it proves |
+|-------|-------|----------------|
+| Fixture replay (`capture-e2e.sh`) | Contract | Known OTLP shapes → `ide`/`tool`/`model`/`conversation_id` |
+| Proxy-shaped (`capture-proxy-e2e.sh`) | Unit+shape | Synthetic spans matching proxy JSON schema |
+| **LIVE MITM** (`capture-live-e2e.sh` mitm) | **Yes** | Real `agent-meter-proxy` MITM → real TLS to AI hosts → real OTLP → collector. Fake API key OK (401 still captures). |
+| **LIVE CLI** (`capture-live-e2e.sh` cli) | **Yes** | Real `claude`/`codex`/`opencode`/`gh copilot` wrapped through proxy when binary + API key exist |
+| GUI Electron (Cursor / Antigravity / VS Code) | No in CI | Covered by LIVE MITM with matching User-Agent |
 
-## What Jenkins / GHA do (every PR)
-
-| Check | Script |
-|-------|--------|
-| Fixture contracts (strict) | [`scripts/ci/capture-e2e.sh`](../scripts/ci/capture-e2e.sh) |
-| Proxy-shaped OTLP + proxy/mcp unit | [`scripts/ci/capture-proxy-e2e.sh`](../scripts/ci/capture-proxy-e2e.sh) |
-| In-process regression | `cargo test --test otlp_regression` |
-| Nightly schedule | [`.github/workflows/capture-nightly.yml`](../.github/workflows/capture-nightly.yml) |
-
-Contracts live in [`fixtures/manifest.json`](../crates/collector/tests/fixtures/manifest.json)
-(`tool_name`, `ide`, `conversation_id`, `model`, orphan-fixture guard,
-`required_ides` gate).
-
-## Required IDEs (CI fails if missing)
+## Required IDEs
 
 `cursor` · `antigravity` · `codex` · `claude-code` · `opencode` ·
 `copilot-vscode` · `copilot-cli`
 
-Listed in `manifest.json` → `required_ides`. Dropping a fixture without
-updating that list (or vice-versa) fails `capture-e2e.sh`.
+## CI wiring
 
-## What CI does NOT do
-
-Spin real VS Code / Cursor / Eclipse / Antigravity GUIs — no display, licenses,
-Electron flakiness, wrong for constrained agents. Live refresh is local/WSL.
-
-## Refresh a fixture after an IDE update
+| Gate | Where |
+|------|-------|
+| Fixtures + proxy-shaped + regression | Every PR (GHA + Jenkins) |
+| LIVE MITM (`CAPTURE_LIVE_REQUIRED=1`) | Every PR + nightly + Jenkins |
+| LIVE CLI | Nightly job when secrets present (soft-skip otherwise) |
 
 ```bash
-# 1) dump raw OTLP JSON from a live capture
-# 2) suggest manifest entry + sanity-check shape:
+# local — MITM only (no API keys)
+CAPTURE_LIVE_MODE=mitm CAPTURE_LIVE_REQUIRED=1 bash scripts/ci/capture-live-e2e.sh
+
+# local — CLIs too (needs keys + binaries)
+CAPTURE_LIVE_MODE=all CAPTURE_LIVE_REQUIRED=0 bash scripts/ci/capture-live-e2e.sh
+```
+
+## Refresh fixtures after IDE shape change
+
+```bash
 bash scripts/capture-record.sh /tmp/otlp-dump.json --ua 'cursor/0.48.0'
-
-# 3) copy into crates/collector/tests/fixtures/, edit expect_ide, then:
+# copy into crates/collector/tests/fixtures/, edit expect_ide, then:
 bash scripts/ci/capture-e2e.sh
-bash scripts/ci/capture-proxy-e2e.sh
-cargo test -p agent-meter-collector --test otlp_regression
+bash scripts/ci/capture-live-e2e.sh
 ```
 
-Optional live POST (collector already running):
+## Proxy UA forwarding
 
-```bash
-CAPTURE_RECORD_BASE=http://127.0.0.1:8081 \
-CAPTURE_RECORD_OTLP=http://127.0.0.1:4318/v1/traces \
-  bash scripts/capture-record.sh /tmp/otlp-dump.json --ua 'vscode/1.100'
-```
-
-## Harnesses covered
-
-VS Code Copilot · Copilot CLI · Eclipse Copilot · Cursor · Antigravity ·
-Claude Code · Codex CLI · OpenCode · MCP OTel semconv ·
-proxy-shaped payloads for the required IDE matrix
+`agent-meter-proxy` stores the client `User-Agent`, sets `service.name` from UA+host,
+and forwards that UA on OTLP POST so collector `infer_ide` attributes correctly
+(codex/opencode/copilot-cli sharing `api.openai.com`).

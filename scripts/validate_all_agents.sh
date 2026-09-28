@@ -14,6 +14,9 @@ echo "[agent-meter] Running capture e2e (binary + fixtures + proxy path)"
 bash "$SCRIPT_DIR/ci/capture-e2e.sh"
 bash "$SCRIPT_DIR/ci/capture-proxy-e2e.sh"
 
+echo "[agent-meter] Running capture LIVE MITM"
+CAPTURE_LIVE_MODE=mitm CAPTURE_LIVE_REQUIRED=1 bash "$SCRIPT_DIR/ci/capture-live-e2e.sh"
+
 echo "[agent-meter] Running complete OTLP regression suite"
 cd "$SCRIPT_DIR/.."
 cargo test --package agent-meter-collector --test otlp_regression
