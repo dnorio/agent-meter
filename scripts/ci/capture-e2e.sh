@@ -94,6 +94,16 @@ missing_ides = sorted(required_ides - covered_ides)
 if missing_ides:
     raise SystemExit(f"manifest missing required_ides coverage: {missing_ides}")
 
+# Every required_ide fixture must assert conversation + model (no soft contracts).
+for fx in fixtures:
+    ide = fx.get("expect_ide")
+    if ide not in required_ides:
+        continue
+    if not fx.get("expect_conversation_ids"):
+        raise SystemExit(f"{fx['id']}: required_ide {ide} needs expect_conversation_ids")
+    if not fx.get("expect_models_any"):
+        raise SystemExit(f"{fx['id']}: required_ide {ide} needs expect_models_any")
+
 
 def http(method, url, body=None, headers=None):
     req = urllib.request.Request(url, data=body, method=method, headers=headers or {})

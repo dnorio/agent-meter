@@ -21,6 +21,15 @@ const AI_HOSTS: &[&str] = &[
     "cursor.sh",
     "api2.cursor.sh",
     "proxy.cursor.sh",
+    // Google / Antigravity / Gemini
+    "generativelanguage.googleapis.com",
+    "aiplatform.googleapis.com",
+    // Common OpenAI-compatible gateways used by OpenCode / agents
+    "openrouter.ai",
+    "api.deepseek.com",
+    "api.groq.com",
+    "api.mistral.ai",
+    "api.fireworks.ai",
 ];
 
 /// Paths that indicate an LLM call.
@@ -31,6 +40,9 @@ const LLM_PATHS: &[&str] = &[
     "/v1/engines/",
     "/completions",
     "/responses",
+    "/v1beta/models",
+    "/openai/deployments",
+    "/v1/responses",
 ];
 
 pub struct InterceptorState {
@@ -875,10 +887,15 @@ mod tests {
     fn host_and_path_filters_are_specific() {
         assert!(is_ai_host("api.openai.com"));
         assert!(is_ai_host("proxy.cursor.sh"));
+        assert!(is_ai_host("generativelanguage.googleapis.com"));
+        assert!(is_ai_host("openrouter.ai"));
         assert!(!is_ai_host("example.com"));
 
         assert!(is_llm_path("/v1/chat/completions"));
         assert!(is_llm_path("/responses"));
+        assert!(is_llm_path(
+            "/v1beta/models/gemini-2.0-flash:generateContent"
+        ));
         assert!(!is_llm_path("/health"));
     }
 
