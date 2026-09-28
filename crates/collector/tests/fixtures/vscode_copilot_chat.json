@@ -85,6 +85,12 @@
                   }
                 },
                 {
+                  "key": "gen_ai.conversation.id",
+                  "value": {
+                    "stringValue": "conv-vscode-002"
+                  }
+                },
+                {
                   "key": "copilot_chat.chat_session_id",
                   "value": {
                     "stringValue": "conv-vscode-002"

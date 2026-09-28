@@ -137,43 +137,45 @@ run_mitm() {
   export CAPTURE_LIVE_MITM_BODY="$MITM_BODY"
 
   python3 - "$BASE" "$PROXY_URL" "$CA_CERT" "$MITM_JSON" "$MITM_BODY" <<'PY' || true
-import json, os, subprocess, sys, time, urllib.request
+import json, subprocess, sys, time, urllib.request
 from pathlib import Path
 
 base, proxy, ca, mitm_json, mitm_body = sys.argv[1:6]
+# (ide, ua, url, extra_headers, body, expect_model_substr)
 cases = [
     ("cursor", "cursor/0.48.0 (linux arm64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
-     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}),
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
     ("antigravity", "antigravity/1.0.0 (linux arm64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
-     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}),
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
     ("codex", "codex/0.1.0 (linux amd64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
-     {"model": "gpt-5", "messages": [{"role": "user", "content": "ping"}]}),
+     {"model": "gpt-5", "messages": [{"role": "user", "content": "ping"}]}, "gpt-5"),
     ("claude-code", "claude-code/1.0.0 (linux arm64)", "https://api.anthropic.com/v1/messages",
      ["-H", "x-api-key: sk-ant-live-e2e-fake", "-H", "anthropic-version: 2023-06-01"],
-     {"model": "claude-opus-4", "max_tokens": 16, "messages": [{"role": "user", "content": "ping"}]}),
+     {"model": "claude-opus-4", "max_tokens": 16, "messages": [{"role": "user", "content": "ping"}]},
+     "claude-opus-4"),
     ("opencode", "opencode/0.5.0 (linux arm64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
-     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}),
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
     ("copilot-vscode", "vscode/1.100.0 (linux arm64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
-     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}),
-    ("copilot-cli", "github-copilot-cli/1.0.0 (linux amd64)", "https://api.openai.com/v1/chat/completions",
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
+    ("copilot-cli", "github-copilot-cli/1.0.0 (linux amd64)",
+     "https://api.githubcopilot.com/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
-     {"model": "gpt-4.1", "messages": [{"role": "user", "content": "ping"}]}),
+     {"model": "gpt-4.1", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4.1"),
 ]
 
-results = []
-for ide, ua, url, extra, body in cases:
-    # reset
+def reset():
     req = urllib.request.Request(
         f"{base}/api/admin/reset", data=b"{}", method="POST",
         headers={"Content-Type": "application/json"},
     )
     urllib.request.urlopen(req, timeout=10).read()
 
+def curl_once(ide, ua, url, extra, body):
     cmd = [
         "curl", "-sS", "-o", mitm_body, "-w", "%{http_code}",
         "-x", proxy, "--cacert", ca, "--max-time", "25",
@@ -184,32 +186,64 @@ for ide, ua, url, extra, body in cases:
         "-d", json.dumps(body),
         url,
     ]
-    try:
-        code = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT).strip()
-    except subprocess.CalledProcessError as e:
-        results.append({"ide": ide, "ok": False, "error": f"curl fail: {e.output[-200:]}"})
+    return subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT).strip()
+
+results = []
+for ide, ua, url, extra, body, expect_model in cases:
+    reset()
+    code = None
+    err = None
+    for attempt in range(1, 4):
+        try:
+            code = curl_once(ide, ua, url, extra, body)
+            err = None
+            break
+        except subprocess.CalledProcessError as e:
+            err = e.output[-200:] if e.output else str(e)
+            time.sleep(0.4 * attempt)
+    if err is not None:
+        results.append({"ide": ide, "ok": False, "error": f"curl fail: {err}"})
         print(f"  ✗ mitm {ide}: curl failed", flush=True)
         continue
 
-    # Wait for flush
-    deadline = time.time() + 20
-    found = False
-    ides = set()
+    expect_conv = f"live-{ide}"
+    deadline = time.time() + 25
+    events = []
     while time.time() < deadline:
         with urllib.request.urlopen(f"{base}/reports/events?limit=50", timeout=10) as r:
             events = json.loads(r.read())
         ides = {e.get("ide") for e in events if e.get("ide")}
         if ide in ides:
-            found = True
             break
         time.sleep(0.25)
 
-    if found:
-        results.append({"ide": ide, "ok": True, "http": code})
-        print(f"  ✓ mitm {ide} (upstream HTTP {code})", flush=True)
+    ides = {e.get("ide") for e in events if e.get("ide")}
+    tools = {e.get("tool_name") for e in events if e.get("tool_name")}
+    convs = {e.get("conversation_id") for e in events if e.get("conversation_id")}
+    models = {e.get("model") for e in events if e.get("model")}
+    problems = []
+    if ide not in ides:
+        problems.append(f"ide missing (got {sorted(ides)})")
+    if "llm_chat" not in tools:
+        problems.append(f"tool llm_chat missing (got {sorted(tools)})")
+    if expect_conv not in convs:
+        problems.append(f"conversation_id {expect_conv!r} missing (got {sorted(convs)})")
+    if not any(expect_model in (m or "") for m in models):
+        # 401 responses may still carry request model from pending
+        if not models:
+            problems.append("model empty")
+        else:
+            problems.append(f"model {expect_model!r} missing (got {sorted(models)})")
+    bad_ts = [e.get("event_id") for e in events if not e.get("started_at") or e.get("duration_ms") is None]
+    if bad_ts:
+        problems.append(f"missing timestamps ({bad_ts[:2]})")
+
+    if problems:
+        results.append({"ide": ide, "ok": False, "http": code, "problems": problems})
+        print(f"  ✗ mitm {ide}: {'; '.join(problems)} (HTTP {code})", flush=True)
     else:
-        results.append({"ide": ide, "ok": False, "http": code, "ides": sorted(ides)})
-        print(f"  ✗ mitm {ide}: expected ide={ide}, got {sorted(ides)} (upstream HTTP {code})", flush=True)
+        results.append({"ide": ide, "ok": True, "http": code, "tools": sorted(tools), "model": sorted(models)})
+        print(f"  ✓ mitm {ide} tools={sorted(tools)} model={sorted(models)} (HTTP {code})", flush=True)
 
 out = {"results": results, "passed": sum(1 for r in results if r.get("ok")), "total": len(results)}
 Path(mitm_json).write_text(json.dumps(out, indent=2))
@@ -279,59 +313,80 @@ run_cli() {
     return
   fi
   if [[ -z "${PROXY_PID:-}" ]] || ! kill -0 "$PROXY_PID" 2>/dev/null; then
-    # Start proxy if mitm wasn't run
     mkdir -p "$CA_DIR"
     export HOME="$CA_DIR"
     "$PROXY_BIN" setup --no-install >/dev/null 2>&1 || true
-    CA_CERT="$(find "$CA_DIR" -type f \( -name 'cert.pem' -o -name 'ca.crt' -o -name '*.pem' \) 2>/dev/null | head -1 || true)"
+    CA_CERT="${HOME}/.agent-meter/ca-cert.pem"
+    if [[ ! -f "$CA_CERT" ]]; then
+      bad "cli: CA cert missing at $CA_CERT"
+      return
+    fi
     "$PROXY_BIN" start --listen "127.0.0.1:${PROXY_PORT}" --collector "$COLLECTOR_OTLP" >"$LOG_P" 2>&1 &
     PROXY_PID=$!
     sleep 0.8
+  else
+    CA_CERT="${HOME}/.agent-meter/ca-cert.pem"
   fi
 
+  # Prefer PATH from common install locations on CI runners
+  export PATH="${HOME}/.local/bin:${HOME}/.opencode/bin:/usr/local/bin:${PATH}"
+
   local ran=0
+  local soft_required=0
+  # If caller set REQUIRED=1 OR any provider secret exists, CLI failures are hard.
+  if [[ "$REQUIRED" == "1" ]] || [[ -n "${ANTHROPIC_API_KEY:-}" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
+    soft_required=1
+  fi
+
+  local WRAP=("$PROXY_BIN" wrap --listen "127.0.0.1:${PROXY_PORT}" --)
+
   if have_cmd claude && [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
     ran=1
+    local old_req="$REQUIRED"
+    [[ "$soft_required" == "1" ]] && REQUIRED=1
     run_one_cli claude-code claude-code \
-      claude -p "Reply with exactly: PONG" --bare --output-format text
+      "${WRAP[@]}" claude -p "Reply with exactly: PONG" --bare --output-format text
+    REQUIRED="$old_req"
   else
     skip "claude-code (need claude + ANTHROPIC_API_KEY)"
   fi
 
   if have_cmd codex && [[ -n "${OPENAI_API_KEY:-}" ]]; then
     ran=1
+    local old_req="$REQUIRED"
+    [[ "$soft_required" == "1" ]] && REQUIRED=1
     run_one_cli codex codex \
-      codex exec --skip-git-repo-check "Reply with exactly: PONG"
+      "${WRAP[@]}" codex exec --skip-git-repo-check "Reply with exactly: PONG"
+    REQUIRED="$old_req"
   else
     skip "codex (need codex + OPENAI_API_KEY)"
   fi
 
   if have_cmd opencode && { [[ -n "${OPENAI_API_KEY:-}" ]] || [[ -n "${ANTHROPIC_API_KEY:-}" ]]; }; then
     ran=1
+    local old_req="$REQUIRED"
+    [[ "$soft_required" == "1" ]] && REQUIRED=1
     run_one_cli opencode opencode \
-      opencode run "Reply with exactly: PONG"
+      "${WRAP[@]}" opencode run "Reply with exactly: PONG"
+    REQUIRED="$old_req"
   else
     skip "opencode (need opencode + API key)"
   fi
 
-  if have_cmd gh; then
-    if gh copilot --help >/dev/null 2>&1; then
-      # gh copilot may need GH auth; try non-interactive if present
-      if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
-        ran=1
-        run_one_cli copilot-cli copilot-cli \
-          gh copilot -- -p "Reply with exactly: PONG"
-      else
-        skip "copilot-cli (need GH_TOKEN/GITHUB_TOKEN)"
-      fi
-    else
-      skip "copilot-cli (gh copilot unavailable)"
+  if have_cmd gh && gh copilot --help >/dev/null 2>&1 && [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
+    ran=1
+    local old_req="$REQUIRED"
+    # Copilot CLI often needs interactive auth — keep soft unless CAPTURE_LIVE_REQUIRE_COPILOT_CLI=1
+    if [[ "${CAPTURE_LIVE_REQUIRE_COPILOT_CLI:-0}" == "1" ]]; then
+      REQUIRED=1
     fi
+    run_one_cli copilot-cli copilot-cli \
+      "${WRAP[@]}" gh copilot -- -p "Reply with exactly: PONG"
+    REQUIRED="$old_req"
   else
-    skip "copilot-cli (gh missing)"
+    skip "copilot-cli (need gh copilot + GH_TOKEN)"
   fi
 
-  # GUI agents cannot run headless here — document as skip
   skip "cursor GUI (no Electron in CI — use mitm UA path)"
   skip "antigravity GUI (no Electron in CI — use mitm UA path)"
   skip "copilot-vscode GUI (no Electron in CI — use mitm UA path)"

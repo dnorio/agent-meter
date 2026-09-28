@@ -39,8 +39,16 @@ jobs:
           CAPTURE_LIVE_REQUIRED: "1"
         run: bash scripts/ci/capture-live-e2e.sh
 
+      - name: Upload live MITM logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-live-mitm-logs
+          path: /tmp/agent-meter-capture-live.*/**
+          if-no-files-found: ignore
+
   capture-live-cli:
-    # Optional: real CLIs when secrets configured. Soft-skip if missing.
+    # Real CLIs when secrets configured. Hard-fail those CLIs that have keys.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -49,6 +57,10 @@ jobs:
         with:
           shared-key: workspace
           cache-on-failure: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
 
       - name: Capture LIVE CLI (when keys present)
         env:
@@ -60,9 +72,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Install CLIs only when at least one provider key exists
-          if [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${OPENAI_API_KEY:-}" ]; then
+          export PATH="$HOME/.local/bin:$PATH"
+          if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
             curl -fsSL https://claude.ai/install.sh | bash || true
-            npm install -g @openai/codex opencode-ai 2>/dev/null || true
+          fi
+          if [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+            npm install -g @openai/codex 2>/dev/null || true
+            curl -fsSL https://opencode.ai/install 2>/dev/null | bash || npm install -g opencode-ai 2>/dev/null || true
           fi
           bash scripts/ci/capture-live-e2e.sh

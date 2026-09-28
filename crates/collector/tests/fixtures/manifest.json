@@ -37,6 +37,7 @@
       "user_agent": "vscode/1.100.0 (linux arm64)",
       "expect_ide": "copilot-vscode",
       "expect_tool_names": ["llm_chat"],
+      "expect_conversation_ids": ["conv-vscode-002"],
       "expect_models_any": ["gpt-4o"],
       "min_events": 1
     },

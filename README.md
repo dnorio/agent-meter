@@ -9,6 +9,7 @@ across your IDEs, CLIs and agents. Run the collector as a binary or container,
 store events in SQLite by default, and inspect usage through the built-in dashboard.
 
 [![CI](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/dnorio/agent-meter/actions/workflows/ci.yml)
+[![Capture nightly](https://github.com/dnorio/agent-meter/actions/workflows/capture-nightly.yml/badge.svg)](https://github.com/dnorio/agent-meter/actions/workflows/capture-nightly.yml)
 [![Jenkins](https://img.shields.io/badge/Jenkins-agent--meter--oss-blue?logo=jenkins)](https://jenkins.ssdnodes.dnor.io/job/agent-meter-oss/)
 [![Quality Gate](https://sonar.ssdnodes.dnor.io/api/project_badges/measure?project=agent-meter-oss&metric=alert_status&token=sqb_31023a6435d71a4c016b5dcd5bc3adafdb116427)](https://sonar.ssdnodes.dnor.io/dashboard?id=agent-meter-oss)
 [![Bugs](https://sonar.ssdnodes.dnor.io/api/project_badges/measure?project=agent-meter-oss&metric=bugs&token=sqb_31023a6435d71a4c016b5dcd5bc3adafdb116427)](https://sonar.ssdnodes.dnor.io/dashboard?id=agent-meter-oss)
@@ -135,6 +136,7 @@ agent-meter accepts telemetry three ways:
 
 See [docs/capture-setup.md](docs/capture-setup.md) for proxy and IDE-specific setup.
 Capture CI contracts (fixture replay, no GUI IDEs): [docs/capture-e2e.md](docs/capture-e2e.md).
+Live MITM (real proxy through AI hosts) runs on every PR; CLI wrap on nightly when secrets exist.
 
 ### Example — REST ingest
 
