@@ -905,10 +905,7 @@ mod tests {
             detect_service_name("api.anthropic.com", "claude-code/1.0"),
             "claude-code"
         );
-        assert_eq!(
-            detect_service_name("api2.cursor.sh", "something"),
-            "cursor"
-        );
+        assert_eq!(detect_service_name("api2.cursor.sh", "something"), "cursor");
         assert_eq!(
             detect_service_name("api.openai.com", "vscode/1.100"),
             "copilot"
