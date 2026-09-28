@@ -26,13 +26,18 @@ SKIP_CLI="${CAPTURE_LIVE_SKIP_CLI:-0}"
 PORT="${CAPTURE_LIVE_PORT:-$((16000 + RANDOM % 1000))}"
 OTLP_PORT="${CAPTURE_LIVE_OTLP_PORT:-$((16500 + RANDOM % 1000))}"
 PROXY_PORT="${CAPTURE_LIVE_PROXY_PORT:-$((16800 + RANDOM % 1000))}"
-DB="/tmp/agent-meter-capture-live-$$.db"
-CA_DIR="/tmp/agent-meter-capture-live-ca-$$"
+WORKDIR="$(mktemp -d /tmp/agent-meter-capture-live.XXXXXX)"
+chmod 700 "$WORKDIR"
+DB="${WORKDIR}/collector.db"
+CA_DIR="${WORKDIR}/ca-home"
 COLLECTOR_BIN="${ROOT}/target/debug/agent-meter-collector"
 PROXY_BIN="${ROOT}/target/debug/agent-meter-proxy"
-LOG_C="/tmp/agent-meter-capture-live-collector-$$.log"
-LOG_P="/tmp/agent-meter-capture-live-proxy-$$.log"
-RESULT_JSON="/tmp/agent-meter-capture-live-$$.json"
+LOG_C="${WORKDIR}/collector.log"
+LOG_P="${WORKDIR}/proxy.log"
+MITM_JSON="${WORKDIR}/mitm.json"
+MITM_BODY="${WORKDIR}/mitm-body.json"
+CLI_OUT_DIR="${WORKDIR}/cli"
+mkdir -p "$CLI_OUT_DIR"
 
 PASS=0
 FAIL=0
@@ -47,8 +52,7 @@ skip() { SKIP=$((SKIP + 1)); note "  ○ skip $1"; }
 cleanup() {
   if [[ -n "${PROXY_PID:-}" ]]; then kill "$PROXY_PID" 2>/dev/null || true; wait "$PROXY_PID" 2>/dev/null || true; fi
   if [[ -n "${COLLECTOR_PID:-}" ]]; then kill "$COLLECTOR_PID" 2>/dev/null || true; wait "$COLLECTOR_PID" 2>/dev/null || true; fi
-  rm -f "$DB" "$RESULT_JSON"
-  rm -rf "$CA_DIR"
+  rm -rf "$WORKDIR"
 }
 trap cleanup EXIT
 
@@ -129,12 +133,14 @@ run_mitm() {
   fi
 
   PROXY_URL="http://127.0.0.1:${PROXY_PORT}"
-  export CAPTURE_LIVE_MITM_JSON="/tmp/capture-live-mitm.json"
+  export CAPTURE_LIVE_MITM_JSON="$MITM_JSON"
+  export CAPTURE_LIVE_MITM_BODY="$MITM_BODY"
 
-  python3 - "$BASE" "$PROXY_URL" "$CA_CERT" <<'PY' || true
+  python3 - "$BASE" "$PROXY_URL" "$CA_CERT" "$MITM_JSON" "$MITM_BODY" <<'PY' || true
 import json, os, subprocess, sys, time, urllib.request
+from pathlib import Path
 
-base, proxy, ca = sys.argv[1:4]
+base, proxy, ca, mitm_json, mitm_body = sys.argv[1:6]
 cases = [
     ("cursor", "cursor/0.48.0 (linux arm64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
@@ -169,7 +175,7 @@ for ide, ua, url, extra, body in cases:
     urllib.request.urlopen(req, timeout=10).read()
 
     cmd = [
-        "curl", "-sS", "-o", "/tmp/capture-live-mitm-body.json", "-w", "%{http_code}",
+        "curl", "-sS", "-o", mitm_body, "-w", "%{http_code}",
         "-x", proxy, "--cacert", ca, "--max-time", "25",
         "-H", f"User-Agent: {ua}",
         "-H", "Content-Type: application/json",
@@ -206,8 +212,7 @@ for ide, ua, url, extra, body in cases:
         print(f"  ✗ mitm {ide}: expected ide={ide}, got {sorted(ides)} (upstream HTTP {code})", flush=True)
 
 out = {"results": results, "passed": sum(1 for r in results if r.get("ok")), "total": len(results)}
-Path = __import__("pathlib").Path
-Path(os.environ.get("CAPTURE_LIVE_MITM_JSON", "/tmp/capture-live-mitm.json")).write_text(json.dumps(out, indent=2))
+Path(mitm_json).write_text(json.dumps(out, indent=2))
 print(json.dumps(out))
 if out["passed"] < out["total"]:
     raise SystemExit(2)
@@ -215,10 +220,10 @@ PY
   local mitm_rc=$?
 
   # Count from printed summary via re-read
-  if [[ -f /tmp/capture-live-mitm.json ]]; then
+  if [[ -f "$MITM_JSON" ]]; then
     local p t
-    p=$(python3 -c 'import json;d=json.load(open("/tmp/capture-live-mitm.json"));print(d["passed"])')
-    t=$(python3 -c 'import json;d=json.load(open("/tmp/capture-live-mitm.json"));print(d["total"])')
+    p=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(d["passed"])' "$MITM_JSON")
+    t=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(d["total"])' "$MITM_JSON")
     PASS=$((PASS + p))
     if [[ "$p" -lt "$t" ]]; then
       FAIL=$((FAIL + (t - p)))
@@ -244,7 +249,7 @@ run_one_cli() {
       SSL_CERT_FILE="${CA_CERT:-}" \
       NODE_EXTRA_CA_CERTS="${CA_CERT:-}" \
       REQUESTS_CA_BUNDLE="${CA_CERT:-}" \
-      "$@" >"/tmp/capture-live-cli-${name}.out" 2>&1; then
+      "$@" >"${CLI_OUT_DIR}/${name}.out" 2>&1; then
     :
   else
     local rc=$?
@@ -253,7 +258,7 @@ run_one_cli() {
       note "  ! cli $name timed out after ${CLI_TIMEOUT}s — checking events anyway"
     else
       note "  ! cli $name exited $rc — checking events anyway"
-      tail -20 "/tmp/capture-live-cli-${name}.out" || true
+      tail -20 "${CLI_OUT_DIR}/${name}.out" || true
     fi
   fi
   if wait_ide "$expect_ide" 30; then
