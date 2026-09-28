@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Capture e2e hardened: strict manifest (conversation_id/model/orphan guard), proxy-shaped OTLP path + proxy/mcp tests, `capture-record.sh`, nightly GHA workflow.
+- Capture e2e core agent matrix: fixtures + `required_ides` gate for cursor, antigravity, codex, claude-code, opencode, copilot-vscode, copilot-cli; proxy-shaped cases expanded.
 
 ### Security
 
