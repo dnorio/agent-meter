@@ -50,6 +50,8 @@ struct PendingRequest {
     #[allow(dead_code)]
     path: String,
     request_bytes: usize,
+    /// Original client User-Agent — forwarded on OTLP so collector can infer_ide.
+    user_agent: String,
 }
 
 impl InterceptorState {
@@ -84,8 +86,14 @@ impl InterceptorState {
             return RequestOrResponse::Request(req);
         }
 
-        // Extract session ID from headers
+        // Extract session ID + client UA from headers
         let session_id = extract_session_id(&req);
+        let user_agent = req
+            .headers()
+            .get(header::USER_AGENT)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
 
         // We need to read the body to extract model/prompt, then reconstruct the request
         let (parts, body) = req.into_parts();
@@ -148,6 +156,7 @@ impl InterceptorState {
                     host,
                     path,
                     request_bytes,
+                    user_agent,
                 },
             );
         }
@@ -230,9 +239,10 @@ impl InterceptorState {
 
         let model = response_model.unwrap_or_else(|| "unknown".to_string());
         let duration_ms = (ended_ns - pending.started_ns) / 1_000_000;
-        let service_name = detect_service_name(&pending.host);
+        let service_name = detect_service_name(&pending.host, &pending.user_agent);
         let trace_id = self.sessions.trace_id_for(&pending.session_id);
         let system = detect_system(&pending.host);
+        let client_ua = pending.user_agent.clone();
 
         info!(
             "[proxy] ← {} {}ms model={} in={} out={} cached={} tools={}",
@@ -295,16 +305,27 @@ impl InterceptorState {
             tool_payloads.push(tool_span);
         }
 
-        // Send to collector asynchronously
+        // Send to collector asynchronously — forward client UA so infer_ide works.
         let client = self.http_client.clone();
         let url = format!("{}/v1/traces", self.collector_url);
+        let otlp_ua = if client_ua.is_empty() {
+            format!("agent-meter-proxy/{}", env!("CARGO_PKG_VERSION"))
+        } else {
+            client_ua
+        };
+        let mut bodies = vec![payload];
+        bodies.extend(tool_payloads);
         tokio::spawn(async move {
-            if let Err(e) = client.post(&url).json(&payload).send().await {
-                warn!("[proxy] Failed to send OTLP span: {e}");
-            }
-            for tp in tool_payloads {
-                if let Err(e) = client.post(&url).json(&tp).send().await {
-                    warn!("[proxy] Failed to send tool span: {e}");
+            for body in bodies {
+                match client
+                    .post(&url)
+                    .header(header::USER_AGENT, &otlp_ua)
+                    .json(&body)
+                    .send()
+                    .await
+                {
+                    Ok(_) => {}
+                    Err(e) => warn!("[proxy] Failed to send OTLP span: {e}"),
                 }
             }
         });
@@ -353,13 +374,41 @@ fn extract_session_id<T>(req: &Request<T>) -> String {
         .to_string()
 }
 
-fn detect_service_name(host: &str) -> String {
+/// Prefer client User-Agent (codex/opencode/copilot-cli/…), then host heuristics.
+fn detect_service_name(host: &str, user_agent: &str) -> String {
+    let ua = user_agent.to_lowercase();
+    let host = host.to_lowercase();
+
+    // UA first — same request host (api.openai.com) serves many agents.
+    if ua.contains("copilot-cli") || ua.contains("copilot_cli") || ua.contains("github-copilot-cli")
+    {
+        return "copilot-cli".to_string();
+    }
+    if ua.contains("opencode") {
+        return "opencode".to_string();
+    }
+    if ua.contains("codex") {
+        return "codex".to_string();
+    }
+    if ua.contains("antigravity") {
+        return "antigravity".to_string();
+    }
+    if ua.contains("claude-code") || ua.contains("claude_code") {
+        return "claude-code".to_string();
+    }
+    if ua.contains("cursor") {
+        return "cursor".to_string();
+    }
+    if ua.contains("vscode") {
+        return "copilot".to_string();
+    }
+
     if host.contains("cursor") {
         "cursor".to_string()
     } else if host.contains("anthropic") {
-        // Could be claude-code or cursor; we detect from user-agent downstream
         "claude-code".to_string()
     } else {
+        // openai / github copilot hosts — UA already handled above
         "copilot".to_string()
     }
 }
@@ -831,6 +880,35 @@ mod tests {
         assert!(is_llm_path("/v1/chat/completions"));
         assert!(is_llm_path("/responses"));
         assert!(!is_llm_path("/health"));
+    }
+
+    #[test]
+    fn detect_service_name_prefers_user_agent() {
+        assert_eq!(
+            detect_service_name("api.openai.com", "codex/0.1.0"),
+            "codex"
+        );
+        assert_eq!(
+            detect_service_name("api.openai.com", "opencode/0.5.0"),
+            "opencode"
+        );
+        assert_eq!(
+            detect_service_name("api.openai.com", "github-copilot-cli/1.0"),
+            "copilot-cli"
+        );
+        assert_eq!(
+            detect_service_name("api.openai.com", "Mozilla/5.0 cursor/0.48"),
+            "cursor"
+        );
+        assert_eq!(
+            detect_service_name("api.anthropic.com", "claude-code/1.0"),
+            "claude-code"
+        );
+        assert_eq!(detect_service_name("api2.cursor.sh", "something"), "cursor");
+        assert_eq!(
+            detect_service_name("api.openai.com", "vscode/1.100"),
+            "copilot"
+        );
     }
 
     fn test_interceptor() -> InterceptorState {

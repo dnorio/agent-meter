@@ -162,16 +162,23 @@ echo "✓ release build"
         }
 
         stage('Capture e2e') {
-          // Fixture + proxy-shaped OTLP contracts — IDE GUIs stay off-cluster.
+          // Fixture contracts + live MITM (real proxy). CLI wrap soft-skips without keys.
           steps {
             container('rust') {
               sh '''#!/usr/bin/env bash
 set -euo pipefail
-chmod +x scripts/ci/capture-e2e.sh scripts/ci/capture-proxy-e2e.sh
+chmod +x scripts/ci/capture-e2e.sh scripts/ci/capture-proxy-e2e.sh scripts/ci/capture-live-e2e.sh
 bash scripts/ci/capture-e2e.sh
 bash scripts/ci/capture-proxy-e2e.sh
 cargo test -p agent-meter-collector --test otlp_regression -- --test-threads=1
-echo "✓ capture e2e + proxy + otlp_regression"
+# Live MITM required on trusted branches; PRs still run but soft on CLI-only gaps.
+if [ -n "${CHANGE_ID:-}" ]; then
+  CAPTURE_LIVE_MODE=mitm CAPTURE_LIVE_REQUIRED=1 bash scripts/ci/capture-live-e2e.sh
+else
+  CAPTURE_LIVE_MODE=all CAPTURE_LIVE_REQUIRED=1 CAPTURE_LIVE_SKIP_CLI="${CAPTURE_LIVE_SKIP_CLI:-1}" \
+    bash scripts/ci/capture-live-e2e.sh
+fi
+echo "✓ capture e2e + proxy + live + otlp_regression"
 '''
             }
           }
