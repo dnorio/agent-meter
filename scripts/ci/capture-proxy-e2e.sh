@@ -226,6 +226,20 @@ cases = [
         "read_file",
         "eclipse/2026-03 jdt-language-server",
     ),
+    (
+        "windsurf",
+        "execute_tool read_file",
+        [
+            ("gen_ai.tool.name", "read_file"),
+            ("gen_ai.request.model", "claude-sonnet-4-5"),
+            ("gen_ai.conversation.id", "proxy-windsurf-conv"),
+            ("gen_ai.usage.input_tokens", 10),
+            ("gen_ai.usage.output_tokens", 4),
+        ],
+        "windsurf",
+        "read_file",
+        "Windsurf/1.2.0",
+    ),
 ]
 
 for service, span, attrs, expect_ide, expect_tool, ua in cases:

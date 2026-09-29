@@ -143,6 +143,16 @@ impl InterceptorState {
                     user_prompt = extract_user_prompt_from_messages(input_arr);
                 }
             }
+
+            // Gemini generateContent: contents[].parts[].text
+            if user_prompt.is_none() {
+                user_prompt = extract_user_prompt_from_gemini_contents(&body_json);
+            }
+        }
+
+        // Gemini / Azure: model often lives in the URL, not the JSON body.
+        if model.is_none() {
+            model = extract_model_from_path(&path);
         }
 
         let req_id = format!("{}:{}", parts.method, parts.uri);
@@ -413,6 +423,9 @@ fn detect_service_name(host: &str, user_agent: &str) -> String {
     if ua.contains("rust-rover") || ua.contains("rustrover") {
         return "rust-rover".to_string();
     }
+    if ua.contains("windsurf") || ua.contains("codeium") {
+        return "windsurf".to_string();
+    }
     if ua.contains("cursor") {
         return "cursor".to_string();
     }
@@ -434,11 +447,65 @@ fn detect_service_name(host: &str, user_agent: &str) -> String {
 }
 
 fn detect_system(host: &str) -> String {
+    let host = host.to_lowercase();
     if host.contains("anthropic") {
         "anthropic".to_string()
+    } else if host.contains("generativelanguage.googleapis")
+        || host.contains("aiplatform.googleapis")
+    {
+        "google".to_string()
+    } else if host.contains("openrouter") {
+        "openrouter".to_string()
+    } else if host.contains("deepseek") {
+        "deepseek".to_string()
+    } else if host.contains("groq") {
+        "groq".to_string()
+    } else if host.contains("mistral") {
+        "mistral".to_string()
+    } else if host.contains("fireworks") {
+        "fireworks".to_string()
+    } else if host.contains("githubcopilot") || host.contains("githubusercontent.com") {
+        "github-copilot".to_string()
     } else {
         "openai".to_string()
     }
+}
+
+/// Pull model id from provider URLs when body has no `model` field.
+fn extract_model_from_path(path: &str) -> Option<String> {
+    // /v1beta/models/gemini-2.0-flash:generateContent
+    if let Some(rest) = path.strip_prefix("/v1beta/models/") {
+        let model = rest.split(':').next().unwrap_or("").trim();
+        if !model.is_empty() {
+            return Some(model.to_string());
+        }
+    }
+    // /openai/deployments/{model}/chat/completions
+    const DEPLOY: &str = "/openai/deployments/";
+    if let Some(idx) = path.find(DEPLOY) {
+        let rest = &path[idx + DEPLOY.len()..];
+        let model = rest.split('/').next().unwrap_or("").trim();
+        if !model.is_empty() {
+            return Some(model.to_string());
+        }
+    }
+    None
+}
+
+fn extract_user_prompt_from_gemini_contents(body: &Value) -> Option<String> {
+    let contents = body.get("contents")?.as_array()?;
+    for content in contents.iter().rev() {
+        let parts = content.get("parts")?.as_array()?;
+        for part in parts.iter().rev() {
+            if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
+                let cleaned = clean_prompt(text);
+                if !cleaned.is_empty() && !is_noise_content(&cleaned) {
+                    return Some(cleaned);
+                }
+            }
+        }
+    }
+    None
 }
 
 fn clean_prompt(content: &str) -> String {
@@ -942,6 +1009,39 @@ mod tests {
             detect_service_name("api.openai.com", "eclipse/2026-03 jdt"),
             "copilot-eclipse"
         );
+        assert_eq!(
+            detect_service_name("api.openai.com", "Windsurf/1.2.0"),
+            "windsurf"
+        );
+    }
+
+    #[test]
+    fn detect_system_covers_major_providers() {
+        assert_eq!(detect_system("api.anthropic.com"), "anthropic");
+        assert_eq!(detect_system("api.openai.com"), "openai");
+        assert_eq!(detect_system("generativelanguage.googleapis.com"), "google");
+        assert_eq!(detect_system("openrouter.ai"), "openrouter");
+        assert_eq!(detect_system("api.deepseek.com"), "deepseek");
+        assert_eq!(detect_system("api.groq.com"), "groq");
+        assert_eq!(detect_system("api.mistral.ai"), "mistral");
+        assert_eq!(detect_system("api.fireworks.ai"), "fireworks");
+        assert_eq!(detect_system("api.githubcopilot.com"), "github-copilot");
+    }
+
+    #[test]
+    fn extract_model_from_gemini_and_azure_paths() {
+        assert_eq!(
+            extract_model_from_path("/v1beta/models/gemini-2.0-flash:generateContent").as_deref(),
+            Some("gemini-2.0-flash")
+        );
+        assert_eq!(
+            extract_model_from_path(
+                "/openai/deployments/gpt-4o/chat/completions?api-version=2024-01"
+            )
+            .as_deref(),
+            Some("gpt-4o")
+        );
+        assert_eq!(extract_model_from_path("/v1/chat/completions"), None);
     }
 
     fn test_interceptor() -> InterceptorState {
