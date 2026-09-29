@@ -198,6 +198,34 @@ cases = [
         "shell",
         "github-copilot-cli/1.0.0",
     ),
+    (
+        "rust-rover",
+        "execute_tool read_file",
+        [
+            ("gen_ai.tool.name", "read_file"),
+            ("gen_ai.request.model", "claude-sonnet-4-5"),
+            ("gen_ai.conversation.id", "proxy-rust-rover-conv"),
+            ("gen_ai.usage.input_tokens", 11),
+            ("gen_ai.usage.output_tokens", 4),
+        ],
+        "rust-rover",
+        "read_file",
+        "rust-rover/2025.1",
+    ),
+    (
+        "eclipse",
+        "execute_tool read_file",
+        [
+            ("gen_ai.tool.name", "read_file"),
+            ("gen_ai.request.model", "gpt-4o"),
+            ("gen_ai.conversation.id", "proxy-eclipse-conv"),
+            ("gen_ai.usage.input_tokens", 8),
+            ("gen_ai.usage.output_tokens", 3),
+        ],
+        "copilot-eclipse",
+        "read_file",
+        "eclipse/2026-03 jdt-language-server",
+    ),
 ]
 
 for service, span, attrs, expect_ide, expect_tool, ua in cases:

@@ -166,6 +166,12 @@ cases = [
      "https://api.githubcopilot.com/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
      {"model": "gpt-4.1", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4.1"),
+    ("rust-rover", "rust-rover/2025.1 (linux amd64)", "https://api.openai.com/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
+    ("copilot-eclipse", "eclipse/2026-03 jdt-language-server", "https://api.openai.com/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
 ]
 
 def reset():
@@ -237,6 +243,22 @@ for ide, ua, url, extra, body, expect_model in cases:
     bad_ts = [e.get("event_id") for e in events if not e.get("started_at") or e.get("duration_ms") is None]
     if bad_ts:
         problems.append(f"missing timestamps ({bad_ts[:2]})")
+
+    # Conversations API must surface the session (not only /reports/events).
+    try:
+        with urllib.request.urlopen(f"{base}/api/conversations?limit=50", timeout=10) as r:
+            conv_rows = json.loads(r.read())
+        if isinstance(conv_rows, dict):
+            conv_rows = conv_rows.get("items") or conv_rows.get("conversations") or conv_rows.get("data") or []
+        conv_ids = {
+            (row.get("conversation_id") or row.get("id"))
+            for row in (conv_rows or [])
+            if isinstance(row, dict)
+        }
+        if expect_conv not in conv_ids:
+            problems.append(f"api/conversations missing {expect_conv!r} (got {sorted(c for c in conv_ids if c)[:5]})")
+    except Exception as e:
+        problems.append(f"api/conversations error: {e}")
 
     if problems:
         results.append({"ide": ide, "ok": False, "http": code, "problems": problems})

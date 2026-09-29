@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "description": "Capture contracts \u2014 OTLP fixture replay. Refresh when IDE harnesses change span shapes.",
   "required_keys": [
     "id",
@@ -11,13 +11,15 @@
     "sha256"
   ],
   "required_ides": [
-    "cursor",
     "antigravity",
-    "codex",
     "claude-code",
-    "opencode",
+    "codex",
+    "copilot-cli",
+    "copilot-eclipse",
     "copilot-vscode",
-    "copilot-cli"
+    "cursor",
+    "opencode",
+    "rust-rover"
   ],
   "fixtures": [
     {
@@ -200,6 +202,25 @@
       ],
       "min_events": 2,
       "sha256": "3af95163f0b61fe24739196cdf72b271358e069c6f6bcf36ce40deb87c3bf3dd"
+    },
+    {
+      "id": "rust-rover",
+      "file": "rust_rover_execute_tool.json",
+      "harness": "rust-rover",
+      "user_agent": "rust-rover/2025.1 (linux amd64)",
+      "expect_ide": "rust-rover",
+      "expect_tool_names": [
+        "read_file",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "rust-rover-conv-001"
+      ],
+      "expect_models_any": [
+        "claude-sonnet-4-5"
+      ],
+      "min_events": 2,
+      "sha256": "27b267b9a50331e050588b156240bb8d812f247b41792ff0778572266fda62d0"
     }
   ]
 }
