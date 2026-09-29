@@ -14,16 +14,25 @@
 ## Required IDEs
 
 `cursor` · `antigravity` · `codex` · `claude-code` · `opencode` ·
-`copilot-vscode` · `copilot-cli`
+`copilot-vscode` · `copilot-cli` · `copilot-eclipse` · `rust-rover`
 
 Every fixture for a required IDE must set `expect_conversation_ids` + `expect_models_any`.
 Fixture bytes must match `sha256` in the manifest (catches silent edits).
+Refresh digests: `bash scripts/ci/update-fixture-digests.sh`.
+
+## One-shot local matrix
+
+```bash
+bash scripts/ci/capture-matrix.sh
+# = fixtures → proxy-shaped → capture-record → otlp_regression → LIVE MITM (required)
+```
 
 ## CI wiring
 
 | Gate | Where |
 |------|-------|
 | Fixtures + proxy-shaped + capture-record smoke | Every PR (GHA + Jenkins) |
+| `otlp_regression` (incl. rust-rover) | Jenkins Capture e2e + `cargo test` |
 | LIVE MITM (`CAPTURE_LIVE_REQUIRED=1`) | Every PR + nightly + Jenkins |
 | LIVE CLI (`proxy wrap`) | Nightly **only if** provider secrets exist |
 | Coverage floor | Jenkins `COVERAGE_MIN_LINES=90` |
@@ -41,7 +50,7 @@ CAPTURE_LIVE_MODE=all CAPTURE_LIVE_REQUIRED=0 bash scripts/ci/capture-live-e2e.s
 ```bash
 bash scripts/capture-record.sh /tmp/otlp-dump.json --ua 'cursor/0.48.0'
 # copy into crates/collector/tests/fixtures/, edit expect_ide, then:
-# update sha256 in manifest.json (or re-run a digest helper), then:
+bash scripts/ci/update-fixture-digests.sh
 bash scripts/ci/capture-e2e.sh
 bash scripts/ci/capture-live-e2e.sh
 ```

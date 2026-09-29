@@ -410,11 +410,17 @@ fn detect_service_name(host: &str, user_agent: &str) -> String {
     if ua.contains("claude-code") || ua.contains("claude_code") {
         return "claude-code".to_string();
     }
+    if ua.contains("rust-rover") || ua.contains("rustrover") {
+        return "rust-rover".to_string();
+    }
     if ua.contains("cursor") {
         return "cursor".to_string();
     }
     if ua.contains("vscode") {
         return "copilot".to_string();
+    }
+    if ua.contains("eclipse") || ua.contains("jdt") {
+        return "copilot-eclipse".to_string();
     }
 
     if host.contains("cursor") {
@@ -927,6 +933,14 @@ mod tests {
         assert_eq!(
             detect_service_name("api.openai.com", "vscode/1.100"),
             "copilot"
+        );
+        assert_eq!(
+            detect_service_name("api.openai.com", "rust-rover/2025.1"),
+            "rust-rover"
+        );
+        assert_eq!(
+            detect_service_name("api.openai.com", "eclipse/2026-03 jdt"),
+            "copilot-eclipse"
         );
     }
 
