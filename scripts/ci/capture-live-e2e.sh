@@ -403,6 +403,35 @@ case "$MODE" in
   *) echo "unknown CAPTURE_LIVE_MODE=$MODE"; exit 2 ;;
 esac
 
+SUMMARY_JSON="${CAPTURE_LIVE_SUMMARY_OUT:-$WORKDIR/summary.json}"
+python3 - "$SUMMARY_JSON" "$PASS" "$FAIL" "$SKIP" "$REQUIRED" "$MODE" <<'PY'
+import json, sys
+path, p, f, s, req, mode = sys.argv[1:7]
+data = {
+    "mode": mode,
+    "pass": int(p),
+    "fail": int(f),
+    "skip": int(s),
+    "required": req == "1",
+}
+open(path, "w").write(json.dumps(data, indent=2) + "\n")
+print(json.dumps(data))
+PY
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    echo "### Capture live (\`$MODE\`)"
+    echo "| pass | fail | skip | required |"
+    echo "|-----:|-----:|-----:|:--------:|"
+    echo "| $PASS | $FAIL | $SKIP | $REQUIRED |"
+  } >>"$GITHUB_STEP_SUMMARY"
+fi
+
+# Keep a durable copy for CI artifact upload (WORKDIR is wiped on EXIT).
+if [[ -n "${CAPTURE_LIVE_SUMMARY_OUT:-}" ]]; then
+  cp -f "$SUMMARY_JSON" "${CAPTURE_LIVE_SUMMARY_OUT}.bak" 2>/dev/null || true
+fi
+
 echo
 echo "[capture-live] summary pass=$PASS fail=$FAIL skip=$SKIP required=$REQUIRED"
 if [[ "$FAIL" -gt 0 ]]; then
@@ -412,5 +441,9 @@ fi
 if [[ "$REQUIRED" == "1" && "$PASS" -eq 0 ]]; then
   echo "[capture-live] REQUIRED=1 but nothing passed"
   exit 1
+fi
+if [[ "$MODE" == "cli" && "$PASS" -eq 0 ]]; then
+  echo "[capture-live] CLI layer produced 0 passes (missing binaries/secrets) — soft skip"
+  exit 0
 fi
 echo "✓ capture live e2e"

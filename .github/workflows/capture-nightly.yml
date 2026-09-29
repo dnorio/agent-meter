@@ -30,6 +30,9 @@ jobs:
       - name: Capture proxy e2e (+ proxy/mcp unit)
         run: bash scripts/ci/capture-proxy-e2e.sh
 
+      - name: Capture-record smoke
+        run: bash scripts/ci/capture-record-smoke.sh
+
       - name: OTLP regression suite
         run: cargo test -p agent-meter-collector --test otlp_regression -- --test-threads=1
 
@@ -37,18 +40,21 @@ jobs:
         env:
           CAPTURE_LIVE_MODE: mitm
           CAPTURE_LIVE_REQUIRED: "1"
+          CAPTURE_LIVE_SUMMARY_OUT: ${{ runner.temp }}/capture-live-summary.json
         run: bash scripts/ci/capture-live-e2e.sh
 
-      - name: Upload live MITM logs on failure
-        if: failure()
+      - name: Upload live summary
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capture-live-mitm-logs
-          path: /tmp/agent-meter-capture-live.*/**
+          name: capture-live-mitm-summary
+          path: ${{ runner.temp }}/capture-live-summary.json
           if-no-files-found: ignore
 
   capture-live-cli:
-    # Real CLIs when secrets configured. Hard-fail those CLIs that have keys.
+    # Only spend runner minutes when at least one provider secret is configured.
+    # Secrets-in-if is intentional here (same-repo schedule/dispatch).
+    if: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.OPENAI_API_KEY != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -62,11 +68,12 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Capture LIVE CLI (when keys present)
+      - name: Capture LIVE CLI (keys present → hard-fail those CLIs)
         env:
           CAPTURE_LIVE_MODE: cli
           CAPTURE_LIVE_REQUIRED: "0"
           CAPTURE_LIVE_SKIP_CLI: "0"
+          CAPTURE_LIVE_SUMMARY_OUT: ${{ runner.temp }}/capture-live-cli-summary.json
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -81,3 +88,11 @@ jobs:
             curl -fsSL https://opencode.ai/install 2>/dev/null | bash || npm install -g opencode-ai 2>/dev/null || true
           fi
           bash scripts/ci/capture-live-e2e.sh
+
+      - name: Upload CLI summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-live-cli-summary
+          path: ${{ runner.temp }}/capture-live-cli-summary.json
+          if-no-files-found: ignore

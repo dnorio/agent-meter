@@ -298,6 +298,7 @@ impl InterceptorState {
             pending.started_ns,
             ended_ns,
             attrs,
+            Some(client_ua.as_str()),
         );
 
         // Build tool call child spans
@@ -313,6 +314,7 @@ impl InterceptorState {
                     ("gen_ai.tool.name", json!(tc)),
                     ("gen_ai.conversation.id", json!(pending.session_id)),
                 ],
+                Some(client_ua.as_str()),
             );
             tool_payloads.push(tool_span);
         }

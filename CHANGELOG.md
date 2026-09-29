@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Capture e2e core agent matrix: fixtures + `required_ides` gate for cursor, antigravity, codex, claude-code, opencode, copilot-vscode, copilot-cli; proxy-shaped cases expanded.
 - Capture **LIVE** e2e: real proxy MITM through AI hosts (UA→ide) + optional CLI wrap; proxy forwards client User-Agent on OTLP.
 - Capture live harden: stricter MITM asserts (tool/model/conversation/timestamps), expanded AI hosts/paths, `proxy wrap` for CLIs, required_ide conversation+model gate.
+- Capture quality: fixture `sha256` integrity, OTLP resource `user_agent` (collector prefers it over proxy default UA), capture-record smoke, live summary artifacts, Jenkins LCOV floor 90%, nightly CLI job only when secrets exist.
 
 ### Security
 

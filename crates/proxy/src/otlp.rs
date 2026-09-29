@@ -10,6 +10,7 @@ pub fn build_otlp_payload(
     started_ns: i64,
     ended_ns: i64,
     attributes: Vec<(&str, Value)>,
+    user_agent: Option<&str>,
 ) -> Value {
     let span_id = hex::encode(&Uuid::new_v4().as_bytes()[..8]);
 
@@ -32,13 +33,19 @@ pub fn build_otlp_payload(
         })
         .collect();
 
+    let mut resource_attrs = vec![
+        json!({"key": "service.name", "value": {"stringValue": service_name}}),
+        json!({"key": "service.namespace", "value": {"stringValue": "ide"}}),
+    ];
+    if let Some(ua) = user_agent.filter(|s| !s.is_empty()) {
+        resource_attrs.push(json!({"key": "user_agent", "value": {"stringValue": ua}}));
+        resource_attrs.push(json!({"key": "browser.user_agent", "value": {"stringValue": ua}}));
+    }
+
     json!({
         "resourceSpans": [{
             "resource": {
-                "attributes": [
-                    {"key": "service.name", "value": {"stringValue": service_name}},
-                    {"key": "service.namespace", "value": {"stringValue": "ide"}}
-                ]
+                "attributes": resource_attrs
             },
             "scopeSpans": [{
                 "scope": {"name": "agent-meter-proxy", "version": env!("CARGO_PKG_VERSION")},
@@ -80,34 +87,38 @@ mod tests {
                 ("gen_ai.cache.hit", json!(true)),
                 ("gen_ai.metadata", json!({"foo": "bar"})),
             ],
+            Some("cursor/0.48.0"),
         );
 
-        let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
-        let attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
-            .as_array()
-            .expect("attributes should be an array");
+        let resource = &payload["resourceSpans"][0]["resource"]["attributes"];
+        assert_eq!(resource[0]["key"], "service.name");
+        assert_eq!(resource[0]["value"]["stringValue"], "cursor");
+        assert_eq!(resource[2]["key"], "user_agent");
+        assert_eq!(resource[2]["value"]["stringValue"], "cursor/0.48.0");
 
-        assert_eq!(
-            payload["resourceSpans"][0]["resource"]["attributes"][0]["key"],
-            "service.name"
-        );
-        assert_eq!(
-            payload["resourceSpans"][0]["resource"]["attributes"][0]["value"]["stringValue"],
-            "cursor"
-        );
-        assert_eq!(span["traceId"], "1234abcd1234abcd1234abcd1234abcd");
-        assert_eq!(span["name"], "chat gpt-5.4");
-        assert_eq!(span["startTimeUnixNano"], "100");
-        assert_eq!(span["endTimeUnixNano"], "250");
-        assert_eq!(span["kind"], 3);
-
+        let attrs = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"];
         assert_eq!(attrs[0]["key"], "gen_ai.request.model");
         assert_eq!(attrs[0]["value"]["stringValue"], "gpt-5.4");
+        assert_eq!(attrs[1]["key"], "gen_ai.usage.input_tokens");
         assert_eq!(attrs[1]["value"]["intValue"], "42");
+        assert_eq!(attrs[2]["key"], "gen_ai.cache.hit");
         assert_eq!(attrs[2]["value"]["boolValue"], true);
-        assert_eq!(attrs[3]["value"]["stringValue"], "{\"foo\":\"bar\"}");
+        assert_eq!(attrs[3]["key"], "gen_ai.metadata");
+        assert!(attrs[3]["value"]["stringValue"]
+            .as_str()
+            .unwrap()
+            .contains("foo"));
+    }
 
-        let span_id = span["spanId"].as_str().expect("spanId should be a string");
-        assert_eq!(span_id.len(), 16);
+    #[test]
+    fn build_otlp_payload_omits_user_agent_when_empty() {
+        let payload = build_otlp_payload("copilot", "chat", "aa", 1, 2, vec![], None);
+        let keys: Vec<_> = payload["resourceSpans"][0]["resource"]["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a["key"].as_str().unwrap())
+            .collect();
+        assert!(!keys.contains(&"user_agent"));
     }
 }

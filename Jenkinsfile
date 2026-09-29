@@ -167,9 +167,10 @@ echo "✓ release build"
             container('rust') {
               sh '''#!/usr/bin/env bash
 set -euo pipefail
-chmod +x scripts/ci/capture-e2e.sh scripts/ci/capture-proxy-e2e.sh scripts/ci/capture-live-e2e.sh
+chmod +x scripts/ci/capture-e2e.sh scripts/ci/capture-proxy-e2e.sh scripts/ci/capture-live-e2e.sh scripts/ci/capture-record-smoke.sh
 bash scripts/ci/capture-e2e.sh
 bash scripts/ci/capture-proxy-e2e.sh
+bash scripts/ci/capture-record-smoke.sh
 cargo test -p agent-meter-collector --test otlp_regression -- --test-threads=1
 # Live MITM required on trusted branches; PRs still run but soft on CLI-only gaps.
 if [ -n "${CHANGE_ID:-}" ]; then
@@ -195,7 +196,7 @@ echo "✓ capture e2e + proxy + live + otlp_regression"
 set -euo pipefail
 chmod +x scripts/ci/coverage-sonar.sh
 export RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}"
-export COVERAGE_MIN_LINES="${COVERAGE_MIN_LINES:-0}"
+export COVERAGE_MIN_LINES="${COVERAGE_MIN_LINES:-90}"
 bash scripts/ci/coverage-sonar.sh
 echo "✓ coverage LCOV"
 '''

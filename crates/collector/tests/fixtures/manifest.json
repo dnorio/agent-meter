@@ -1,13 +1,14 @@
 {
-  "version": 3,
-  "description": "Capture contracts — OTLP fixture replay. Refresh when IDE harnesses change span shapes.",
+  "version": 4,
+  "description": "Capture contracts \u2014 OTLP fixture replay. Refresh when IDE harnesses change span shapes.",
   "required_keys": [
     "id",
     "file",
     "harness",
     "user_agent",
     "expect_tool_names",
-    "min_events"
+    "min_events",
+    "sha256"
   ],
   "required_ides": [
     "cursor",
@@ -25,10 +26,17 @@
       "harness": "vscode-copilot",
       "user_agent": "vscode/1.100.0 (linux arm64)",
       "expect_ide": "copilot-vscode",
-      "expect_tool_names": ["run_in_terminal"],
-      "expect_conversation_ids": ["conv-vscode-001"],
-      "expect_models_any": ["gpt-4o"],
-      "min_events": 1
+      "expect_tool_names": [
+        "run_in_terminal"
+      ],
+      "expect_conversation_ids": [
+        "conv-vscode-001"
+      ],
+      "expect_models_any": [
+        "gpt-4o"
+      ],
+      "min_events": 1,
+      "sha256": "671891b4119f2b6ddf8bc48db9169658621e8a4830eb2bbc7ece79d70ccadc79"
     },
     {
       "id": "vscode-copilot-chat",
@@ -36,10 +44,17 @@
       "harness": "vscode-copilot",
       "user_agent": "vscode/1.100.0 (linux arm64)",
       "expect_ide": "copilot-vscode",
-      "expect_tool_names": ["llm_chat"],
-      "expect_conversation_ids": ["conv-vscode-002"],
-      "expect_models_any": ["gpt-4o"],
-      "min_events": 1
+      "expect_tool_names": [
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "conv-vscode-002"
+      ],
+      "expect_models_any": [
+        "gpt-4o"
+      ],
+      "min_events": 1,
+      "sha256": "88376846d5af5cf30d2c141682dde4a040cae01aec292bdf676ad9bcf13ceb0a"
     },
     {
       "id": "copilot-cli",
@@ -47,10 +62,18 @@
       "harness": "copilot-cli",
       "user_agent": "github-copilot-cli/1.0.0 (linux amd64)",
       "expect_ide": "copilot-cli",
-      "expect_tool_names": ["shell", "llm_chat"],
-      "expect_conversation_ids": ["copilot-cli-conv-001"],
-      "expect_models_any": ["gpt-4.1"],
-      "min_events": 2
+      "expect_tool_names": [
+        "shell",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "copilot-cli-conv-001"
+      ],
+      "expect_models_any": [
+        "gpt-4.1"
+      ],
+      "min_events": 2,
+      "sha256": "06e8100a743de676f16d992729b99cbd0b676c5b257679b6067c464d76431fe2"
     },
     {
       "id": "eclipse-copilot",
@@ -58,10 +81,18 @@
       "harness": "eclipse-copilot",
       "user_agent": "eclipse/2026-03 jdt-language-server",
       "expect_ide": "copilot-eclipse",
-      "expect_tool_names": ["read_file", "llm_chat"],
-      "expect_conversation_ids": ["conv-eclipse-001"],
-      "expect_models_any": ["gpt-4o"],
-      "min_events": 2
+      "expect_tool_names": [
+        "read_file",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "conv-eclipse-001"
+      ],
+      "expect_models_any": [
+        "gpt-4o"
+      ],
+      "min_events": 2,
+      "sha256": "4b0fb5d720ccbf019cadd3ee6d738a1447593df440fc5065d75686a1e7077a46"
     },
     {
       "id": "cursor",
@@ -69,10 +100,18 @@
       "harness": "cursor",
       "user_agent": "cursor/0.48.0 (linux arm64)",
       "expect_ide": "cursor",
-      "expect_tool_names": ["read_file", "llm_chat"],
-      "expect_conversation_ids": ["cursor-conv-001"],
-      "expect_models_any": ["claude-sonnet-4-5"],
-      "min_events": 2
+      "expect_tool_names": [
+        "read_file",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "cursor-conv-001"
+      ],
+      "expect_models_any": [
+        "claude-sonnet-4-5"
+      ],
+      "min_events": 2,
+      "sha256": "6642e9dfc5e790c33e617eec4c3ab95998969ace3dd673de62fe89463faa29dc"
     },
     {
       "id": "antigravity",
@@ -80,10 +119,18 @@
       "harness": "antigravity",
       "user_agent": "antigravity/1.0.0 (linux arm64)",
       "expect_ide": "antigravity",
-      "expect_tool_names": ["read_file", "llm_chat"],
-      "expect_conversation_ids": ["antigravity-conv-001"],
-      "expect_models_any": ["claude-sonnet-4-5"],
-      "min_events": 2
+      "expect_tool_names": [
+        "read_file",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "antigravity-conv-001"
+      ],
+      "expect_models_any": [
+        "claude-sonnet-4-5"
+      ],
+      "min_events": 2,
+      "sha256": "3b605d51b74c926c6ce8fcb07e8d4cef1e4eb85c0abe4d92725747e5445f282d"
     },
     {
       "id": "claude-code",
@@ -91,10 +138,18 @@
       "harness": "claude-code",
       "user_agent": "claude-code/1.0.0 (linux arm64)",
       "expect_ide": "claude-code",
-      "expect_tool_names": ["bash", "llm_chat"],
-      "expect_conversation_ids": ["claude-conv-001"],
-      "expect_models_any": ["claude-opus-4"],
-      "min_events": 2
+      "expect_tool_names": [
+        "bash",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "claude-conv-001"
+      ],
+      "expect_models_any": [
+        "claude-opus-4"
+      ],
+      "min_events": 2,
+      "sha256": "5760729cf9ad052c8e4ffd46ca583a765662e2fd795fd3cc1301785fb16ecd7f"
     },
     {
       "id": "codex-cli",
@@ -102,10 +157,17 @@
       "harness": "codex-cli",
       "user_agent": "codex/0.1.0 (linux amd64)",
       "expect_ide": "codex",
-      "expect_tool_names": ["shell"],
-      "expect_conversation_ids": ["codex-conv-001"],
-      "expect_models_any": ["gpt-5"],
-      "min_events": 1
+      "expect_tool_names": [
+        "shell"
+      ],
+      "expect_conversation_ids": [
+        "codex-conv-001"
+      ],
+      "expect_models_any": [
+        "gpt-5"
+      ],
+      "min_events": 1,
+      "sha256": "63ecd3a33b4c792e7a90c7f3fdfe44720270917bacfacc47bb7ca669a3dbb672"
     },
     {
       "id": "opencode",
@@ -113,10 +175,18 @@
       "harness": "opencode",
       "user_agent": "opencode/0.5.0 (linux arm64)",
       "expect_ide": "opencode",
-      "expect_tool_names": ["bash", "llm_chat"],
-      "expect_conversation_ids": ["opencode-conv-001"],
-      "expect_models_any": ["claude-sonnet-4-5"],
-      "min_events": 2
+      "expect_tool_names": [
+        "bash",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "opencode-conv-001"
+      ],
+      "expect_models_any": [
+        "claude-sonnet-4-5"
+      ],
+      "min_events": 2,
+      "sha256": "352f30126ec37e167f39567e2ab670ed097cdb3c3640ce2b2554b3aa16848278"
     },
     {
       "id": "mcp-semconv",
@@ -124,8 +194,12 @@
       "harness": "mcp-otel-semconv",
       "user_agent": "my-agent/1.0.0",
       "expect_ide": null,
-      "expect_tool_names": ["get-weather", "read_file"],
-      "min_events": 2
+      "expect_tool_names": [
+        "get-weather",
+        "read_file"
+      ],
+      "min_events": 2,
+      "sha256": "3af95163f0b61fe24739196cdf72b271358e069c6f6bcf36ce40deb87c3bf3dd"
     }
   ]
 }
