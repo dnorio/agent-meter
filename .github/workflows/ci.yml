@@ -31,11 +31,20 @@ jobs:
       - run: bash scripts/ci/install-scripts-check.sh
       - run: bash scripts/ci/capture-e2e.sh
       - run: bash scripts/ci/capture-proxy-e2e.sh
+      - run: bash scripts/ci/capture-record-smoke.sh
       - name: Capture LIVE MITM
         env:
           CAPTURE_LIVE_MODE: mitm
           CAPTURE_LIVE_REQUIRED: "1"
+          CAPTURE_LIVE_SUMMARY_OUT: ${{ runner.temp }}/capture-live-summary.json
         run: bash scripts/ci/capture-live-e2e.sh
+      - name: Upload capture-live summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-live-summary
+          path: ${{ runner.temp }}/capture-live-summary.json
+          if-no-files-found: ignore
       - run: bash scripts/ci/smoke-demo.sh
       - run: bash scripts/ci/history-audit.sh
 

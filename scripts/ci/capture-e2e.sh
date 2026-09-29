@@ -76,6 +76,17 @@ for fx in fixtures:
         raise SystemExit(f"{fx['id']}: min_events must be >= 1")
     if not fx["expect_tool_names"]:
         raise SystemExit(f"{fx['id']}: expect_tool_names empty")
+    expected_sha = fx.get("sha256")
+    if expected_sha:
+        import hashlib
+        got = hashlib.sha256(path.read_bytes()).hexdigest()
+        if got != expected_sha:
+            raise SystemExit(
+                f"{fx['id']}: sha256 mismatch for {fx['file']}\n"
+                f"  expected {expected_sha}\n"
+                f"  got      {got}\n"
+                f"  (refresh fixture or update manifest digest)"
+            )
 
 orphan = sorted(
     p.name

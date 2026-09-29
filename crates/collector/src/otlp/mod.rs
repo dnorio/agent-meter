@@ -75,8 +75,14 @@ fn handle_trace_request_json(
 
         let service_name = json_attr_str(resource_attrs, "service.name");
         let session_id = json_attr_str(resource_attrs, "session.id");
-        // Infer IDE from user_agent if not available from resource
-        let ide = infer_ide(user_agent, service_name.as_deref());
+        let ua_from_resource = json_attr_str(resource_attrs, "user_agent")
+            .or_else(|| json_attr_str(resource_attrs, "browser.user_agent"))
+            .or_else(|| json_attr_str(resource_attrs, "http.user_agent"));
+        let effective_ua = user_agent
+            .filter(|s| !s.is_empty() && !s.starts_with("agent-meter-proxy/"))
+            .or(ua_from_resource.as_deref());
+        // Infer IDE from user_agent (header or resource) + service.name
+        let ide = infer_ide(effective_ua, service_name.as_deref());
 
         let scope_spans = rs.get("scopeSpans").and_then(|v| v.as_array());
         let Some(scope_spans) = scope_spans else {
@@ -1042,7 +1048,13 @@ fn handle_trace_request_proto(
             .unwrap_or(&[]);
         let service_name = get_attr_str(resource_attrs, "service.name");
         let session_id = get_attr_str(resource_attrs, "session.id");
-        let ide = infer_ide(user_agent, service_name.as_deref());
+        let ua_from_resource = get_attr_str(resource_attrs, "user_agent")
+            .or_else(|| get_attr_str(resource_attrs, "browser.user_agent"))
+            .or_else(|| get_attr_str(resource_attrs, "http.user_agent"));
+        let effective_ua = user_agent
+            .filter(|s| !s.is_empty() && !s.starts_with("agent-meter-proxy/"))
+            .or(ua_from_resource.as_deref());
+        let ide = infer_ide(effective_ua, service_name.as_deref());
 
         for ss in &rs.scope_spans {
             for span in &ss.spans {
