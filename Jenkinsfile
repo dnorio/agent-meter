@@ -167,7 +167,8 @@ echo "✓ release build"
             container('rust') {
               sh '''#!/usr/bin/env bash
 set -euo pipefail
-chmod +x scripts/ci/capture-e2e.sh scripts/ci/capture-proxy-e2e.sh scripts/ci/capture-live-e2e.sh scripts/ci/capture-record-smoke.sh scripts/ci/capture-matrix.sh scripts/ci/update-fixture-digests.sh
+chmod +x scripts/ci/capture-e2e.sh scripts/ci/capture-proxy-e2e.sh scripts/ci/capture-live-e2e.sh scripts/ci/capture-record-smoke.sh scripts/ci/capture-matrix.sh scripts/ci/capture-matrix-coverage.sh scripts/ci/update-fixture-digests.sh
+bash scripts/ci/capture-matrix-coverage.sh
 bash scripts/ci/capture-e2e.sh
 bash scripts/ci/capture-proxy-e2e.sh
 bash scripts/ci/capture-record-smoke.sh
@@ -179,7 +180,7 @@ else
   CAPTURE_LIVE_MODE=all CAPTURE_LIVE_REQUIRED=1 CAPTURE_LIVE_SKIP_CLI="${CAPTURE_LIVE_SKIP_CLI:-1}" \
     bash scripts/ci/capture-live-e2e.sh
 fi
-echo "✓ capture e2e + proxy + live + otlp_regression (matrix agents incl. rust-rover/eclipse)"
+echo "✓ capture e2e + proxy + live + otlp_regression (matrix agents incl. windsurf + provider hosts)"
 '''
             }
           }

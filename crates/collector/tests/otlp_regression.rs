@@ -105,6 +105,7 @@ fn infer_ua_from_fixture(fixture: &str) -> &'static str {
         f if f.starts_with("codex") => "codex/0.1.0 (linux amd64)",
         f if f.starts_with("opencode") => "opencode/0.5.0 (linux arm64)",
         f if f.starts_with("rust_rover") => "rust-rover/2025.1 (linux amd64)",
+        f if f.starts_with("windsurf") => "Windsurf/1.2.0 (linux amd64)",
         f if f.starts_with("mcp") => "my-agent/1.0.0",
         _ => "unknown-agent/1.0",
     }
@@ -286,6 +287,22 @@ async fn test_otlp_rust_rover_execute_tool_and_chat() {
         events.len(),
         2,
         "rust-rover fixture should produce 2 events (tool + chat)"
+    );
+    let tool_event = events.iter().find(|e| e["tool_name"] != "llm_chat");
+    let chat_event = events.iter().find(|e| e["tool_name"] == "llm_chat");
+    assert!(tool_event.is_some(), "should have a read_file tool event");
+    assert!(chat_event.is_some(), "should have a chat/llm_chat event");
+    assert_eq!(tool_event.unwrap()["tool_name"], "read_file");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_otlp_windsurf_execute_tool_and_chat() {
+    let (base_url, client) = setup().await;
+    let events = post_otlp(&base_url, &client, "windsurf_execute_tool.json").await;
+    assert_eq!(
+        events.len(),
+        2,
+        "windsurf fixture should produce 2 events (tool + chat)"
     );
     let tool_event = events.iter().find(|e| e["tool_name"] != "llm_chat");
     let chat_event = events.iter().find(|e| e["tool_name"] == "llm_chat");

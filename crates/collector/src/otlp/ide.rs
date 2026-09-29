@@ -42,6 +42,11 @@ const IDE_RULES: &[IdeRule] = &[
         svc_patterns: &["rust-rover", "rustrover"],
     },
     IdeRule {
+        ide: "windsurf",
+        ua_patterns: &["windsurf", "codeium"],
+        svc_patterns: &["windsurf", "codeium"],
+    },
+    IdeRule {
         ide: "copilot-eclipse",
         ua_patterns: &["eclipse", "jdt"],
         svc_patterns: &["eclipse"],
@@ -169,6 +174,18 @@ mod tests {
         assert_eq!(
             infer_ide(Some("rust-rover"), None),
             Some("rust-rover".to_string())
+        );
+    }
+
+    #[test]
+    fn detects_windsurf() {
+        assert_eq!(
+            infer_ide(Some("Windsurf/1.2.0"), None),
+            Some("windsurf".to_string())
+        );
+        assert_eq!(
+            infer_ide(None, Some("codeium")),
+            Some("windsurf".to_string())
         );
     }
 

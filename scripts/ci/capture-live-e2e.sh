@@ -172,6 +172,33 @@ cases = [
     ("copilot-eclipse", "eclipse/2026-03 jdt-language-server", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
      {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
+    ("windsurf", "Windsurf/1.2.0 (linux amd64)", "https://api.openai.com/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
+]
+
+# (label, ua, url, extra, body, expect_ide, expect_model, expect_provider)
+host_cases = [
+    ("host-openrouter", "cursor/0.48.0 (linux arm64)",
+     "https://openrouter.ai/api/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "gpt-4o", "openrouter"),
+    ("host-deepseek", "cursor/0.48.0 (linux arm64)",
+     "https://api.deepseek.com/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "deepseek-chat", "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "deepseek-chat", "deepseek"),
+    ("host-groq", "cursor/0.48.0 (linux arm64)",
+     "https://api.groq.com/openai/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "llama-3.3-70b", "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "llama-3.3-70b", "groq"),
+    ("host-gemini", "cursor/0.48.0 (linux arm64)",
+     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+     ["-H", "x-goog-api-key: sk-live-e2e-fake"],
+     {"contents": [{"parts": [{"text": "ping"}]}]},
+     "cursor", "gemini-2.0-flash", "google"),
 ]
 
 def reset():
@@ -181,18 +208,47 @@ def reset():
     )
     urllib.request.urlopen(req, timeout=10).read()
 
-def curl_once(ide, ua, url, extra, body):
+def curl_once(label, ua, url, extra, body):
     cmd = [
         "curl", "-sS", "-o", mitm_body, "-w", "%{http_code}",
         "-x", proxy, "--cacert", ca, "--max-time", "25",
         "-H", f"User-Agent: {ua}",
         "-H", "Content-Type: application/json",
-        "-H", f"x-session-id: live-{ide}",
+        "-H", f"x-session-id: live-{label}",
         *extra,
         "-d", json.dumps(body),
         url,
     ]
     return subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT).strip()
+
+def check_apis(expect_conv):
+    problems = []
+    try:
+        with urllib.request.urlopen(f"{base}/api/conversations?limit=50", timeout=10) as r:
+            conv_rows = json.loads(r.read())
+        if isinstance(conv_rows, dict):
+            conv_rows = conv_rows.get("items") or conv_rows.get("conversations") or conv_rows.get("data") or []
+        conv_ids = {
+            (row.get("conversation_id") or row.get("id"))
+            for row in (conv_rows or [])
+            if isinstance(row, dict)
+        }
+        if expect_conv not in conv_ids:
+            problems.append(f"api/conversations missing {expect_conv!r} (got {sorted(c for c in conv_ids if c)[:5]})")
+    except Exception as e:
+        problems.append(f"api/conversations error: {e}")
+    try:
+        with urllib.request.urlopen(f"{base}/api/conversations/{expect_conv}/timeline", timeout=10) as r:
+            tl = json.loads(r.read())
+        count = tl.get("event_count")
+        if count is None:
+            rows = tl.get("events") or tl.get("rows") or tl.get("items") or []
+            count = len(rows) if isinstance(rows, list) else 0
+        if not count:
+            problems.append(f"timeline empty for {expect_conv!r}")
+    except Exception as e:
+        problems.append(f"timeline error: {e}")
+    return problems
 
 results = []
 for ide, ua, url, extra, body, expect_model in cases:
@@ -227,6 +283,7 @@ for ide, ua, url, extra, body, expect_model in cases:
     tools = {e.get("tool_name") for e in events if e.get("tool_name")}
     convs = {e.get("conversation_id") for e in events if e.get("conversation_id")}
     models = {e.get("model") for e in events if e.get("model")}
+    providers = {e.get("mcp_server") for e in events if e.get("mcp_server")}
     problems = []
     if ide not in ides:
         problems.append(f"ide missing (got {sorted(ides)})")
@@ -235,7 +292,6 @@ for ide, ua, url, extra, body, expect_model in cases:
     if expect_conv not in convs:
         problems.append(f"conversation_id {expect_conv!r} missing (got {sorted(convs)})")
     if not any(expect_model in (m or "") for m in models):
-        # 401 responses may still carry request model from pending
         if not models:
             problems.append("model empty")
         else:
@@ -243,22 +299,11 @@ for ide, ua, url, extra, body, expect_model in cases:
     bad_ts = [e.get("event_id") for e in events if not e.get("started_at") or e.get("duration_ms") is None]
     if bad_ts:
         problems.append(f"missing timestamps ({bad_ts[:2]})")
-
-    # Conversations API must surface the session (not only /reports/events).
-    try:
-        with urllib.request.urlopen(f"{base}/api/conversations?limit=50", timeout=10) as r:
-            conv_rows = json.loads(r.read())
-        if isinstance(conv_rows, dict):
-            conv_rows = conv_rows.get("items") or conv_rows.get("conversations") or conv_rows.get("data") or []
-        conv_ids = {
-            (row.get("conversation_id") or row.get("id"))
-            for row in (conv_rows or [])
-            if isinstance(row, dict)
-        }
-        if expect_conv not in conv_ids:
-            problems.append(f"api/conversations missing {expect_conv!r} (got {sorted(c for c in conv_ids if c)[:5]})")
-    except Exception as e:
-        problems.append(f"api/conversations error: {e}")
+    if ide == "claude-code" and "anthropic" not in providers:
+        problems.append(f"provider anthropic missing (got {sorted(providers)})")
+    if ide == "copilot-cli" and "github-copilot" not in providers:
+        problems.append(f"provider github-copilot missing (got {sorted(providers)})")
+    problems.extend(check_apis(expect_conv))
 
     if problems:
         results.append({"ide": ide, "ok": False, "http": code, "problems": problems})
@@ -266,6 +311,61 @@ for ide, ua, url, extra, body, expect_model in cases:
     else:
         results.append({"ide": ide, "ok": True, "http": code, "tools": sorted(tools), "model": sorted(models)})
         print(f"  ✓ mitm {ide} tools={sorted(tools)} model={sorted(models)} (HTTP {code})", flush=True)
+
+for label, ua, url, extra, body, expect_ide, expect_model, expect_provider in host_cases:
+    reset()
+    code = None
+    err = None
+    for attempt in range(1, 4):
+        try:
+            code = curl_once(label, ua, url, extra, body)
+            err = None
+            break
+        except subprocess.CalledProcessError as e:
+            err = e.output[-200:] if e.output else str(e)
+            time.sleep(0.4 * attempt)
+    if err is not None:
+        results.append({"ide": label, "ok": False, "error": f"curl fail: {err}"})
+        print(f"  ✗ mitm {label}: curl failed", flush=True)
+        continue
+
+    expect_conv = f"live-{label}"
+    deadline = time.time() + 25
+    events = []
+    while time.time() < deadline:
+        with urllib.request.urlopen(f"{base}/reports/events?limit=50", timeout=10) as r:
+            events = json.loads(r.read())
+        if events:
+            break
+        time.sleep(0.25)
+
+    ides = {e.get("ide") for e in events if e.get("ide")}
+    tools = {e.get("tool_name") for e in events if e.get("tool_name")}
+    convs = {e.get("conversation_id") for e in events if e.get("conversation_id")}
+    models = {e.get("model") for e in events if e.get("model")}
+    providers = {e.get("mcp_server") for e in events if e.get("mcp_server")}
+    problems = []
+    if expect_ide not in ides:
+        problems.append(f"ide {expect_ide!r} missing (got {sorted(ides)})")
+    if "llm_chat" not in tools:
+        problems.append(f"tool llm_chat missing (got {sorted(tools)})")
+    if expect_conv not in convs:
+        problems.append(f"conversation_id {expect_conv!r} missing (got {sorted(convs)})")
+    if not any(expect_model in (m or "") for m in models):
+        if not models:
+            problems.append("model empty")
+        else:
+            problems.append(f"model {expect_model!r} missing (got {sorted(models)})")
+    if expect_provider not in providers:
+        problems.append(f"provider {expect_provider!r} missing (got {sorted(providers)})")
+    problems.extend(check_apis(expect_conv))
+
+    if problems:
+        results.append({"ide": label, "ok": False, "http": code, "problems": problems})
+        print(f"  ✗ mitm {label}: {'; '.join(problems)} (HTTP {code})", flush=True)
+    else:
+        results.append({"ide": label, "ok": True, "http": code, "provider": expect_provider, "model": sorted(models)})
+        print(f"  ✓ mitm {label} provider={expect_provider} model={sorted(models)} (HTTP {code})", flush=True)
 
 out = {"results": results, "passed": sum(1 for r in results if r.get("ok")), "total": len(results)}
 Path(mitm_json).write_text(json.dumps(out, indent=2))

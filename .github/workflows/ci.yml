@@ -32,6 +32,7 @@ jobs:
       - run: bash scripts/ci/capture-e2e.sh
       - run: bash scripts/ci/capture-proxy-e2e.sh
       - run: bash scripts/ci/capture-record-smoke.sh
+      - run: bash scripts/ci/capture-matrix-coverage.sh
       - name: Capture LIVE MITM
         env:
           CAPTURE_LIVE_MODE: mitm

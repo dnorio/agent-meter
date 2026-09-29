@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Capture live harden: stricter MITM asserts (tool/model/conversation/timestamps), expanded AI hosts/paths, `proxy wrap` for CLIs, required_ide conversation+model gate.
 - Capture quality: fixture `sha256` integrity, OTLP resource `user_agent` (collector prefers it over proxy default UA), capture-record smoke, live summary artifacts, Jenkins LCOV floor 90%, nightly CLI job only when secrets exist.
 - Capture matrix next: `rust-rover` + `copilot-eclipse` in `required_ides` / LIVE MITM / proxy e2e; `update-fixture-digests.sh` + `capture-matrix.sh` orchestrator; LIVE asserts `/api/conversations`; proxy UA detect for rust-rover/eclipse.
+- Capture harden: `windsurf` agent; provider-host LIVE MITM (openrouter/deepseek/groq/gemini) with `mcp_server` asserts; Gemini/Azure model-from-path; timeline API check; `capture-matrix-coverage.sh` alignment gate.
 
 ### Security
 

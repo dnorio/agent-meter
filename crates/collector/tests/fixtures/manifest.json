@@ -19,7 +19,8 @@
     "copilot-vscode",
     "cursor",
     "opencode",
-    "rust-rover"
+    "rust-rover",
+    "windsurf"
   ],
   "fixtures": [
     {
@@ -221,6 +222,25 @@
       ],
       "min_events": 2,
       "sha256": "27b267b9a50331e050588b156240bb8d812f247b41792ff0778572266fda62d0"
+    },
+    {
+      "id": "windsurf",
+      "file": "windsurf_execute_tool.json",
+      "harness": "windsurf",
+      "user_agent": "Windsurf/1.2.0 (linux amd64)",
+      "expect_ide": "windsurf",
+      "expect_tool_names": [
+        "read_file",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "windsurf-conv-001"
+      ],
+      "expect_models_any": [
+        "claude-sonnet-4-5"
+      ],
+      "min_events": 2,
+      "sha256": "b9926a5bdffa613e9c30a44b80943125e95ac1bb92c3baaae85aa4b264c142ca"
     }
   ]
 }

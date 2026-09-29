@@ -33,6 +33,9 @@ jobs:
       - name: Capture-record smoke
         run: bash scripts/ci/capture-record-smoke.sh
 
+      - name: Matrix coverage alignment
+        run: bash scripts/ci/capture-matrix-coverage.sh
+
       - name: OTLP regression suite
         run: cargo test -p agent-meter-collector --test otlp_regression -- --test-threads=1
 
