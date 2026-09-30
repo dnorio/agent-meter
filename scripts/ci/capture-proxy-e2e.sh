@@ -240,6 +240,34 @@ cases = [
         "read_file",
         "Windsurf/1.2.0",
     ),
+    (
+        "jetbrains",
+        "execute_tool read_file",
+        [
+            ("gen_ai.tool.name", "read_file"),
+            ("gen_ai.request.model", "claude-sonnet-4-5"),
+            ("gen_ai.conversation.id", "proxy-jetbrains-conv"),
+            ("gen_ai.usage.input_tokens", 9),
+            ("gen_ai.usage.output_tokens", 3),
+        ],
+        "jetbrains",
+        "read_file",
+        "IntelliJ IDEA/2025.1",
+    ),
+    (
+        "gemini-cli",
+        "execute_tool read_file",
+        [
+            ("gen_ai.tool.name", "read_file"),
+            ("gen_ai.request.model", "gemini-2.0-flash"),
+            ("gen_ai.conversation.id", "proxy-gemini-cli-conv"),
+            ("gen_ai.usage.input_tokens", 8),
+            ("gen_ai.usage.output_tokens", 2),
+        ],
+        "gemini-cli",
+        "read_file",
+        "gemini-cli/0.1.0",
+    ),
 ]
 
 for service, span, attrs, expect_ide, expect_tool, ua in cases:

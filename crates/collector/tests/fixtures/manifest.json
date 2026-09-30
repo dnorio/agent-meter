@@ -18,6 +18,8 @@
     "copilot-eclipse",
     "copilot-vscode",
     "cursor",
+    "gemini-cli",
+    "jetbrains",
     "opencode",
     "rust-rover",
     "windsurf"
@@ -241,6 +243,44 @@
       ],
       "min_events": 2,
       "sha256": "b9926a5bdffa613e9c30a44b80943125e95ac1bb92c3baaae85aa4b264c142ca"
+    },
+    {
+      "id": "jetbrains",
+      "file": "jetbrains_execute_tool.json",
+      "harness": "jetbrains",
+      "user_agent": "IntelliJ IDEA/2025.1 (linux amd64)",
+      "expect_ide": "jetbrains",
+      "expect_tool_names": [
+        "read_file",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "jetbrains-conv-001"
+      ],
+      "expect_models_any": [
+        "claude-sonnet-4-5"
+      ],
+      "min_events": 2,
+      "sha256": "f6bb587b84f18c3118aae6aff4f76d063e8da9296f2446dbc550a5d75f54484b"
+    },
+    {
+      "id": "gemini-cli",
+      "file": "gemini_cli_execute_tool.json",
+      "harness": "gemini-cli",
+      "user_agent": "gemini-cli/0.1.0 (linux amd64)",
+      "expect_ide": "gemini-cli",
+      "expect_tool_names": [
+        "read_file",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "gemini-cli-conv-001"
+      ],
+      "expect_models_any": [
+        "gemini-2.0-flash"
+      ],
+      "min_events": 2,
+      "sha256": "b3edd48c6a73827065dbbf62dfda16c58522638ecc44116d2baf2f47869b183b"
     }
   ]
 }

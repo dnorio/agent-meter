@@ -30,6 +30,9 @@ const AI_HOSTS: &[&str] = &[
     "api.groq.com",
     "api.mistral.ai",
     "api.fireworks.ai",
+    "api.x.ai",
+    "api.together.xyz",
+    "api.perplexity.ai",
 ];
 
 /// Paths that indicate an LLM call.
@@ -309,6 +312,7 @@ impl InterceptorState {
             ended_ns,
             attrs,
             Some(client_ua.as_str()),
+            Some(status_code),
         );
 
         // Build tool call child spans
@@ -325,6 +329,7 @@ impl InterceptorState {
                     ("gen_ai.conversation.id", json!(pending.session_id)),
                 ],
                 Some(client_ua.as_str()),
+                Some(status_code),
             );
             tool_payloads.push(tool_span);
         }
@@ -426,6 +431,18 @@ fn detect_service_name(host: &str, user_agent: &str) -> String {
     if ua.contains("windsurf") || ua.contains("codeium") {
         return "windsurf".to_string();
     }
+    if ua.contains("gemini-cli") || ua.contains("gemini_cli") {
+        return "gemini-cli".to_string();
+    }
+    if ua.contains("intellij")
+        || ua.contains("pycharm")
+        || ua.contains("webstorm")
+        || ua.contains("goland")
+        || ua.contains("phpstorm")
+        || (ua.contains("jetbrains") && !ua.contains("rust-rover") && !ua.contains("rustrover"))
+    {
+        return "jetbrains".to_string();
+    }
     if ua.contains("cursor") {
         return "cursor".to_string();
     }
@@ -464,6 +481,12 @@ fn detect_system(host: &str) -> String {
         "mistral".to_string()
     } else if host.contains("fireworks") {
         "fireworks".to_string()
+    } else if host.contains("x.ai") || host.contains("xai") {
+        "xai".to_string()
+    } else if host.contains("together") {
+        "together".to_string()
+    } else if host.contains("perplexity") {
+        "perplexity".to_string()
     } else if host.contains("githubcopilot") || host.contains("githubusercontent.com") {
         "github-copilot".to_string()
     } else {
@@ -1013,6 +1036,14 @@ mod tests {
             detect_service_name("api.openai.com", "Windsurf/1.2.0"),
             "windsurf"
         );
+        assert_eq!(
+            detect_service_name("api.openai.com", "IntelliJ IDEA/2025.1"),
+            "jetbrains"
+        );
+        assert_eq!(
+            detect_service_name("generativelanguage.googleapis.com", "gemini-cli/0.1.0"),
+            "gemini-cli"
+        );
     }
 
     #[test]
@@ -1025,6 +1056,9 @@ mod tests {
         assert_eq!(detect_system("api.groq.com"), "groq");
         assert_eq!(detect_system("api.mistral.ai"), "mistral");
         assert_eq!(detect_system("api.fireworks.ai"), "fireworks");
+        assert_eq!(detect_system("api.x.ai"), "xai");
+        assert_eq!(detect_system("api.together.xyz"), "together");
+        assert_eq!(detect_system("api.perplexity.ai"), "perplexity");
         assert_eq!(detect_system("api.githubcopilot.com"), "github-copilot");
     }
 

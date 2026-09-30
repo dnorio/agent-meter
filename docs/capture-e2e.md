@@ -14,7 +14,8 @@
 ## Required IDEs
 
 `cursor` · `antigravity` · `codex` · `claude-code` · `opencode` ·
-`copilot-vscode` · `copilot-cli` · `copilot-eclipse` · `rust-rover` · `windsurf`
+`copilot-vscode` · `copilot-cli` · `copilot-eclipse` · `rust-rover` · `windsurf` ·
+`jetbrains` · `gemini-cli`
 
 Every fixture for a required IDE must set `expect_conversation_ids` + `expect_models_any`.
 Fixture bytes must match `sha256` in the manifest (catches silent edits).
@@ -22,8 +23,9 @@ Refresh digests: `bash scripts/ci/update-fixture-digests.sh`.
 Layer alignment gate: `bash scripts/ci/capture-matrix-coverage.sh`
 (fixture + LIVE MITM + proxy e2e + otlp_regression + provider hosts).
 
-LIVE MITM also hits **provider hosts** (openrouter, deepseek, groq, gemini) and asserts
-`mcp_server` / timeline / `/api/conversations`.
+LIVE MITM also hits **provider hosts** (openrouter, deepseek, groq, gemini, mistral,
+fireworks, xAI) and asserts `mcp_server` / `user_prompt` / `ok=false` on HTTP 4xx /
+timeline / `/api/conversations`. Proxy marks OTLP span ERROR when upstream HTTP ≥ 400.
 
 ## One-shot local matrix
 
