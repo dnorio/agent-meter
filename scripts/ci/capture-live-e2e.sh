@@ -175,6 +175,13 @@ cases = [
     ("windsurf", "Windsurf/1.2.0 (linux amd64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
      {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
+    ("jetbrains", "IntelliJ IDEA/2025.1 (linux amd64)", "https://api.openai.com/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
+    ("gemini-cli", "gemini-cli/0.1.0 (linux amd64)",
+     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+     ["-H", "x-goog-api-key: sk-live-e2e-fake"],
+     {"contents": [{"parts": [{"text": "ping"}]}]}, "gemini-2.0-flash"),
 ]
 
 # (label, ua, url, extra, body, expect_ide, expect_model, expect_provider)
@@ -199,6 +206,21 @@ host_cases = [
      ["-H", "x-goog-api-key: sk-live-e2e-fake"],
      {"contents": [{"parts": [{"text": "ping"}]}]},
      "cursor", "gemini-2.0-flash", "google"),
+    ("host-mistral", "cursor/0.48.0 (linux arm64)",
+     "https://api.mistral.ai/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "mistral-small-latest", "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "mistral-small-latest", "mistral"),
+    ("host-fireworks", "cursor/0.48.0 (linux arm64)",
+     "https://api.fireworks.ai/inference/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "accounts/fireworks/models/llama-v3p1-8b-instruct", "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "llama-v3p1-8b-instruct", "fireworks"),
+    ("host-xai", "cursor/0.48.0 (linux arm64)",
+     "https://api.x.ai/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "grok-2", "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "grok-2", "xai"),
 ]
 
 def reset():
@@ -303,6 +325,18 @@ for ide, ua, url, extra, body, expect_model in cases:
         problems.append(f"provider anthropic missing (got {sorted(providers)})")
     if ide == "copilot-cli" and "github-copilot" not in providers:
         problems.append(f"provider github-copilot missing (got {sorted(providers)})")
+    if ide == "gemini-cli" and "google" not in providers:
+        problems.append(f"provider google missing (got {sorted(providers)})")
+    prompts = [e.get("user_prompt") or "" for e in events]
+    if not any("ping" in (p or "").lower() for p in prompts):
+        problems.append(f"user_prompt missing ping (got {prompts[:2]!r})")
+    # Fake keys → HTTP 4xx → OTLP status ERROR → ok=false
+    try:
+        http_code = int(code) if code is not None else 0
+    except ValueError:
+        http_code = 0
+    if http_code >= 400 and any(e.get("ok") is True for e in events):
+        problems.append("expected ok=false for HTTP 4xx capture")
     problems.extend(check_apis(expect_conv))
 
     if problems:
@@ -358,6 +392,15 @@ for label, ua, url, extra, body, expect_ide, expect_model, expect_provider in ho
             problems.append(f"model {expect_model!r} missing (got {sorted(models)})")
     if expect_provider not in providers:
         problems.append(f"provider {expect_provider!r} missing (got {sorted(providers)})")
+    prompts = [e.get("user_prompt") or "" for e in events]
+    if not any("ping" in (p or "").lower() for p in prompts):
+        problems.append(f"user_prompt missing ping (got {prompts[:2]!r})")
+    try:
+        http_code = int(code) if code is not None else 0
+    except ValueError:
+        http_code = 0
+    if http_code >= 400 and any(e.get("ok") is True for e in events):
+        problems.append("expected ok=false for HTTP 4xx capture")
     problems.extend(check_apis(expect_conv))
 
     if problems:

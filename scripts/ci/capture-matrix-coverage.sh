@@ -44,7 +44,15 @@ for ide in sorted(required):
     if hint not in regression and ide.replace("-", "_") not in regression:
         missing_reg.append(ide)
 
-host_needles = ["host-openrouter", "host-deepseek", "host-groq", "host-gemini"]
+host_needles = [
+    "host-openrouter",
+    "host-deepseek",
+    "host-groq",
+    "host-gemini",
+    "host-mistral",
+    "host-fireworks",
+    "host-xai",
+]
 missing_hosts = [h for h in host_needles if h not in live]
 
 problems = []

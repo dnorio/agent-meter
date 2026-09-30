@@ -3,6 +3,9 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 /// Build an OTLP ExportTraceServiceRequest JSON for a single LLM span.
+///
+/// `http_status`: when `Some(code)` and `code >= 400`, span status is ERROR (2);
+/// otherwise OK (1). Matches collector `ok = status.code != 2`.
 pub fn build_otlp_payload(
     service_name: &str,
     span_name: &str,
@@ -11,6 +14,7 @@ pub fn build_otlp_payload(
     ended_ns: i64,
     attributes: Vec<(&str, Value)>,
     user_agent: Option<&str>,
+    http_status: Option<u16>,
 ) -> Value {
     let span_id = hex::encode(&Uuid::new_v4().as_bytes()[..8]);
 
@@ -42,6 +46,11 @@ pub fn build_otlp_payload(
         resource_attrs.push(json!({"key": "browser.user_agent", "value": {"stringValue": ua}}));
     }
 
+    let status_code = match http_status {
+        Some(code) if code >= 400 => 2,
+        _ => 1,
+    };
+
     json!({
         "resourceSpans": [{
             "resource": {
@@ -57,7 +66,7 @@ pub fn build_otlp_payload(
                     "startTimeUnixNano": started_ns.to_string(),
                     "endTimeUnixNano": ended_ns.to_string(),
                     "attributes": otlp_attrs,
-                    "status": {"code": 1}
+                    "status": {"code": status_code}
                 }]
             }]
         }]
@@ -88,6 +97,7 @@ mod tests {
                 ("gen_ai.metadata", json!({"foo": "bar"})),
             ],
             Some("cursor/0.48.0"),
+            None,
         );
 
         let resource = &payload["resourceSpans"][0]["resource"]["attributes"];
@@ -95,6 +105,10 @@ mod tests {
         assert_eq!(resource[0]["value"]["stringValue"], "cursor");
         assert_eq!(resource[2]["key"], "user_agent");
         assert_eq!(resource[2]["value"]["stringValue"], "cursor/0.48.0");
+        assert_eq!(
+            payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["status"]["code"],
+            1
+        );
 
         let attrs = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"];
         assert_eq!(attrs[0]["key"], "gen_ai.request.model");
@@ -111,8 +125,17 @@ mod tests {
     }
 
     #[test]
+    fn build_otlp_payload_marks_error_on_http_4xx() {
+        let payload = build_otlp_payload("cursor", "chat", "aa", 1, 2, vec![], None, Some(401));
+        assert_eq!(
+            payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["status"]["code"],
+            2
+        );
+    }
+
+    #[test]
     fn build_otlp_payload_omits_user_agent_when_empty() {
-        let payload = build_otlp_payload("copilot", "chat", "aa", 1, 2, vec![], None);
+        let payload = build_otlp_payload("copilot", "chat", "aa", 1, 2, vec![], None, None);
         let keys: Vec<_> = payload["resourceSpans"][0]["resource"]["attributes"]
             .as_array()
             .unwrap()

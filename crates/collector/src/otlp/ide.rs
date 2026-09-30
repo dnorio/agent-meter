@@ -47,6 +47,23 @@ const IDE_RULES: &[IdeRule] = &[
         svc_patterns: &["windsurf", "codeium"],
     },
     IdeRule {
+        ide: "gemini-cli",
+        ua_patterns: &["gemini-cli", "gemini_cli"],
+        svc_patterns: &["gemini-cli", "gemini_cli"],
+    },
+    IdeRule {
+        ide: "jetbrains",
+        ua_patterns: &[
+            "intellij",
+            "pycharm",
+            "webstorm",
+            "goland",
+            "phpstorm",
+            "jetbrains",
+        ],
+        svc_patterns: &["jetbrains", "intellij", "pycharm", "webstorm"],
+    },
+    IdeRule {
         ide: "copilot-eclipse",
         ua_patterns: &["eclipse", "jdt"],
         svc_patterns: &["eclipse"],
@@ -186,6 +203,22 @@ mod tests {
         assert_eq!(
             infer_ide(None, Some("codeium")),
             Some("windsurf".to_string())
+        );
+    }
+
+    #[test]
+    fn detects_jetbrains_from_intellij_ua() {
+        assert_eq!(
+            infer_ide(Some("IntelliJ IDEA/2025.1"), None),
+            Some("jetbrains".to_string())
+        );
+    }
+
+    #[test]
+    fn detects_gemini_cli() {
+        assert_eq!(
+            infer_ide(Some("gemini-cli/0.1.0"), None),
+            Some("gemini-cli".to_string())
         );
     }
 
