@@ -6,6 +6,7 @@ use uuid::Uuid;
 ///
 /// `http_status`: when `Some(code)` and `code >= 400`, span status is ERROR (2);
 /// otherwise OK (1). Matches collector `ok = status.code != 2`.
+#[allow(clippy::too_many_arguments)]
 pub fn build_otlp_payload(
     service_name: &str,
     span_name: &str,
