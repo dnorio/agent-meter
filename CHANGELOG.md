@@ -7,16 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-10-03
+
+### Added
+
+- Capture quality matrix: fixture contracts + LIVE MITM + proxy-shaped e2e for cursor, antigravity, codex, claude-code, opencode, copilot-vscode, copilot-cli, copilot-eclipse, rust-rover, windsurf, jetbrains, gemini-cli.
+- `scripts/ci/capture-matrix.sh` orchestrator + `capture-matrix-coverage.sh` layer alignment gate + `update-fixture-digests.sh`.
+- Provider-host LIVE MITM: openrouter, deepseek, groq, gemini, mistral, fireworks, xAI (with `mcp_server` / prompt / timeline asserts).
+- AI hosts: x.ai, together.xyz, perplexity.ai; Gemini/Azure model-from-path extraction.
+
 ### Changed
 
-- Capture e2e hardened: strict manifest (conversation_id/model/orphan guard), proxy-shaped OTLP path + proxy/mcp tests, `capture-record.sh`, nightly GHA workflow.
-- Capture e2e core agent matrix: fixtures + `required_ides` gate for cursor, antigravity, codex, claude-code, opencode, copilot-vscode, copilot-cli; proxy-shaped cases expanded.
-- Capture **LIVE** e2e: real proxy MITM through AI hosts (UA→ide) + optional CLI wrap; proxy forwards client User-Agent on OTLP.
-- Capture live harden: stricter MITM asserts (tool/model/conversation/timestamps), expanded AI hosts/paths, `proxy wrap` for CLIs, required_ide conversation+model gate.
-- Capture quality: fixture `sha256` integrity, OTLP resource `user_agent` (collector prefers it over proxy default UA), capture-record smoke, live summary artifacts, Jenkins LCOV floor 90%, nightly CLI job only when secrets exist.
-- Capture matrix next: `rust-rover` + `copilot-eclipse` in `required_ides` / LIVE MITM / proxy e2e; `update-fixture-digests.sh` + `capture-matrix.sh` orchestrator; LIVE asserts `/api/conversations`; proxy UA detect for rust-rover/eclipse.
-- Capture harden: `windsurf` agent; provider-host LIVE MITM (openrouter/deepseek/groq/gemini) with `mcp_server` asserts; Gemini/Azure model-from-path; timeline API check; `capture-matrix-coverage.sh` alignment gate.
-- Capture quality+: `jetbrains` + `gemini-cli` agents; host MITM mistral/fireworks/xAI; proxy OTLP ERROR on HTTP 4xx (`ok=false`); LIVE asserts `user_prompt` + error status; hosts x.ai/together/perplexity.
+- Proxy marks OTLP span ERROR when upstream HTTP ≥ 400 (collector `ok=false`).
+- Proxy UA→service detect expanded (windsurf, jetbrains, gemini-cli, rust-rover, eclipse).
+- `detect_system` covers google/openrouter/deepseek/groq/mistral/fireworks/xai/together/perplexity/github-copilot.
+- Capture LIVE asserts `/api/conversations`, timeline, `user_prompt`, and error status on 4xx.
+- Jenkins / GHA wire coverage gate + expanded capture e2e.
 
 ### Security
 
