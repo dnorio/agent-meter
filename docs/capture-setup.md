@@ -14,10 +14,10 @@
 
 ```bash
 # Linux / macOS / WSL / Git Bash
-curl -fsSL https://raw.githubusercontent.com/ToolHQ/production-site/main/apps/agent-meter/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/dnorio/agent-meter/main/install.sh | sh
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/ToolHQ/production-site/main/apps/agent-meter/install.ps1 | iex
+irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
 ```
 
 ### Uso
@@ -113,7 +113,7 @@ O VS Code usa `traceId` para correlacionar spans `panel/editAgent` (LLM) com `co
 ### Requisitos
 
 - VS Code com extensão GitHub Copilot Chat ≥ 0.26
-- agent-meter acessível em rede (via ingress `agent-meter.dnor.io` ou port-forward local)
+- agent-meter acessível em rede (via ingress `localhost (self-hosted collector)` ou port-forward local)
 
 ### Configuração (settings.json)
 
@@ -123,7 +123,7 @@ O VS Code usa `traceId` para correlacionar spans `panel/editAgent` (LLM) com `co
     "github.copilot.chat.otel.enabled": true,
 
     // Endpoint do collector — use o ingress de produção:
-    "github.copilot.chat.otel.otlpEndpoint": "https://agent-meter.dnor.io",
+    "github.copilot.chat.otel.otlpEndpoint": "http://localhost:3000",
 
     // Não captura conteúdo (prompts) — só metadados de performance
     // Mude para true se quiser ver o prompt inicial nas conversas
@@ -138,7 +138,7 @@ O VS Code usa `traceId` para correlacionar spans `panel/editAgent` (LLM) com `co
 
 ```bash
 # Abra o VS Code, execute qualquer chat com o Copilot, depois:
-curl -s https://agent-meter.dnor.io/api/conversations | \
+curl -s http://localhost:3000/api/conversations | \
   python3 -c "import sys,json; [print(c['conversation_id'][:12], c['event_count'], c.get('ide')) for c in json.load(sys.stdin)[:5]]"
 ```
 
@@ -185,7 +185,7 @@ PostgreSQL → Dashboard
 ### Setup (primeira vez)
 
 ```bash
-cd ~/production-site/apps/agent-meter/eclipse-proxy
+cd ~/.local/share/agent-meter/eclipse-proxy
 
 # Gera CA, importa no Windows, configura eclipse.ini
 ./start_proxy.sh --setup
@@ -219,7 +219,7 @@ O `--setup`:
 # → 200 [1230ms, model=gpt-4o, in=8432, out=512]
 
 # Verifique no dashboard:
-curl -s "https://agent-meter.dnor.io/api/conversations" | \
+curl -s "http://localhost:3000/api/conversations" | \
   python3 -c "import sys,json; [print(c['conversation_id'][:12], c.get('ide')) \
   for c in json.load(sys.stdin) if c.get('ide')=='copilot-eclipse']" | head -5
 ```
@@ -319,7 +319,7 @@ agent-meter-proxy start --daemon
 
 ```bash
 agent-meter-proxy status
-# Dashboard: https://agent-meter.dnor.io/conversations → filtro Cursor
+# Dashboard: http://localhost:3000/conversations → filtro Cursor
 # CI LIVE: capture-live-e2e case "cursor" (UA cursor/)
 ```
 
@@ -346,12 +346,12 @@ Agentes que têm acesso às env vars do ambiente usam a REST API diretamente.
 
 ```bash
 # Collector (obrigatório)
-export AGENT_METER_COLLECTOR_URL="https://agent-meter.dnor.io"
+export AGENT_METER_COLLECTOR_URL="http://localhost:3000"
 
 # Contexto (opcional mas recomendado)
 export AGENT_METER_IDE="opencode"          # ou: antigravity, cursor, codex
 export AGENT_METER_AGENT="my-agent"
-export AGENT_METER_REPO="production-site"
+export AGENT_METER_REPO="my-repo"
 export AGENT_METER_BRANCH="main"
 export AGENT_METER_TASK_ID="T-123"
 ```
@@ -400,7 +400,7 @@ Todas as CLIs usam bibliotecas HTTP padrão (Node.js `https`, Python `requests`,
 
 ```bash
 # Opção A: Wrapper dedicado (recomendado)
-cd ~/production-site/apps/agent-meter/eclipse-proxy
+cd ~/.local/share/agent-meter/eclipse-proxy
 ./copilot-cli-metered.sh suggest "como listar pods no kubernetes"
 ./copilot-cli-metered.sh explain "kubectl get pods -A"
 
@@ -481,10 +481,10 @@ Isso configura o proxy **apenas quando ele está rodando** — zero impacto quan
 
 | URL                                             | Descrição                    |
 | ----------------------------------------------- | ---------------------------- |
-| `https://agent-meter.dnor.io`                   | Produção (ingress público)   |
-| `https://agent-meter.dnor.io/docs`              | Documentação in-app          |
-| `https://agent-meter.dnor.io/conversations`     | Dashboard de conversas       |
-| `https://agent-meter.dnor.io/api/conversations` | API JSON                     |
+| `http://localhost:3000`                   | Produção (ingress público)   |
+| `http://localhost:3000/docs`              | Documentação in-app          |
+| `http://localhost:3000/conversations`     | Dashboard de conversas       |
+| `http://localhost:3000/api/conversations` | API JSON                     |
 | `http://localhost:3000`                         | Local (docker compose / dev) |
 | `http://localhost:4318`                         | OTLP local (port-forward)    |
 
