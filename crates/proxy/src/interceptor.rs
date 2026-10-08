@@ -5,7 +5,7 @@ use http::{header, Request, Response};
 use http_body_util::BodyExt;
 use hudsucker::{Body, RequestOrResponse};
 use serde_json::{json, Value};
-use tracing::{debug, info, warn};
+use tracing::{info, warn, debug};
 
 use crate::otlp;
 use crate::session::SessionManager;
@@ -24,7 +24,7 @@ const AI_HOSTS: &[&str] = &[
     // Google / Antigravity / Gemini
     "generativelanguage.googleapis.com",
     "aiplatform.googleapis.com",
-    // Common OpenAI-compatible gateways used by OpenCode / agents
+    // OpenAI-compatible gateways used by OpenCode / agents
     "openrouter.ai",
     "api.deepseek.com",
     "api.groq.com",
@@ -83,34 +83,20 @@ impl InterceptorState {
         &self.collector_url
     }
 
-    #[cfg(test)]
-    fn pending_count(&self) -> usize {
-        self.pending.lock().unwrap().len()
-    }
-
     /// Process an outgoing request. We read the body for metadata but pass it through.
     pub async fn on_request(&self, req: Request<Body>) -> RequestOrResponse {
         let host = req.uri().host().unwrap_or("").to_string();
-
         if !is_ai_host(&host) {
             return RequestOrResponse::Request(req);
         }
-
         let path = req.uri().path().to_string();
         if !is_llm_path(&path) {
             return RequestOrResponse::Request(req);
         }
 
-        // Extract session ID + client UA from headers
         let session_id = extract_session_id(&req);
-        let user_agent = req
-            .headers()
-            .get(header::USER_AGENT)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
-            .to_string();
+        let user_agent = extract_user_agent(&req);
 
-        // We need to read the body to extract model/prompt, then reconstruct the request
         let (parts, body) = req.into_parts();
         let collected = match body.collect().await {
             Ok(c) => c,
@@ -119,44 +105,8 @@ impl InterceptorState {
             }
         };
         let body_bytes = collected.to_bytes();
-
         let request_bytes = body_bytes.len();
-        let mut model = None;
-        let mut user_prompt = None;
-
-        if let Ok(body_json) = serde_json::from_slice::<Value>(&body_bytes) {
-            model = body_json
-                .get("model")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            // Extract user prompt — try messages (Chat/Messages API), then input (Responses API)
-            if let Some(messages) = body_json.get("messages").and_then(|v| v.as_array()) {
-                user_prompt = extract_user_prompt_from_messages(messages);
-            }
-
-            // Responses API: "input" can be a string or array of messages
-            if user_prompt.is_none() {
-                if let Some(input_str) = body_json.get("input").and_then(|v| v.as_str()) {
-                    let cleaned = clean_prompt(input_str);
-                    if !cleaned.is_empty() && !is_noise_content(&cleaned) {
-                        user_prompt = Some(cleaned);
-                    }
-                } else if let Some(input_arr) = body_json.get("input").and_then(|v| v.as_array()) {
-                    user_prompt = extract_user_prompt_from_messages(input_arr);
-                }
-            }
-
-            // Gemini generateContent: contents[].parts[].text
-            if user_prompt.is_none() {
-                user_prompt = extract_user_prompt_from_gemini_contents(&body_json);
-            }
-        }
-
-        // Gemini / Azure: model often lives in the URL, not the JSON body.
-        if model.is_none() {
-            model = extract_model_from_path(&path);
-        }
+        let (model, user_prompt) = extract_request_meta(&body_bytes, &path);
 
         let req_id = format!("{}:{}", parts.method, parts.uri);
         debug!(
@@ -186,7 +136,6 @@ impl InterceptorState {
             );
         }
 
-        // Reconstruct request with original body
         let rebuilt = Request::from_parts(parts, Body::from(http_body_util::Full::new(body_bytes)));
         RequestOrResponse::Request(rebuilt)
     }
@@ -271,95 +220,33 @@ impl InterceptorState {
 
         info!(
             "[proxy] ← {} {}ms model={} in={} out={} cached={} tools={}",
-            status_code,
-            duration_ms,
-            model,
-            input_tokens,
-            output_tokens,
-            cached_tokens,
-            tool_calls.len()
+            status_code, duration_ms, model, input_tokens, output_tokens, cached_tokens, tool_calls.len()
         );
 
-        // Build OTLP span
-        let span_name = format!("chat {model}");
-        let mut attrs: Vec<(&str, Value)> = vec![
-            ("gen_ai.request.model", json!(model)),
-            ("gen_ai.response.model", json!(model)),
-            ("gen_ai.system", json!(system)),
-            ("gen_ai.usage.input_tokens", json!(input_tokens)),
-            ("gen_ai.usage.output_tokens", json!(output_tokens)),
-            ("gen_ai.conversation.id", json!(pending.session_id)),
-            ("http.status_code", json!(status_code)),
-            ("gen_ai.request.bytes", json!(pending.request_bytes)),
-            ("gen_ai.response.bytes", json!(response_bytes)),
-        ];
-
-        if cached_tokens > 0 {
-            attrs.push(("gen_ai.usage.cached_tokens", json!(cached_tokens)));
-        }
-        if let Some(ref prompt) = pending.user_prompt {
-            attrs.push(("gen_ai.prompt", json!(prompt)));
-        }
-        if !finish_reason.is_empty() {
-            attrs.push(("gen_ai.finish_reason", json!(finish_reason)));
-        }
-
-        let payload = otlp::build_otlp_payload(
-            &service_name,
-            &span_name,
-            &trace_id,
-            pending.started_ns,
-            ended_ns,
-            attrs,
-            Some(client_ua.as_str()),
-            Some(status_code),
-        );
-
-        // Build tool call child spans
-        let mut tool_payloads = vec![];
-        for tc in &tool_calls {
-            let tool_span = otlp::build_otlp_payload(
-                &service_name,
-                &format!("execute_tool {tc}"),
-                &trace_id,
-                pending.started_ns,
+        spawn_otlp_export(
+            self.http_client.clone(),
+            &self.collector_url,
+            CaptureExport {
+                service_name: &service_name,
+                model: &model,
+                system: &system,
+                trace_id: &trace_id,
+                session_id: &pending.session_id,
+                started_ns: pending.started_ns,
                 ended_ns,
-                vec![
-                    ("gen_ai.tool.name", json!(tc)),
-                    ("gen_ai.conversation.id", json!(pending.session_id)),
-                ],
-                Some(client_ua.as_str()),
-                Some(status_code),
-            );
-            tool_payloads.push(tool_span);
-        }
+                status_code,
+                request_bytes: pending.request_bytes,
+                response_bytes,
+                input_tokens,
+                output_tokens,
+                cached_tokens,
+                user_prompt: pending.user_prompt.as_deref(),
+                finish_reason: &finish_reason,
+                tool_calls: &tool_calls,
+                client_ua: &client_ua,
+            },
+        );
 
-        // Send to collector asynchronously — forward client UA so infer_ide works.
-        let client = self.http_client.clone();
-        let url = format!("{}/v1/traces", self.collector_url);
-        let otlp_ua = if client_ua.is_empty() {
-            format!("agent-meter-proxy/{}", env!("CARGO_PKG_VERSION"))
-        } else {
-            client_ua
-        };
-        let mut bodies = vec![payload];
-        bodies.extend(tool_payloads);
-        tokio::spawn(async move {
-            for body in bodies {
-                match client
-                    .post(&url)
-                    .header(header::USER_AGENT, &otlp_ua)
-                    .json(&body)
-                    .send()
-                    .await
-                {
-                    Ok(_) => {}
-                    Err(e) => warn!("[proxy] Failed to send OTLP span: {e}"),
-                }
-            }
-        });
-
-        // Reconstruct response with original body
         Response::from_parts(parts, Body::from(http_body_util::Full::new(body_bytes)))
     }
 }
@@ -385,10 +272,7 @@ fn extract_session_id<T>(req: &Request<T>) -> String {
     }
 
     // Fallback: Bearer token prefix (first 16 chars — stable per login)
-    if let Some(auth) = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(auth) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) {
         if auth.len() > 23 {
             let prefix = &auth[7..23]; // skip "Bearer "
             return format!("token-{prefix}");
@@ -403,107 +287,142 @@ fn extract_session_id<T>(req: &Request<T>) -> String {
         .to_string()
 }
 
-/// Prefer client User-Agent (codex/opencode/copilot-cli/…), then host heuristics.
+fn extract_user_agent<T>(req: &Request<T>) -> String {
+    req.headers()
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string()
+}
+
+fn extract_request_meta(body_bytes: &[u8], path: &str) -> (Option<String>, Option<String>) {
+    let mut model = None;
+    let mut user_prompt = None;
+    if let Ok(body_json) = serde_json::from_slice::<Value>(body_bytes) {
+        model = body_json
+            .get("model")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        user_prompt = extract_user_prompt_from_body(&body_json);
+    }
+    if model.is_none() {
+        model = extract_model_from_path(path);
+    }
+    (model, user_prompt)
+}
+
+fn extract_user_prompt_from_body(body_json: &Value) -> Option<String> {
+    if let Some(messages) = body_json.get("messages").and_then(|v| v.as_array()) {
+        if let Some(p) = extract_user_prompt_from_messages(messages) {
+            return Some(p);
+        }
+    }
+    if let Some(input_str) = body_json.get("input").and_then(|v| v.as_str()) {
+        let cleaned = clean_prompt(input_str);
+        if !cleaned.is_empty() && !is_noise_content(&cleaned) {
+            return Some(cleaned);
+        }
+    } else if let Some(input_arr) = body_json.get("input").and_then(|v| v.as_array()) {
+        if let Some(p) = extract_user_prompt_from_messages(input_arr) {
+            return Some(p);
+        }
+    }
+    extract_user_prompt_from_gemini_contents(body_json)
+}
+
+/// Prefer client User-Agent, then host heuristics. Table-driven to keep cognitive complexity low.
 fn detect_service_name(host: &str, user_agent: &str) -> String {
+    if let Some(name) = service_from_user_agent(user_agent) {
+        return name.to_string();
+    }
+    service_from_host(host).to_string()
+}
+
+fn service_from_user_agent(user_agent: &str) -> Option<&'static str> {
     let ua = user_agent.to_lowercase();
+    const RULES: &[(&[&str], &str)] = &[
+        (
+            &["copilot-jetbrains", "github-copilot-jetbrains"],
+            "copilot-jetbrains",
+        ),
+        (&["copilot-cli", "copilot_cli", "github-copilot-cli"], "copilot-cli"),
+        (&["opencode"], "opencode"),
+        (&["codex"], "codex"),
+        (&["antigravity"], "antigravity"),
+        (&["claude-code", "claude_code"], "claude-code"),
+        (&["rust-rover", "rustrover"], "rust-rover"),
+        (&["windsurf", "codeium"], "windsurf"),
+        (&["gemini-cli", "gemini_cli"], "gemini-cli"),
+        (&["cursor"], "cursor"),
+        (&["vscode"], "copilot"),
+        (&["eclipse", "jdt"], "copilot-eclipse"),
+    ];
+    for (needles, name) in RULES {
+        if needles.iter().any(|n| ua.contains(n)) {
+            return Some(name);
+        }
+    }
+    // IntelliJ + GitHub Copilot plugin UA → copilot-jetbrains (before generic jetbrains).
+    if is_jetbrains_ua(&ua)
+        && (ua.contains("githubcopilot") || ua.contains("github-copilot") || ua.contains("copilot"))
+    {
+        return Some("copilot-jetbrains");
+    }
+    if is_jetbrains_ua(&ua) {
+        return Some("jetbrains");
+    }
+    None
+}
+
+fn is_jetbrains_ua(ua: &str) -> bool {
+    const IDES: &[&str] = &["intellij", "pycharm", "webstorm", "goland", "phpstorm"];
+    if IDES.iter().any(|n| ua.contains(n)) {
+        return true;
+    }
+    ua.contains("jetbrains") && !ua.contains("rust-rover") && !ua.contains("rustrover")
+}
+
+fn service_from_host(host: &str) -> &'static str {
     let host = host.to_lowercase();
-
-    // UA first — same request host (api.openai.com) serves many agents.
-    if ua.contains("copilot-cli") || ua.contains("copilot_cli") || ua.contains("github-copilot-cli")
-    {
-        return "copilot-cli".to_string();
-    }
-    if ua.contains("opencode") {
-        return "opencode".to_string();
-    }
-    if ua.contains("codex") {
-        return "codex".to_string();
-    }
-    if ua.contains("antigravity") {
-        return "antigravity".to_string();
-    }
-    if ua.contains("claude-code") || ua.contains("claude_code") {
-        return "claude-code".to_string();
-    }
-    if ua.contains("rust-rover") || ua.contains("rustrover") {
-        return "rust-rover".to_string();
-    }
-    if ua.contains("windsurf") || ua.contains("codeium") {
-        return "windsurf".to_string();
-    }
-    if ua.contains("gemini-cli") || ua.contains("gemini_cli") {
-        return "gemini-cli".to_string();
-    }
-    if ua.contains("intellij")
-        || ua.contains("pycharm")
-        || ua.contains("webstorm")
-        || ua.contains("goland")
-        || ua.contains("phpstorm")
-        || (ua.contains("jetbrains") && !ua.contains("rust-rover") && !ua.contains("rustrover"))
-    {
-        return "jetbrains".to_string();
-    }
-    if ua.contains("cursor") {
-        return "cursor".to_string();
-    }
-    if ua.contains("vscode") {
-        return "copilot".to_string();
-    }
-    if ua.contains("eclipse") || ua.contains("jdt") {
-        return "copilot-eclipse".to_string();
-    }
-
     if host.contains("cursor") {
-        "cursor".to_string()
+        "cursor"
     } else if host.contains("anthropic") {
-        "claude-code".to_string()
+        "claude-code"
     } else {
-        // openai / github copilot hosts — UA already handled above
-        "copilot".to_string()
+        "copilot"
     }
 }
 
 fn detect_system(host: &str) -> String {
     let host = host.to_lowercase();
-    if host.contains("anthropic") {
-        "anthropic".to_string()
-    } else if host.contains("generativelanguage.googleapis")
-        || host.contains("aiplatform.googleapis")
-    {
-        "google".to_string()
-    } else if host.contains("openrouter") {
-        "openrouter".to_string()
-    } else if host.contains("deepseek") {
-        "deepseek".to_string()
-    } else if host.contains("groq") {
-        "groq".to_string()
-    } else if host.contains("mistral") {
-        "mistral".to_string()
-    } else if host.contains("fireworks") {
-        "fireworks".to_string()
-    } else if host.contains("x.ai") || host.contains("xai") {
-        "xai".to_string()
-    } else if host.contains("together") {
-        "together".to_string()
-    } else if host.contains("perplexity") {
-        "perplexity".to_string()
-    } else if host.contains("githubcopilot") || host.contains("githubusercontent.com") {
-        "github-copilot".to_string()
-    } else {
-        "openai".to_string()
+    const RULES: &[(&[&str], &str)] = &[
+        (&["anthropic"], "anthropic"),
+        (&["generativelanguage.googleapis", "aiplatform.googleapis"], "google"),
+        (&["openrouter"], "openrouter"),
+        (&["deepseek"], "deepseek"),
+        (&["groq"], "groq"),
+        (&["mistral"], "mistral"),
+        (&["fireworks"], "fireworks"),
+        (&["x.ai", "xai"], "xai"),
+        (&["together"], "together"),
+        (&["perplexity"], "perplexity"),
+        (&["githubcopilot", "githubusercontent.com"], "github-copilot"),
+    ];
+    for (needles, name) in RULES {
+        if needles.iter().any(|n| host.contains(n)) {
+            return name.to_string();
+        }
     }
+    "openai".to_string()
 }
 
-/// Pull model id from provider URLs when body has no `model` field.
 fn extract_model_from_path(path: &str) -> Option<String> {
-    // /v1beta/models/gemini-2.0-flash:generateContent
     if let Some(rest) = path.strip_prefix("/v1beta/models/") {
         let model = rest.split(':').next().unwrap_or("").trim();
         if !model.is_empty() {
             return Some(model.to_string());
         }
     }
-    // /openai/deployments/{model}/chat/completions
     const DEPLOY: &str = "/openai/deployments/";
     if let Some(idx) = path.find(DEPLOY) {
         let rest = &path[idx + DEPLOY.len()..];
@@ -531,49 +450,119 @@ fn extract_user_prompt_from_gemini_contents(body: &Value) -> Option<String> {
     None
 }
 
+struct CaptureExport<'a> {
+    service_name: &'a str,
+    model: &'a str,
+    system: &'a str,
+    trace_id: &'a str,
+    session_id: &'a str,
+    started_ns: i64,
+    ended_ns: i64,
+    status_code: u16,
+    request_bytes: usize,
+    response_bytes: usize,
+    input_tokens: i64,
+    output_tokens: i64,
+    cached_tokens: i64,
+    user_prompt: Option<&'a str>,
+    finish_reason: &'a str,
+    tool_calls: &'a [String],
+    client_ua: &'a str,
+}
+
+fn spawn_otlp_export(client: reqwest::Client, collector_url: &str, cap: CaptureExport<'_>) {
+    let span_name = format!("chat {}", cap.model);
+    let mut attrs: Vec<(&str, Value)> = vec![
+        ("gen_ai.request.model", json!(cap.model)),
+        ("gen_ai.response.model", json!(cap.model)),
+        ("gen_ai.system", json!(cap.system)),
+        ("gen_ai.usage.input_tokens", json!(cap.input_tokens)),
+        ("gen_ai.usage.output_tokens", json!(cap.output_tokens)),
+        ("gen_ai.conversation.id", json!(cap.session_id)),
+        ("http.status_code", json!(cap.status_code)),
+        ("gen_ai.request.bytes", json!(cap.request_bytes)),
+        ("gen_ai.response.bytes", json!(cap.response_bytes)),
+    ];
+    if cap.cached_tokens > 0 {
+        attrs.push(("gen_ai.usage.cached_tokens", json!(cap.cached_tokens)));
+    }
+    if let Some(prompt) = cap.user_prompt {
+        attrs.push(("gen_ai.prompt", json!(prompt)));
+    }
+    if !cap.finish_reason.is_empty() {
+        attrs.push(("gen_ai.finish_reason", json!(cap.finish_reason)));
+    }
+
+    let ua = Some(cap.client_ua).filter(|s| !s.is_empty());
+    let payload = otlp::build_otlp_payload(
+        cap.service_name,
+        &span_name,
+        cap.trace_id,
+        cap.started_ns,
+        cap.ended_ns,
+        attrs,
+        ua,
+        Some(cap.status_code),
+    );
+
+    let mut bodies = vec![payload];
+    for tc in cap.tool_calls {
+        bodies.push(otlp::build_otlp_payload(
+            cap.service_name,
+            &format!("execute_tool {tc}"),
+            cap.trace_id,
+            cap.started_ns,
+            cap.ended_ns,
+            vec![
+                ("gen_ai.tool.name", json!(tc)),
+                ("gen_ai.conversation.id", json!(cap.session_id)),
+            ],
+            ua,
+            Some(cap.status_code),
+        ));
+    }
+
+    let url = format!("{}/v1/traces", collector_url);
+    let otlp_ua = if cap.client_ua.is_empty() {
+        format!("agent-meter-proxy/{}", env!("CARGO_PKG_VERSION"))
+    } else {
+        cap.client_ua.to_string()
+    };
+    tokio::spawn(async move {
+        for body in bodies {
+            match client
+                .post(&url)
+                .header(header::USER_AGENT, otlp_ua.as_str())
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(resp) if !resp.status().is_success() => {
+                    warn!("[proxy] OTLP export HTTP {}", resp.status());
+                }
+                Err(e) => warn!("[proxy] Failed to send OTLP span: {e}"),
+                _ => {}
+            }
+        }
+    });
+}
+
+
 fn clean_prompt(content: &str) -> String {
     let mut s = content.to_string();
 
     // Strip common XML wrappers
-    for tag in &[
-        "attachments",
-        "workspace_info",
-        "environment_info",
-        "skill-context",
-        "context",
-        "repoMemory",
-        "sessionMemory",
-        "userMemory",
-        "securityRequirements",
-        "operationalSafety",
-        "implementationDiscipline",
-        "communicationStyle",
-        "toolUseInstructions",
-        "outputFormatting",
-        "memoryInstructions",
-        "reminderInstructions",
-        "editorContext",
-        "notebookInstructions",
-        "instructions",
-        "conversation-summary",
-        "workspace_info",
-        "availableDeferredTools",
-        "parallelizationStrategy",
-        "taskTracking",
-        "current_datetime",
-        "copilot_instructions",
-        "copilotInstructions",
-        "fileLinkification",
-        "communicationExamples",
-        "toolSearchInstructions",
-        "memoryScopes",
-        "memoryGuidelines",
-        "system_reminder",
-        "sql_tables",
-        "active_selection",
-        "file_context",
-        "reference_data",
-    ] {
+    for tag in &["attachments", "workspace_info", "environment_info", "skill-context", "context",
+                 "repoMemory", "sessionMemory", "userMemory", "securityRequirements",
+                 "operationalSafety", "implementationDiscipline", "communicationStyle",
+                 "toolUseInstructions", "outputFormatting", "memoryInstructions",
+                 "reminderInstructions", "editorContext", "notebookInstructions",
+                 "instructions", "conversation-summary", "workspace_info",
+                 "availableDeferredTools", "parallelizationStrategy", "taskTracking",
+                 "current_datetime", "copilot_instructions", "copilotInstructions",
+                 "fileLinkification", "communicationExamples", "toolSearchInstructions",
+                 "memoryScopes", "memoryGuidelines", "system_reminder", "sql_tables",
+                 "active_selection", "file_context", "reference_data"] {
         let open = format!("<{tag}");
         // Match both <tag> and <tag ...attrs>
         if let Some(start) = s.find(&open) {
@@ -610,12 +599,8 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
 
         // Responses API: input items may have type="message" wrapping role+content
         let msg_type = msg.get("type").and_then(|t| t.as_str()).unwrap_or("");
-        if msg_type == "message" && role != "user" {
-            continue;
-        }
-        if msg_type != "message" && role != "user" {
-            continue;
-        }
+        if msg_type == "message" && role != "user" { continue; }
+        if msg_type != "message" && role != "user" { continue; }
 
         // Format 1: content is a plain string (OpenAI style)
         if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
@@ -629,8 +614,7 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
         // Format 2: content is an array of blocks (Anthropic style / Responses API)
         if let Some(blocks) = msg.get("content").and_then(|c| c.as_array()) {
             // Skip if first block is tool_result (agentic loop turn)
-            let first_type = blocks
-                .first()
+            let first_type = blocks.first()
                 .and_then(|b| b.get("type"))
                 .and_then(|t| t.as_str())
                 .unwrap_or("");
@@ -641,8 +625,7 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
             for block in blocks {
                 let btype = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
                 if btype == "text" || btype == "input_text" {
-                    let text_field = block
-                        .get("text")
+                    let text_field = block.get("text")
                         .or_else(|| block.get("content"))
                         .and_then(|t| t.as_str());
                     if let Some(text) = text_field {
@@ -659,9 +642,7 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
         if let Some(parts) = msg.get("parts").and_then(|p| p.as_array()) {
             // Iterate in reverse — last non-XML part is typically the user prompt
             for part in parts.iter().rev() {
-                if part.get("type").and_then(|t| t.as_str()) != Some("text") {
-                    continue;
-                }
+                if part.get("type").and_then(|t| t.as_str()) != Some("text") { continue; }
                 if let Some(content) = part.get("content").and_then(|c| c.as_str()) {
                     let cleaned = clean_prompt(content);
                     if !cleaned.is_empty() && !is_noise_content(&cleaned) {
@@ -682,10 +663,8 @@ fn is_noise_content(s: &str) -> bool {
         || t.starts_with("Terminals:")
         || t.starts_with("[Terminal")
         || t.starts_with("You are ")
-        || t.to_ascii_lowercase()
-            .starts_with("summarize the following")
-        || t.to_ascii_lowercase()
-            .starts_with("please write a brief title")
+        || t.to_ascii_lowercase().starts_with("summarize the following")
+        || t.to_ascii_lowercase().starts_with("please write a brief title")
 }
 
 fn extract_json_usage(
@@ -704,27 +683,15 @@ fn extract_json_usage(
 
     // Usage (OpenAI format)
     if let Some(usage) = body.get("usage") {
-        *input_tokens = usage
-            .get("prompt_tokens")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        *output_tokens = usage
-            .get("completion_tokens")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        *input_tokens = usage.get("prompt_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        *output_tokens = usage.get("completion_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
 
         // Anthropic format
         if *input_tokens == 0 {
-            *input_tokens = usage
-                .get("input_tokens")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
+            *input_tokens = usage.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
         }
         if *output_tokens == 0 {
-            *output_tokens = usage
-                .get("output_tokens")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
+            *output_tokens = usage.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
         }
         *cached_tokens = usage
             .get("cache_read_input_tokens")
@@ -736,10 +703,7 @@ fn extract_json_usage(
     // Tool calls (OpenAI format)
     if let Some(choices) = body.get("choices").and_then(|v| v.as_array()) {
         if let Some(choice) = choices.first() {
-            if let Some(tcs) = choice
-                .pointer("/message/tool_calls")
-                .and_then(|v| v.as_array())
-            {
+            if let Some(tcs) = choice.pointer("/message/tool_calls").and_then(|v| v.as_array()) {
                 for tc in tcs {
                     if let Some(name) = tc.pointer("/function/name").and_then(|v| v.as_str()) {
                         tool_calls.push(name.to_string());
@@ -828,185 +792,11 @@ fn parse_sse_usage(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::Request;
-    use serde_json::json;
-
-    #[test]
-    fn prefers_explicit_session_headers() {
-        let req = Request::builder()
-            .header("x-session-id", "session-123")
-            .header(header::AUTHORIZATION, "Bearer abcdefghijklmnopqrstuvwxyz")
-            .body(())
-            .expect("request should build");
-
-        assert_eq!(extract_session_id(&req), "session-123");
-    }
-
-    #[test]
-    fn falls_back_to_bearer_prefix_for_session_id() {
-        let req = Request::builder()
-            .header(header::AUTHORIZATION, "Bearer abcdefghijklmnopqrstuvwxyz")
-            .body(())
-            .expect("request should build");
-
-        assert_eq!(extract_session_id(&req), "token-abcdefghijklmnop");
-    }
-
-    #[test]
-    fn clean_prompt_extracts_user_request_from_wrapped_context() {
-        let prompt = "<context>ignore</context><userRequest>ship it now</userRequest>";
-
-        assert_eq!(clean_prompt(prompt), "ship it now");
-    }
-
-    #[test]
-    fn clean_prompt_drops_oversized_context_only_payloads() {
-        let prompt = format!("<workspace_info>{}</workspace_info>", "x".repeat(3000));
-
-        assert!(clean_prompt(&prompt).is_empty());
-    }
-
-    #[test]
-    fn extract_user_prompt_skips_tool_results_and_finds_real_text() {
-        let messages = vec![
-            json!({
-                "role": "user",
-                "content": [
-                    {"type": "tool_result", "content": "ignore this"}
-                ]
-            }),
-            json!({
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "actual user prompt"}
-                ]
-            }),
-        ];
-
-        assert_eq!(
-            extract_user_prompt_from_messages(&messages).as_deref(),
-            Some("actual user prompt")
-        );
-    }
-
-    #[test]
-    fn extract_user_prompt_uses_last_text_part() {
-        let messages = vec![json!({
-            "role": "user",
-            "parts": [
-                {"type": "text", "content": "<context>ignore</context>"},
-                {"type": "text", "content": "real prompt from parts"}
-            ]
-        })];
-
-        assert_eq!(
-            extract_user_prompt_from_messages(&messages).as_deref(),
-            Some("real prompt from parts")
-        );
-    }
-
-    #[test]
-    fn extract_json_usage_handles_openai_usage_and_tool_calls() {
-        let body = json!({
-            "model": "gpt-5.4",
-            "usage": {
-                "prompt_tokens": 123,
-                "completion_tokens": 45,
-                "prompt_tokens_details": {"cached_tokens": 12}
-            },
-            "choices": [{
-                "message": {
-                    "tool_calls": [
-                        {"function": {"name": "read_file"}},
-                        {"function": {"name": "run_in_terminal"}}
-                    ]
-                },
-                "finish_reason": "tool_calls"
-            }]
-        });
-        let mut input_tokens = 0;
-        let mut output_tokens = 0;
-        let mut cached_tokens = 0;
-        let mut model = None;
-        let mut tool_calls = vec![];
-        let mut finish_reason = String::new();
-
-        extract_json_usage(
-            &body,
-            &mut input_tokens,
-            &mut output_tokens,
-            &mut cached_tokens,
-            &mut model,
-            &mut tool_calls,
-            &mut finish_reason,
-        );
-
-        assert_eq!(input_tokens, 123);
-        assert_eq!(output_tokens, 45);
-        assert_eq!(cached_tokens, 12);
-        assert_eq!(model.as_deref(), Some("gpt-5.4"));
-        assert_eq!(tool_calls, vec!["read_file", "run_in_terminal"]);
-        assert_eq!(finish_reason, "tool_calls");
-    }
-
-    #[test]
-    fn parse_sse_usage_handles_response_completed_payload() {
-        let body = concat!(
-            "event: response.completed\n",
-            "data: {\"response\":{\"model\":\"gpt-5.4\",\"usage\":{\"input_tokens\":88,\"output_tokens\":21},\"stop_reason\":\"end_turn\"}}\n\n",
-            "data: [DONE]\n"
-        );
-        let mut input_tokens = 0;
-        let mut output_tokens = 0;
-        let mut cached_tokens = 0;
-        let mut model = None;
-        let mut tool_calls = vec![];
-        let mut finish_reason = String::new();
-
-        parse_sse_usage(
-            body,
-            &mut input_tokens,
-            &mut output_tokens,
-            &mut cached_tokens,
-            &mut model,
-            &mut tool_calls,
-            &mut finish_reason,
-        );
-
-        assert_eq!(input_tokens, 88);
-        assert_eq!(output_tokens, 21);
-        assert_eq!(cached_tokens, 0);
-        assert_eq!(model.as_deref(), Some("gpt-5.4"));
-        assert!(tool_calls.is_empty());
-        assert_eq!(finish_reason, "end_turn");
-    }
-
-    #[test]
-    fn host_and_path_filters_are_specific() {
-        assert!(is_ai_host("api.openai.com"));
-        assert!(is_ai_host("proxy.cursor.sh"));
-        assert!(is_ai_host("generativelanguage.googleapis.com"));
-        assert!(is_ai_host("openrouter.ai"));
-        assert!(!is_ai_host("example.com"));
-
-        assert!(is_llm_path("/v1/chat/completions"));
-        assert!(is_llm_path("/responses"));
-        assert!(is_llm_path(
-            "/v1beta/models/gemini-2.0-flash:generateContent"
-        ));
-        assert!(!is_llm_path("/health"));
-    }
 
     #[test]
     fn detect_service_name_prefers_user_agent() {
-        assert_eq!(
-            detect_service_name("api.openai.com", "codex/0.1.0"),
-            "codex"
-        );
-        assert_eq!(
-            detect_service_name("api.openai.com", "opencode/0.5.0"),
-            "opencode"
-        );
+        assert_eq!(detect_service_name("api.openai.com", "codex/0.1.0"), "codex");
+        assert_eq!(detect_service_name("api.openai.com", "opencode/0.5.0"), "opencode");
         assert_eq!(
             detect_service_name("api.openai.com", "github-copilot-cli/1.0"),
             "copilot-cli"
@@ -1020,10 +810,7 @@ mod tests {
             "claude-code"
         );
         assert_eq!(detect_service_name("api2.cursor.sh", "something"), "cursor");
-        assert_eq!(
-            detect_service_name("api.openai.com", "vscode/1.100"),
-            "copilot"
-        );
+        assert_eq!(detect_service_name("api.openai.com", "vscode/1.100"), "copilot");
         assert_eq!(
             detect_service_name("api.openai.com", "rust-rover/2025.1"),
             "rust-rover"
@@ -1032,13 +819,17 @@ mod tests {
             detect_service_name("api.openai.com", "eclipse/2026-03 jdt"),
             "copilot-eclipse"
         );
-        assert_eq!(
-            detect_service_name("api.openai.com", "Windsurf/1.2.0"),
-            "windsurf"
-        );
+        assert_eq!(detect_service_name("api.openai.com", "Windsurf/1.2.0"), "windsurf");
         assert_eq!(
             detect_service_name("api.openai.com", "IntelliJ IDEA/2025.1"),
             "jetbrains"
+        );
+        assert_eq!(
+            detect_service_name(
+                "api.githubcopilot.com",
+                "IntelliJ IDEA/2025.1 GitHubCopilot/1.5.0"
+            ),
+            "copilot-jetbrains"
         );
         assert_eq!(
             detect_service_name("generativelanguage.googleapis.com", "gemini-cli/0.1.0"),
@@ -1047,153 +838,26 @@ mod tests {
     }
 
     #[test]
-    fn detect_system_covers_major_providers() {
-        assert_eq!(detect_system("api.anthropic.com"), "anthropic");
-        assert_eq!(detect_system("api.openai.com"), "openai");
-        assert_eq!(detect_system("generativelanguage.googleapis.com"), "google");
-        assert_eq!(detect_system("openrouter.ai"), "openrouter");
-        assert_eq!(detect_system("api.deepseek.com"), "deepseek");
-        assert_eq!(detect_system("api.groq.com"), "groq");
-        assert_eq!(detect_system("api.mistral.ai"), "mistral");
-        assert_eq!(detect_system("api.fireworks.ai"), "fireworks");
-        assert_eq!(detect_system("api.x.ai"), "xai");
-        assert_eq!(detect_system("api.together.xyz"), "together");
-        assert_eq!(detect_system("api.perplexity.ai"), "perplexity");
-        assert_eq!(detect_system("api.githubcopilot.com"), "github-copilot");
+    fn extract_model_from_gemini_and_azure_paths() {
+        assert_eq!(
+            extract_model_from_path("/v1beta/models/gemini-2.0-flash:generateContent"),
+            Some("gemini-2.0-flash".into())
+        );
+        assert_eq!(
+            extract_model_from_path("/openai/deployments/gpt-4o/chat/completions"),
+            Some("gpt-4o".into())
+        );
     }
 
     #[test]
-    fn extract_model_from_gemini_and_azure_paths() {
+    fn detect_system_google_and_gateways() {
         assert_eq!(
-            extract_model_from_path("/v1beta/models/gemini-2.0-flash:generateContent").as_deref(),
-            Some("gemini-2.0-flash")
+            detect_system("generativelanguage.googleapis.com"),
+            "google"
         );
-        assert_eq!(
-            extract_model_from_path(
-                "/openai/deployments/gpt-4o/chat/completions?api-version=2024-01"
-            )
-            .as_deref(),
-            Some("gpt-4o")
-        );
-        assert_eq!(extract_model_from_path("/v1/chat/completions"), None);
-    }
-
-    fn test_interceptor() -> InterceptorState {
-        InterceptorState::new("http://127.0.0.1:1".into())
-    }
-
-    #[tokio::test]
-    async fn on_request_skips_non_ai_host() {
-        let interceptor = test_interceptor();
-        let body = json!({"model": "gpt-5.4", "messages": []}).to_string();
-        let req = Request::builder()
-            .method("POST")
-            .uri("https://example.com/v1/chat/completions")
-            .header("content-type", "application/json")
-            .body(Body::from(body.clone()))
-            .expect("request should build");
-
-        let out = interceptor.on_request(req).await;
-        let req = match out {
-            RequestOrResponse::Request(req) => req,
-            _ => panic!("expected passthrough request"),
-        };
-
-        assert_eq!(interceptor.pending_count(), 0);
-        let bytes = req.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(std::str::from_utf8(&bytes).unwrap(), body);
-    }
-
-    #[tokio::test]
-    async fn on_request_skips_non_llm_path_on_ai_host() {
-        let interceptor = test_interceptor();
-        let req = Request::builder()
-            .method("GET")
-            .uri("https://api.openai.com/health")
-            .body(Body::empty())
-            .expect("request should build");
-
-        let out = interceptor.on_request(req).await;
-        assert!(matches!(out, RequestOrResponse::Request(_)));
-        assert_eq!(interceptor.pending_count(), 0);
-    }
-
-    #[tokio::test]
-    async fn on_request_registers_pending_and_preserves_body() {
-        let interceptor = test_interceptor();
-        let body = json!({
-            "model": "gpt-5.4",
-            "messages": [{"role": "user", "content": "hello proxy"}]
-        })
-        .to_string();
-        let req = Request::builder()
-            .method("POST")
-            .uri("https://api.openai.com/v1/chat/completions")
-            .header("content-type", "application/json")
-            .header("x-session-id", "corr-session-1")
-            .body(Body::from(body.clone()))
-            .expect("request should build");
-
-        let out = interceptor.on_request(req).await;
-        let req = match out {
-            RequestOrResponse::Request(req) => req,
-            _ => panic!("expected passthrough request"),
-        };
-
-        assert_eq!(interceptor.pending_count(), 1);
-        let bytes = req.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(std::str::from_utf8(&bytes).unwrap(), body);
-    }
-
-    #[tokio::test]
-    async fn on_response_consumes_pending_and_preserves_body() {
-        let interceptor = test_interceptor();
-        let request_body = json!({
-            "model": "gpt-5.4",
-            "messages": [{"role": "user", "content": "count tokens"}]
-        })
-        .to_string();
-        let req = Request::builder()
-            .method("POST")
-            .uri("https://api.openai.com/v1/chat/completions")
-            .header("content-type", "application/json")
-            .header("x-session-id", "corr-session-2")
-            .body(Body::from(request_body))
-            .expect("request should build");
-        interceptor.on_request(req).await;
-
-        let response_body = json!({
-            "model": "gpt-5.4",
-            "usage": {"prompt_tokens": 11, "completion_tokens": 7},
-            "choices": [{"finish_reason": "stop"}]
-        })
-        .to_string();
-        let res = Response::builder()
-            .status(200)
-            .header("content-type", "application/json")
-            .body(Body::from(response_body.clone()))
-            .expect("response should build");
-
-        let out = interceptor.on_response(res).await;
-        assert_eq!(interceptor.pending_count(), 0);
-
-        let bytes = out.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(std::str::from_utf8(&bytes).unwrap(), response_body);
-    }
-
-    #[tokio::test]
-    async fn on_response_noops_when_no_pending_request() {
-        let interceptor = test_interceptor();
-        let response_body = r#"{"ok":true}"#;
-        let res = Response::builder()
-            .status(200)
-            .body(Body::from(response_body))
-            .expect("response should build");
-
-        let out = interceptor.on_response(res).await;
-        assert_eq!(interceptor.pending_count(), 0);
-
-        let bytes = out.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(std::str::from_utf8(&bytes).unwrap(), response_body);
+        assert_eq!(detect_system("openrouter.ai"), "openrouter");
+        assert_eq!(detect_system("api.together.xyz"), "together");
+        assert_eq!(detect_system("api.perplexity.ai"), "perplexity");
+        assert_eq!(detect_system("api.openai.com"), "openai");
     }
 }

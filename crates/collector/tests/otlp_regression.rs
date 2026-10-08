@@ -1,57 +1,25 @@
-/// Regression tests — OTLP ingestion por ferramenta/agent.
+/// Regression tests — OTLP ingestion por ferramenta/agent (SaaS monorepo).
 ///
-/// Cada fixture representa um payload real (ou sintético fiel ao spec) enviado
-/// via OTLP JSON para o endpoint /v1/traces.  Os testes verificam:
-///   - `ide` detectado corretamente
-///   - `tool_name` extraído corretamente
-///   - `model` capturado quando disponível
-///   - `conversation_id` agrupado corretamente
-///   - Nenhum evento perdido (count == N spans esperados)
-///
-/// Ferramentas cobertas (por prioridade de produto):
-///   1. VS Code Copilot        (execute_tool + chat)
-///   2. GitHub Copilot CLI     (execute_tool + chat; service.name=copilot-cli)
-///   3. Cursor                 (execute_tool + chat; service.name=cursor)
-///   4. Antigravity            (execute_tool + chat; service.name=antigravity)
-///   5. Claude Code            (execute_tool + chat; service.name=claude)
-///   6. Codex CLI              (execute_tool; service.name=codex)
-///   7. OpenCode               (execute_tool + chat; service.name=opencode)
-///   8. MCP OTel semconv       (tools/call <tool>; novo padrão)
+/// Setup uses Postgres (`DATABASE_URL` / local test port) — monorepo AppState requires PgPool.
+/// Fixtures + cases synced from OSS agent-meter v0.1.10 capture matrix.
 ///
 /// CI also runs binary HTTP replay: `scripts/ci/capture-e2e.sh` (see docs/capture-e2e.md).
-use agent_meter_collector::{app, config::Config};
-use agent_meter_db::{Database, SqliteDb};
+use agent_meter_collector::{app, config::Config, db};
+use agent_meter_db::{Database, PostgresDb};
 use reqwest::Client;
 use serde_json::Value;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::sync::CancellationToken;
 
-static COUNTER: AtomicU64 = AtomicU64::new(0);
-
-async fn make_db() -> Arc<dyn Database> {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let path = std::env::temp_dir().join(format!("am-test-otlp-{nanos}-{n}.db"));
-    let url = format!("sqlite://{}", path.display());
-    let db = SqliteDb::connect(&url)
-        .await
-        .unwrap_or_else(|e| panic!("sqlite connect: {e}"));
-    db.migrate()
-        .await
-        .unwrap_or_else(|e| panic!("sqlite migrate: {e}"));
-    Arc::new(db)
-}
-
 async fn setup() -> (String, Client) {
-    let db = make_db().await;
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| db::local_postgres_url(54321));
+    let pool = db::connect(&database_url).await.unwrap();
     let config = Config::from_env();
-    let app = app::build_otlp(config, db, CancellationToken::new());
+    let db: Arc<dyn Database> = Arc::new(PostgresDb::from_pool(pool.clone()));
+    let cancel = CancellationToken::new();
+    let app = app::build_otlp(config, pool, db, cancel);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let base_url = format!("http://{}", addr);
@@ -93,9 +61,11 @@ async fn post_otlp(base_url: &str, client: &Client, fixture: &str) -> Vec<Value>
     serde_json::from_str::<Vec<Value>>(&text).unwrap_or_default()
 }
 
-/// Infer realistic user-agent from fixture name so `infer_ide` can detect the source.
 fn infer_ua_from_fixture(fixture: &str) -> &'static str {
     match fixture {
+        f if f.starts_with("copilot_jetbrains") => {
+            "IntelliJ IDEA/2025.1 GitHubCopilot/1.5.0 (linux amd64)"
+        }
         f if f.starts_with("copilot_cli") => "github-copilot-cli/1.0.0 (linux amd64)",
         f if f.starts_with("vscode") => "vscode/1.100.0 (darwin arm64)",
         f if f.starts_with("cursor") => "cursor/0.48.0 (darwin arm64)",
@@ -182,6 +152,46 @@ async fn test_otlp_copilot_cli_execute_tool_and_chat() {
     assert!(tool_event.is_some(), "should have a shell tool event");
     assert!(chat_event.is_some(), "should have a chat/llm_chat event");
     assert_eq!(tool_event.unwrap()["tool_name"], "shell");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_otlp_copilot_cli_otel_native_github_copilot_service() {
+    let (base_url, client) = setup().await;
+    let events = post_otlp(&base_url, &client, "copilot_cli_otel_native.json").await;
+    // Ingest ACK is {buffered,tool_name} only — ide mapping covered by otlp::ide unit tests
+    // + capture-e2e expect_ide on this fixture.
+    assert_eq!(
+        events.len(),
+        2,
+        "github-copilot native OTel fixture should produce 2 events"
+    );
+    assert!(
+        events.iter().any(|e| e["tool_name"] == "shell"),
+        "expected shell tool event"
+    );
+    assert!(
+        events.iter().any(|e| e["tool_name"] == "llm_chat"),
+        "expected llm_chat event"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_otlp_copilot_jetbrains_otel_native() {
+    let (base_url, client) = setup().await;
+    let events = post_otlp(&base_url, &client, "copilot_jetbrains_otel_native.json").await;
+    assert_eq!(
+        events.len(),
+        2,
+        "copilot-jetbrains OTel fixture should produce 2 events"
+    );
+    assert!(
+        events.iter().any(|e| e["tool_name"] == "shell"),
+        "expected shell tool event"
+    );
+    assert!(
+        events.iter().any(|e| e["tool_name"] == "llm_chat"),
+        "expected llm_chat event"
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
