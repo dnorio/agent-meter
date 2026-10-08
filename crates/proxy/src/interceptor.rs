@@ -5,7 +5,7 @@ use http::{header, Request, Response};
 use http_body_util::BodyExt;
 use hudsucker::{Body, RequestOrResponse};
 use serde_json::{json, Value};
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 use crate::otlp;
 use crate::session::SessionManager;
@@ -220,7 +220,13 @@ impl InterceptorState {
 
         info!(
             "[proxy] ← {} {}ms model={} in={} out={} cached={} tools={}",
-            status_code, duration_ms, model, input_tokens, output_tokens, cached_tokens, tool_calls.len()
+            status_code,
+            duration_ms,
+            model,
+            input_tokens,
+            output_tokens,
+            cached_tokens,
+            tool_calls.len()
         );
 
         spawn_otlp_export(
@@ -272,7 +278,10 @@ fn extract_session_id<T>(req: &Request<T>) -> String {
     }
 
     // Fallback: Bearer token prefix (first 16 chars — stable per login)
-    if let Some(auth) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) {
+    if let Some(auth) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+    {
         if auth.len() > 23 {
             let prefix = &auth[7..23]; // skip "Bearer "
             return format!("token-{prefix}");
@@ -345,7 +354,10 @@ fn service_from_user_agent(user_agent: &str) -> Option<&'static str> {
             &["copilot-jetbrains", "github-copilot-jetbrains"],
             "copilot-jetbrains",
         ),
-        (&["copilot-cli", "copilot_cli", "github-copilot-cli"], "copilot-cli"),
+        (
+            &["copilot-cli", "copilot_cli", "github-copilot-cli"],
+            "copilot-cli",
+        ),
         (&["opencode"], "opencode"),
         (&["codex"], "codex"),
         (&["antigravity"], "antigravity"),
@@ -397,7 +409,10 @@ fn detect_system(host: &str) -> String {
     let host = host.to_lowercase();
     const RULES: &[(&[&str], &str)] = &[
         (&["anthropic"], "anthropic"),
-        (&["generativelanguage.googleapis", "aiplatform.googleapis"], "google"),
+        (
+            &["generativelanguage.googleapis", "aiplatform.googleapis"],
+            "google",
+        ),
         (&["openrouter"], "openrouter"),
         (&["deepseek"], "deepseek"),
         (&["groq"], "groq"),
@@ -406,7 +421,10 @@ fn detect_system(host: &str) -> String {
         (&["x.ai", "xai"], "xai"),
         (&["together"], "together"),
         (&["perplexity"], "perplexity"),
-        (&["githubcopilot", "githubusercontent.com"], "github-copilot"),
+        (
+            &["githubcopilot", "githubusercontent.com"],
+            "github-copilot",
+        ),
     ];
     for (needles, name) in RULES {
         if needles.iter().any(|n| host.contains(n)) {
@@ -547,22 +565,49 @@ fn spawn_otlp_export(client: reqwest::Client, collector_url: &str, cap: CaptureE
     });
 }
 
-
 fn clean_prompt(content: &str) -> String {
     let mut s = content.to_string();
 
     // Strip common XML wrappers
-    for tag in &["attachments", "workspace_info", "environment_info", "skill-context", "context",
-                 "repoMemory", "sessionMemory", "userMemory", "securityRequirements",
-                 "operationalSafety", "implementationDiscipline", "communicationStyle",
-                 "toolUseInstructions", "outputFormatting", "memoryInstructions",
-                 "reminderInstructions", "editorContext", "notebookInstructions",
-                 "instructions", "conversation-summary", "workspace_info",
-                 "availableDeferredTools", "parallelizationStrategy", "taskTracking",
-                 "current_datetime", "copilot_instructions", "copilotInstructions",
-                 "fileLinkification", "communicationExamples", "toolSearchInstructions",
-                 "memoryScopes", "memoryGuidelines", "system_reminder", "sql_tables",
-                 "active_selection", "file_context", "reference_data"] {
+    for tag in &[
+        "attachments",
+        "workspace_info",
+        "environment_info",
+        "skill-context",
+        "context",
+        "repoMemory",
+        "sessionMemory",
+        "userMemory",
+        "securityRequirements",
+        "operationalSafety",
+        "implementationDiscipline",
+        "communicationStyle",
+        "toolUseInstructions",
+        "outputFormatting",
+        "memoryInstructions",
+        "reminderInstructions",
+        "editorContext",
+        "notebookInstructions",
+        "instructions",
+        "conversation-summary",
+        "workspace_info",
+        "availableDeferredTools",
+        "parallelizationStrategy",
+        "taskTracking",
+        "current_datetime",
+        "copilot_instructions",
+        "copilotInstructions",
+        "fileLinkification",
+        "communicationExamples",
+        "toolSearchInstructions",
+        "memoryScopes",
+        "memoryGuidelines",
+        "system_reminder",
+        "sql_tables",
+        "active_selection",
+        "file_context",
+        "reference_data",
+    ] {
         let open = format!("<{tag}");
         // Match both <tag> and <tag ...attrs>
         if let Some(start) = s.find(&open) {
@@ -599,8 +644,12 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
 
         // Responses API: input items may have type="message" wrapping role+content
         let msg_type = msg.get("type").and_then(|t| t.as_str()).unwrap_or("");
-        if msg_type == "message" && role != "user" { continue; }
-        if msg_type != "message" && role != "user" { continue; }
+        if msg_type == "message" && role != "user" {
+            continue;
+        }
+        if msg_type != "message" && role != "user" {
+            continue;
+        }
 
         // Format 1: content is a plain string (OpenAI style)
         if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
@@ -614,7 +663,8 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
         // Format 2: content is an array of blocks (Anthropic style / Responses API)
         if let Some(blocks) = msg.get("content").and_then(|c| c.as_array()) {
             // Skip if first block is tool_result (agentic loop turn)
-            let first_type = blocks.first()
+            let first_type = blocks
+                .first()
                 .and_then(|b| b.get("type"))
                 .and_then(|t| t.as_str())
                 .unwrap_or("");
@@ -625,7 +675,8 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
             for block in blocks {
                 let btype = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
                 if btype == "text" || btype == "input_text" {
-                    let text_field = block.get("text")
+                    let text_field = block
+                        .get("text")
                         .or_else(|| block.get("content"))
                         .and_then(|t| t.as_str());
                     if let Some(text) = text_field {
@@ -642,7 +693,9 @@ fn extract_user_prompt_from_messages(messages: &[Value]) -> Option<String> {
         if let Some(parts) = msg.get("parts").and_then(|p| p.as_array()) {
             // Iterate in reverse — last non-XML part is typically the user prompt
             for part in parts.iter().rev() {
-                if part.get("type").and_then(|t| t.as_str()) != Some("text") { continue; }
+                if part.get("type").and_then(|t| t.as_str()) != Some("text") {
+                    continue;
+                }
                 if let Some(content) = part.get("content").and_then(|c| c.as_str()) {
                     let cleaned = clean_prompt(content);
                     if !cleaned.is_empty() && !is_noise_content(&cleaned) {
@@ -663,8 +716,10 @@ fn is_noise_content(s: &str) -> bool {
         || t.starts_with("Terminals:")
         || t.starts_with("[Terminal")
         || t.starts_with("You are ")
-        || t.to_ascii_lowercase().starts_with("summarize the following")
-        || t.to_ascii_lowercase().starts_with("please write a brief title")
+        || t.to_ascii_lowercase()
+            .starts_with("summarize the following")
+        || t.to_ascii_lowercase()
+            .starts_with("please write a brief title")
 }
 
 fn extract_json_usage(
@@ -683,15 +738,27 @@ fn extract_json_usage(
 
     // Usage (OpenAI format)
     if let Some(usage) = body.get("usage") {
-        *input_tokens = usage.get("prompt_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-        *output_tokens = usage.get("completion_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        *input_tokens = usage
+            .get("prompt_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        *output_tokens = usage
+            .get("completion_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
 
         // Anthropic format
         if *input_tokens == 0 {
-            *input_tokens = usage.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+            *input_tokens = usage
+                .get("input_tokens")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
         }
         if *output_tokens == 0 {
-            *output_tokens = usage.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+            *output_tokens = usage
+                .get("output_tokens")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
         }
         *cached_tokens = usage
             .get("cache_read_input_tokens")
@@ -703,7 +770,10 @@ fn extract_json_usage(
     // Tool calls (OpenAI format)
     if let Some(choices) = body.get("choices").and_then(|v| v.as_array()) {
         if let Some(choice) = choices.first() {
-            if let Some(tcs) = choice.pointer("/message/tool_calls").and_then(|v| v.as_array()) {
+            if let Some(tcs) = choice
+                .pointer("/message/tool_calls")
+                .and_then(|v| v.as_array())
+            {
                 for tc in tcs {
                     if let Some(name) = tc.pointer("/function/name").and_then(|v| v.as_str()) {
                         tool_calls.push(name.to_string());
@@ -795,8 +865,14 @@ mod tests {
 
     #[test]
     fn detect_service_name_prefers_user_agent() {
-        assert_eq!(detect_service_name("api.openai.com", "codex/0.1.0"), "codex");
-        assert_eq!(detect_service_name("api.openai.com", "opencode/0.5.0"), "opencode");
+        assert_eq!(
+            detect_service_name("api.openai.com", "codex/0.1.0"),
+            "codex"
+        );
+        assert_eq!(
+            detect_service_name("api.openai.com", "opencode/0.5.0"),
+            "opencode"
+        );
         assert_eq!(
             detect_service_name("api.openai.com", "github-copilot-cli/1.0"),
             "copilot-cli"
@@ -810,7 +886,10 @@ mod tests {
             "claude-code"
         );
         assert_eq!(detect_service_name("api2.cursor.sh", "something"), "cursor");
-        assert_eq!(detect_service_name("api.openai.com", "vscode/1.100"), "copilot");
+        assert_eq!(
+            detect_service_name("api.openai.com", "vscode/1.100"),
+            "copilot"
+        );
         assert_eq!(
             detect_service_name("api.openai.com", "rust-rover/2025.1"),
             "rust-rover"
@@ -819,7 +898,10 @@ mod tests {
             detect_service_name("api.openai.com", "eclipse/2026-03 jdt"),
             "copilot-eclipse"
         );
-        assert_eq!(detect_service_name("api.openai.com", "Windsurf/1.2.0"), "windsurf");
+        assert_eq!(
+            detect_service_name("api.openai.com", "Windsurf/1.2.0"),
+            "windsurf"
+        );
         assert_eq!(
             detect_service_name("api.openai.com", "IntelliJ IDEA/2025.1"),
             "jetbrains"
@@ -851,10 +933,7 @@ mod tests {
 
     #[test]
     fn detect_system_google_and_gateways() {
-        assert_eq!(
-            detect_system("generativelanguage.googleapis.com"),
-            "google"
-        );
+        assert_eq!(detect_system("generativelanguage.googleapis.com"), "google");
         assert_eq!(detect_system("openrouter.ai"), "openrouter");
         assert_eq!(detect_system("api.together.xyz"), "together");
         assert_eq!(detect_system("api.perplexity.ai"), "perplexity");

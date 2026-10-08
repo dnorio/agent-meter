@@ -191,12 +191,15 @@ async fn test_otlp_copilot_cli_execute_tool_and_chat() {
 // 2. Cursor
 // ─────────────────────────────────────────────────────────────────────────────
 
-
 #[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_copilot_cli_otel_native_github_copilot_service() {
     let (base_url, client) = setup().await;
     let events = post_otlp(&base_url, &client, "copilot_cli_otel_native.json").await;
-    assert_eq!(events.len(), 2, "github-copilot native OTel fixture should produce 2 events");
+    assert_eq!(
+        events.len(),
+        2,
+        "github-copilot native OTel fixture should produce 2 events"
+    );
     assert!(events.iter().any(|e| e["tool_name"] == "shell"));
     assert!(events.iter().any(|e| e["tool_name"] == "llm_chat"));
     // OSS ACK may include ide
@@ -211,7 +214,11 @@ async fn test_otlp_copilot_cli_otel_native_github_copilot_service() {
 async fn test_otlp_copilot_jetbrains_otel_native() {
     let (base_url, client) = setup().await;
     let events = post_otlp(&base_url, &client, "copilot_jetbrains_otel_native.json").await;
-    assert_eq!(events.len(), 2, "copilot-jetbrains OTel fixture should produce 2 events");
+    assert_eq!(
+        events.len(),
+        2,
+        "copilot-jetbrains OTel fixture should produce 2 events"
+    );
     assert!(events.iter().any(|e| e["tool_name"] == "shell"));
     assert!(events.iter().any(|e| e["tool_name"] == "llm_chat"));
     if let Some(tool) = events.iter().find(|e| e["tool_name"] == "shell") {
