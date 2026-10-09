@@ -166,6 +166,10 @@ cases = [
      "https://api.githubcopilot.com/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
      {"model": "gpt-4.1", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4.1"),
+    ("copilot-jetbrains", "IntelliJ IDEA/2025.1 GitHubCopilot/1.5.0 (linux amd64)",
+     "https://api.githubcopilot.com/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "gpt-4.1", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4.1"),
     ("rust-rover", "rust-rover/2025.1 (linux amd64)", "https://api.openai.com/v1/chat/completions",
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
      {"model": "gpt-4o", "messages": [{"role": "user", "content": "ping"}]}, "gpt-4o"),
@@ -221,6 +225,17 @@ host_cases = [
      ["-H", "Authorization: Bearer sk-live-e2e-fake"],
      {"model": "grok-2", "messages": [{"role": "user", "content": "ping"}]},
      "cursor", "grok-2", "xai"),
+    ("host-together", "cursor/0.48.0 (linux arm64)",
+     "https://api.together.xyz/v1/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+      "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", "together"),
+    ("host-perplexity", "cursor/0.48.0 (linux arm64)",
+     "https://api.perplexity.ai/chat/completions",
+     ["-H", "Authorization: Bearer sk-live-e2e-fake"],
+     {"model": "sonar", "messages": [{"role": "user", "content": "ping"}]},
+     "cursor", "sonar", "perplexity"),
 ]
 
 def reset():
@@ -323,7 +338,7 @@ for ide, ua, url, extra, body, expect_model in cases:
         problems.append(f"missing timestamps ({bad_ts[:2]})")
     if ide == "claude-code" and "anthropic" not in providers:
         problems.append(f"provider anthropic missing (got {sorted(providers)})")
-    if ide == "copilot-cli" and "github-copilot" not in providers:
+    if ide in ("copilot-cli", "copilot-jetbrains") and "github-copilot" not in providers:
         problems.append(f"provider github-copilot missing (got {sorted(providers)})")
     if ide == "gemini-cli" and "google" not in providers:
         problems.append(f"provider google missing (got {sorted(providers)})")

@@ -96,6 +96,9 @@ async fn post_otlp(base_url: &str, client: &Client, fixture: &str) -> Vec<Value>
 /// Infer realistic user-agent from fixture name so `infer_ide` can detect the source.
 fn infer_ua_from_fixture(fixture: &str) -> &'static str {
     match fixture {
+        f if f.starts_with("copilot_jetbrains") => {
+            "IntelliJ IDEA/2025.1 GitHubCopilot/1.5.0 (linux amd64)"
+        }
         f if f.starts_with("copilot_cli") => "github-copilot-cli/1.0.0 (linux amd64)",
         f if f.starts_with("vscode") => "vscode/1.100.0 (darwin arm64)",
         f if f.starts_with("cursor") => "cursor/0.48.0 (darwin arm64)",
@@ -187,6 +190,43 @@ async fn test_otlp_copilot_cli_execute_tool_and_chat() {
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Cursor
 // ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_otlp_copilot_cli_otel_native_github_copilot_service() {
+    let (base_url, client) = setup().await;
+    let events = post_otlp(&base_url, &client, "copilot_cli_otel_native.json").await;
+    assert_eq!(
+        events.len(),
+        2,
+        "github-copilot native OTel fixture should produce 2 events"
+    );
+    assert!(events.iter().any(|e| e["tool_name"] == "shell"));
+    assert!(events.iter().any(|e| e["tool_name"] == "llm_chat"));
+    // OSS ACK may include ide
+    if let Some(tool) = events.iter().find(|e| e["tool_name"] == "shell") {
+        if tool.get("ide").is_some() {
+            assert_eq!(tool["ide"].as_str(), Some("copilot-cli"));
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_otlp_copilot_jetbrains_otel_native() {
+    let (base_url, client) = setup().await;
+    let events = post_otlp(&base_url, &client, "copilot_jetbrains_otel_native.json").await;
+    assert_eq!(
+        events.len(),
+        2,
+        "copilot-jetbrains OTel fixture should produce 2 events"
+    );
+    assert!(events.iter().any(|e| e["tool_name"] == "shell"));
+    assert!(events.iter().any(|e| e["tool_name"] == "llm_chat"));
+    if let Some(tool) = events.iter().find(|e| e["tool_name"] == "shell") {
+        if tool.get("ide").is_some() {
+            assert_eq!(tool["ide"].as_str(), Some("copilot-jetbrains"));
+        }
+    }
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_otlp_cursor_execute_tool_and_chat() {

@@ -199,6 +199,20 @@ cases = [
         "github-copilot-cli/1.0.0",
     ),
     (
+        "copilot-jetbrains",
+        "execute_tool shell",
+        [
+            ("gen_ai.tool.name", "shell"),
+            ("gen_ai.request.model", "gpt-4.1"),
+            ("gen_ai.conversation.id", "proxy-copilot-jetbrains-conv"),
+            ("gen_ai.usage.input_tokens", 7),
+            ("gen_ai.usage.output_tokens", 2),
+        ],
+        "copilot-jetbrains",
+        "shell",
+        "IntelliJ IDEA/2025.1 GitHubCopilot/1.5.0",
+    ),
+    (
         "rust-rover",
         "execute_tool read_file",
         [

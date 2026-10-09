@@ -1,5 +1,8 @@
 # Capture e2e — contracts + LIVE path
 
+**Coverage matrix (OTLP / wrap / HTTP / SDK / Jenkins):**  
+[`capture-coverage-matrix.md`](capture-coverage-matrix.md) · epic [T-533](../../../tasks/2026/Q4/T-533-EPIC-agent-meter-Capture-coverage-100-green-matrix-delivery-loop.md)
+
 ## Layers (what is / isn't real)
 
 | Layer | Real? | What it proves |
@@ -14,7 +17,7 @@
 ## Required IDEs
 
 `cursor` · `antigravity` · `codex` · `claude-code` · `opencode` ·
-`copilot-vscode` · `copilot-cli` · `copilot-eclipse` · `rust-rover` · `windsurf` ·
+`copilot-vscode` · `copilot-cli` · `copilot-jetbrains` · `copilot-eclipse` · `rust-rover` · `windsurf` ·
 `jetbrains` · `gemini-cli`
 
 Every fixture for a required IDE must set `expect_conversation_ids` + `expect_models_any`.
@@ -24,8 +27,9 @@ Layer alignment gate: `bash scripts/ci/capture-matrix-coverage.sh`
 (fixture + LIVE MITM + proxy e2e + otlp_regression + provider hosts).
 
 LIVE MITM also hits **provider hosts** (openrouter, deepseek, groq, gemini, mistral,
-fireworks, xAI) and asserts `mcp_server` / `user_prompt` / `ok=false` on HTTP 4xx /
-timeline / `/api/conversations`. Proxy marks OTLP span ERROR when upstream HTTP ≥ 400.
+fireworks, xAI, together, perplexity) and asserts `mcp_server` / `user_prompt` /
+`ok=false` on HTTP 4xx / timeline / `/api/conversations`. Proxy marks OTLP span
+ERROR when upstream HTTP ≥ 400.
 
 ## One-shot local matrix
 
@@ -69,4 +73,5 @@ embeds `user_agent` / `browser.user_agent` on the OTLP **resource**, and forward
 HTTP UA on OTLP POST. Collector prefers resource UA over the proxy's default
 `agent-meter-proxy/*` header so IDE attribution stays correct.
 
-Intercept hosts also include Gemini/Google, OpenRouter, DeepSeek, Groq, Mistral, Fireworks.
+Intercept hosts also include Gemini/Google, OpenRouter, DeepSeek, Groq, Mistral,
+Fireworks, xAI, Together, Perplexity.

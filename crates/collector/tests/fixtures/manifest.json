@@ -16,6 +16,7 @@
     "codex",
     "copilot-cli",
     "copilot-eclipse",
+    "copilot-jetbrains",
     "copilot-vscode",
     "cursor",
     "gemini-cli",
@@ -67,6 +68,7 @@
       "harness": "copilot-cli",
       "user_agent": "github-copilot-cli/1.0.0 (linux amd64)",
       "expect_ide": "copilot-cli",
+      "capture_path": "otlp_native",
       "expect_tool_names": [
         "shell",
         "llm_chat"
@@ -79,6 +81,48 @@
       ],
       "min_events": 2,
       "sha256": "06e8100a743de676f16d992729b99cbd0b676c5b257679b6067c464d76431fe2"
+    },
+    {
+      "id": "copilot-cli-otel-native",
+      "file": "copilot_cli_otel_native.json",
+      "harness": "copilot-cli",
+      "user_agent": "github-copilot-cli/1.0.0 (linux amd64)",
+      "expect_ide": "copilot-cli",
+      "capture_path": "otlp_native",
+      "notes": "Vendor service.name=github-copilot (GenAI OTel CLI runtime)",
+      "expect_tool_names": [
+        "shell",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "github-copilot-conv-001"
+      ],
+      "expect_models_any": [
+        "gpt-4.1"
+      ],
+      "min_events": 2,
+      "sha256": "b9e2f3f5027dfad006cbb1a9edc7d7007cc5e9f6c16ec67cb1ea5fbf29f7a606"
+    },
+    {
+      "id": "copilot-jetbrains-otel-native",
+      "file": "copilot_jetbrains_otel_native.json",
+      "harness": "copilot-jetbrains",
+      "user_agent": "IntelliJ IDEA/2025.1 GitHubCopilot/1.5.0 (linux amd64)",
+      "expect_ide": "copilot-jetbrains",
+      "capture_path": "otlp_native",
+      "notes": "Set service.name=copilot-jetbrains via JetBrains Copilot Chat OTel resourceAttributes",
+      "expect_tool_names": [
+        "shell",
+        "llm_chat"
+      ],
+      "expect_conversation_ids": [
+        "copilot-jetbrains-conv-001"
+      ],
+      "expect_models_any": [
+        "gpt-4.1"
+      ],
+      "min_events": 2,
+      "sha256": "69804e8df209461ac3397a5ef0290fc88b6bb4dbb8cb8e20d52fe47f9f091aba"
     },
     {
       "id": "eclipse-copilot",

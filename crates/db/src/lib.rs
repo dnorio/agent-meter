@@ -39,6 +39,7 @@ impl From<sqlx::Error> for DbError {
 }
 
 /// The core database trait. All services depend on this, not on `PgPool` directly.
+#[allow(clippy::double_must_use)] // async_trait Future is already must_use (clippy on GHA stable)
 #[async_trait]
 pub trait Database: Send + Sync + 'static {
     // ── Events ──────────────────────────────────────────────────────────────

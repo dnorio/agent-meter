@@ -5,11 +5,19 @@ struct IdeRule {
 }
 
 const IDE_RULES: &[IdeRule] = &[
-    // Keep copilot-cli first to avoid being swallowed by generic "copilot".
+    // Longer Copilot surface names before generic "copilot" / short "github-copilot".
+    IdeRule {
+        // JetBrains plugin → CLI runtime OTel; set resource service.name=copilot-jetbrains
+        // (Settings > Tools > GitHub Copilot > Chat resourceAttributes) to distinguish CLI.
+        ide: "copilot-jetbrains",
+        ua_patterns: &["copilot-jetbrains", "github-copilot-jetbrains"],
+        svc_patterns: &["copilot-jetbrains", "github-copilot-jetbrains"],
+    },
     IdeRule {
         ide: "copilot-cli",
-        ua_patterns: &["copilot-cli", "copilot_cli"],
-        svc_patterns: &["copilot-cli", "copilot_cli"],
+        ua_patterns: &["copilot-cli", "copilot_cli", "github-copilot-cli"],
+        // Vendor GenAI OTel uses service.name=github-copilot (CLI runtime).
+        svc_patterns: &["copilot-cli", "copilot_cli", "github-copilot"],
     },
     IdeRule {
         ide: "cursor",
@@ -125,6 +133,22 @@ mod tests {
         assert_eq!(
             infer_ide(None, Some("copilot_cli")),
             Some("copilot-cli".to_string())
+        );
+    }
+
+    #[test]
+    fn detects_copilot_cli_from_vendor_github_copilot_service() {
+        assert_eq!(
+            infer_ide(None, Some("github-copilot")),
+            Some("copilot-cli".to_string())
+        );
+    }
+
+    #[test]
+    fn detects_copilot_jetbrains_from_service() {
+        assert_eq!(
+            infer_ide(None, Some("copilot-jetbrains")),
+            Some("copilot-jetbrains".to_string())
         );
     }
 
