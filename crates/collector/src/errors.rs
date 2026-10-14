@@ -43,6 +43,9 @@ impl IntoResponse for AppError {
             AppError::Db(e) => match e {
                 agent_meter_db::DbError::NotFound => (StatusCode::NOT_FOUND, "Not found".into()),
                 agent_meter_db::DbError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
+                agent_meter_db::DbError::InvalidQuery(msg) => {
+                    (StatusCode::BAD_REQUEST, msg.clone())
+                }
                 agent_meter_db::DbError::Internal(msg) => {
                     tracing::error!(error = %msg, "db layer error");
                     (

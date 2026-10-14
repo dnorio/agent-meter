@@ -802,6 +802,71 @@ async fn test_health_ready_and_otlp_status() {
 }
 
 #[tokio::test]
+async fn test_search_fts5_metacharacters_are_not_server_errors() {
+    let (base_url, client) = setup().await;
+
+    let event = json!({
+        "tool_name": "read_file",
+        "conversation_id": "conv-search-meta-1",
+        "started_at": "2026-05-17T00:00:00Z",
+        "ended_at": "2026-05-17T00:00:01Z",
+        "ok": true,
+        "user_prompt": "near call in the billing module"
+    });
+    assert_eq!(
+        client
+            .post(format!("{}/events/tool-call", base_url))
+            .json(&event)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    wait_until_event_count(&base_url, &client, 1).await;
+
+    // These used to reach the FTS5 MATCH expression verbatim and fail inside SQLite, which
+    // the API reported as 500. They are search input, not server errors.
+    for q in [
+        "NEAR(",
+        "):(",
+        "unbalanced\"quote",
+        "*",
+        "%00null",
+        "AND AND",
+        "a-b",
+        "col:",
+    ] {
+        let resp = client
+            .get(format!("{}/api/search", base_url))
+            .query(&[("q", q)])
+            .send()
+            .await
+            .expect("search request");
+        assert!(
+            resp.status().is_success(),
+            "search q={q:?} returned {}, expected a client-safe response",
+            resp.status()
+        );
+    }
+
+    // the quoted fallback still finds the term it was given
+    let hits: serde_json::Value = client
+        .get(format!("{}/api/search", base_url))
+        .query(&[("q", "NEAR(")])
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        !hits.as_array().unwrap().is_empty(),
+        "expected the literal term 'near' to be found"
+    );
+}
+
+#[tokio::test]
 async fn test_search_and_static_meta_routes() {
     let (base_url, client) = setup().await;
 
