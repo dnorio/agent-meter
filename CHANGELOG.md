@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Public README badges: remove the broken links to internal Jenkins and Sonar hosts and the
+  Sonar token embedded in those URLs, which were unreachable outside the project network and
+  exposed a credential in a public file.
+
 ## [0.1.10] - 2026-10-03
 
 ### Added
