@@ -1,3 +1,8 @@
+// The OpenAPI document is built with a single `serde_json::json!` literal, and that macro expands
+// recursively: the default limit is too low for the current spec. serde_json documents this exact
+// remedy for large literals.
+#![recursion_limit = "256"]
+
 pub mod app;
 pub mod config;
 pub mod db;

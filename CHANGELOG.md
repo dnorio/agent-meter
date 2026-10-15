@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `GET /openapi.json` now describes every REST endpoint the collector mounts. Ten report and search
+  endpoints were missing, among them `/reports/calls-over-time`, `/reports/top-mcp-servers` and
+  `/api/search`, which the README already pointed at. Shared query parameters are declared once under
+  `components.parameters` and referenced from the endpoints.
+- `scripts/ci/check-openapi-coverage.sh` fails when a mounted endpoint has no entry in the spec. It
+  runs in the `cargo-test` CI job and is listed in the CONTRIBUTING validation steps, so the spec can
+  no longer drift from the router unnoticed.
+
 ## [0.1.10] - 2026-10-03
 
 ### Added

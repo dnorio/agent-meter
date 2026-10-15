@@ -34,6 +34,7 @@ cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 bash scripts/ci/check-versions.sh
+bash scripts/ci/check-openapi-coverage.sh
 bash scripts/ci/smoke-demo.sh
 bash scripts/ci/sdk-integration-smoke.sh   # after npm build + pytest deps
 ```
