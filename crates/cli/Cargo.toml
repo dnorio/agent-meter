@@ -3,6 +3,7 @@ name = "agent-meter-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "agent-meter"

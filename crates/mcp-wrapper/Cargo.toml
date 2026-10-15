@@ -3,6 +3,7 @@ name = "agent-meter-mcp-wrapper"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 tokio = { workspace = true, features = ["full"] }

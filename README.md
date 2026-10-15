@@ -54,7 +54,7 @@ irm https://raw.githubusercontent.com/dnorio/agent-meter/main/install.ps1 | iex
 
 Installs a single `agent-meter` binary to `~/.local/bin`. It downloads a
 prebuilt release binary when one is available, otherwise builds from source
-(needs [Rust](https://rustup.rs) 1.75+ and `git`). Then:
+(needs [Rust](https://rustup.rs) 1.97+ and `git`). Then:
 
 ```bash
 agent-meter demo    # see it instantly, with realistic synthetic data

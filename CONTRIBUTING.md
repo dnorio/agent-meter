@@ -25,7 +25,7 @@ cargo run -p agent-meter-collector -- demo
 cargo run -p agent-meter-collector -- serve
 ```
 
-Requirements: Rust 1.75+, optional Docker for container smoke.
+Requirements: Rust 1.97+, optional Docker for container smoke.
 
 ## Validation before opening a PR
 

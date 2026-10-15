@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Declare `rust-version = "1.97"` in the workspace manifest and in every crate, and correct the
+  documented requirement. `README.md`, `CONTRIBUTING.md` and the built-in docs page said Rust
+  `1.75+`, which no toolchain could satisfy: cargo cannot even parse the v4 `Cargo.lock` before
+  1.83, and `sqlx` 0.9 requires 1.94. Cargo now reports the real minimum up front instead of
+  failing later with an unrelated error.
+
 ## [0.1.10] - 2026-10-03
 
 ### Added
