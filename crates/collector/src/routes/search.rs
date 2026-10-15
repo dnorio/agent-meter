@@ -28,7 +28,13 @@ async fn search_handler(
     if q.is_empty() || q.len() < 2 {
         return Ok(Json(vec![]));
     }
-    let limit = params.limit.unwrap_or(20).min(50);
+    // A negative value is not a meaningful cap and would become `LIMIT -1`, which SQLite
+    // treats as "no limit"; clamp unknown/invalid values to the documented default and cap.
+    let limit = match params.limit {
+        Some(n) if n <= 0 => 20,
+        Some(n) => n.min(50),
+        None => 20,
+    };
     let results = state.db.search(q, limit).await?;
     Ok(Json(results))
 }

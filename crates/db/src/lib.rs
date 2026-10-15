@@ -27,6 +27,8 @@ pub enum DbError {
     Conflict(String),
     #[error("database error: {0}")]
     Internal(String),
+    #[error("invalid query: {0}")]
+    InvalidQuery(String),
 }
 
 impl From<sqlx::Error> for DbError {

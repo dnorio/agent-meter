@@ -172,6 +172,71 @@ fn parse_dt(s: &str) -> chrono::DateTime<chrono::Utc> {
         })
 }
 
+// ── Helpers: FTS5 search ───────────────────────────────────────────────────
+
+/// Run an FTS5 `MATCH` query and map the rows into search results.
+async fn search_fts(pool: &SqlitePool, query: &str, limit: i64) -> DbResult<Vec<SearchResultRow>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            atc.conversation_id,
+            atc.user_prompt,
+            atc.model,
+            atc.agent,
+            atc.tool_name,
+            atc.started_at,
+            'fts' AS match_field
+        FROM atc_fts fts
+        JOIN agent_tool_calls atc ON atc.id = fts.rowid
+        WHERE atc_fts MATCH ?1
+        ORDER BY fts.rank
+        LIMIT ?2
+        "#,
+    )
+    .bind(query)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .iter()
+        .map(|r| SearchResultRow {
+            conversation_id: r.get("conversation_id"),
+            user_prompt: r.get("user_prompt"),
+            model: r.get("model"),
+            agent: r.get("agent"),
+            tool_name: r.get("tool_name"),
+            started_at: r.try_get::<&str, _>("started_at").ok().map(parse_dt),
+            match_field: r.get("match_field"),
+        })
+        .collect())
+}
+
+/// FTS5 rejects a lot of input that is valid SQL but not a valid search expression:
+/// those are the caller's mistake, not a server failure. Messages are matched because
+/// SQLite reports them as text; all four shapes below were measured against SQLite FTS5:
+/// `fts5: syntax error near ")"`, `unterminated string`, `unknown special query: *`
+/// and `no such column: b` (from input like `a-b`).
+fn is_fts_query_error(err: &str) -> bool {
+    err.contains("fts5: syntax error")
+        || err.contains("unterminated string")
+        || err.contains("unknown special query")
+        || err.contains("no such column:")
+}
+
+/// Build a valid FTS5 expression from arbitrary user input: control characters are
+/// dropped, terms without alphanumerics are skipped (they hold nothing to match) and
+/// every remaining term is quoted as a phrase, escaping `"` by doubling it.
+fn quote_fts_terms(query: &str) -> String {
+    query
+        .split_whitespace()
+        .map(|term| term.chars().filter(|c| !c.is_control()).collect::<String>())
+        .filter(|term| term.chars().any(char::is_alphanumeric))
+        .map(|term| format!("\"{}\"", term.replace('"', "\"\"")))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Best-effort USD cost estimate from token counts and model name.
 ///
 /// Rates are approximate public list prices in USD per 1M tokens
@@ -1111,41 +1176,26 @@ impl Database for SqliteDb {
     }
 
     async fn search(&self, query: &str, limit: i64) -> DbResult<Vec<SearchResultRow>> {
-        // Use FTS5 for search
-        let rows = sqlx::query(
-            r#"
-            SELECT
-                atc.conversation_id,
-                atc.user_prompt,
-                atc.model,
-                atc.agent,
-                atc.tool_name,
-                atc.started_at,
-                'fts' AS match_field
-            FROM atc_fts fts
-            JOIN agent_tool_calls atc ON atc.id = fts.rowid
-            WHERE atc_fts MATCH ?1
-            ORDER BY fts.rank
-            LIMIT ?2
-            "#,
-        )
-        .bind(query)
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(rows
-            .iter()
-            .map(|r| SearchResultRow {
-                conversation_id: r.get("conversation_id"),
-                user_prompt: r.get("user_prompt"),
-                model: r.get("model"),
-                agent: r.get("agent"),
-                tool_name: r.get("tool_name"),
-                started_at: r.try_get::<&str, _>("started_at").ok().map(parse_dt),
-                match_field: r.get("match_field"),
-            })
-            .collect())
+        // FTS5 parses the MATCH argument as a query expression, so user input such as `NEAR(`
+        // or `a-b` is not a literal search for the user. Try the input as-is first (so FTS5
+        // operators keep working for power users), then retry with every term quoted, which
+        // searches the same input literally. Only when the retry fails too is the query
+        // unusable, and then it is reported as invalid so the API answers 400, not 500.
+        let first = match search_fts(&self.pool, query, limit).await {
+            Ok(rows) => return Ok(rows),
+            Err(e) => e,
+        };
+        let sanitized = quote_fts_terms(query);
+        if sanitized.is_empty() {
+            return Ok(Vec::new());
+        }
+        match search_fts(&self.pool, &sanitized, limit).await {
+            Ok(rows) => Ok(rows),
+            Err(_) => Err(match first {
+                DbError::Internal(msg) if is_fts_query_error(&msg) => DbError::InvalidQuery(msg),
+                other => other,
+            }),
+        }
     }
 
     async fn migrate(&self) -> DbResult<()> {
@@ -1276,6 +1326,67 @@ mod tests {
             .expect("sqlite memory connect");
         db.migrate().await.expect("migrate");
         db
+    }
+
+    #[test]
+    fn fts_helpers_detect_query_errors_and_quote_terms() {
+        // every message shape below was measured against SQLite FTS5
+        for msg in [
+            "error returned from database: (code: 1) fts5: syntax error near \")\"",
+            "error returned from database: (code: 1) unterminated string",
+            "error returned from database: (code: 1) unknown special query: *",
+            "error returned from database: (code: 1) no such column: b",
+        ] {
+            assert!(is_fts_query_error(msg), "should be a query error: {msg}");
+        }
+        assert!(!is_fts_query_error("database is locked"));
+        assert!(!is_fts_query_error("no such table: agent_tool_calls"));
+
+        assert_eq!(quote_fts_terms("NEAR("), "\"NEAR(\"");
+        assert_eq!(quote_fts_terms("two  terms"), "\"two\" \"terms\"");
+        assert_eq!(quote_fts_terms("say \"hi\""), "\"say\" \"\"\"hi\"\"\"");
+        // nothing searchable left: no FTS5 expression is produced
+        assert_eq!(quote_fts_terms("):("), "");
+        assert_eq!(quote_fts_terms(""), "");
+        // control characters are dropped, the word stays searchable
+        assert_eq!(quote_fts_terms("null\u{0}"), "\"null\"");
+    }
+
+    #[tokio::test]
+    async fn search_tolerates_fts5_query_syntax() {
+        let db = in_memory_db().await;
+        let mut ev = sample_event("read_file", "conv-fts-1");
+        ev.user_prompt = Some("near call in the billing module".into());
+        db.insert_tool_call(&ev).await.expect("insert");
+
+        // every shape of FTS5 query syntax must still search literally (or return empty),
+        // never fail: these are the inputs that used to reach the API as HTTP 500
+        for q in [
+            "NEAR(",
+            "):(",
+            "unbalanced\"quote",
+            "*",
+            "%00null",
+            "AND AND",
+            "a-b",
+        ] {
+            db.search(q, 10)
+                .await
+                .unwrap_or_else(|e| panic!("search {q:?} failed: {e:?}"));
+        }
+
+        let hits = db
+            .search("NEAR(", 10)
+            .await
+            .expect("search with FTS5 operator characters");
+        assert!(
+            !hits.is_empty(),
+            "quoted fallback should match the literal term 'near'"
+        );
+
+        // input with nothing to match returns empty instead of failing
+        let none = db.search("):(", 10).await.expect("search without terms");
+        assert!(none.is_empty());
     }
 
     #[tokio::test]

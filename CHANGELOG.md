@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `GET /api/search` no longer answers HTTP 500 when the query contains characters that are not
+  valid FTS5 syntax (for example `NEAR(`, `):(` or a NUL byte). The SQLite backend retries the
+  search with every term quoted — the same input still matches literally — and reports a client
+  error (`400`) instead of a server error if the query remains unusable. The Postgres backend was
+  never affected, so behaviour now matches across both backends.
+
 ## [0.1.10] - 2026-10-03
 
 ### Added
