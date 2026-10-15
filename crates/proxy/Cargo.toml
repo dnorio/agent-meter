@@ -3,6 +3,7 @@ name = "agent-meter-proxy"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 description = "Single-binary HTTPS proxy for agent-meter — captures AI IDE/CLI traffic"
 
 [[bin]]
