@@ -45,6 +45,21 @@ fn build_spec() -> Value {
                         "estimated_input_tokens": { "type": "integer" },
                         "estimated_output_tokens": { "type": "integer" }
                     }
+                },
+                "Error": {
+                    "type": "object",
+                    "required": ["error", "code"],
+                    "description": "Standard error body returned by every handler in `AppError::into_response`",
+                    "properties": {
+                        "error": {
+                            "type": "string",
+                            "description": "Human-readable error message"
+                        },
+                        "code": {
+                            "type": "integer",
+                            "description": "HTTP status code of the response"
+                        }
+                    }
                 }
             },
             "parameters": {
@@ -271,7 +286,15 @@ fn build_spec() -> Value {
                         { "$ref": "#/components/parameters/Limit" }
                     ],
                     "responses": {
-                        "200": { "description": "Matching rows, or an empty list when the query holds no searchable term" }
+                        "200": { "description": "Matching rows, or an empty list when the query holds no searchable term" },
+                        "400": {
+                            "description": "The search expression is invalid FTS5 syntax and could not be parsed",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/Error" }
+                                }
+                            }
+                        }
                     }
                 }
             },
