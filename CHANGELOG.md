@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `install.sh` and `install.ps1` now check the installed Rust toolchain against the required
+  minimum (1.97+) and fail fast with an actionable message instead of starting a build that will
+  not compile.
 - Declare `rust-version = "1.97"` in the workspace manifest and in every crate, and correct the
   documented requirement. `README.md`, `CONTRIBUTING.md` and the built-in docs page said Rust
   `1.75+`, which no toolchain could satisfy: cargo cannot even parse the v4 `Cargo.lock` before

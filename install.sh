@@ -126,6 +126,14 @@ build_from_source() {
     info "then re-run this installer."
     exit 1
   fi
+  # The workspace requires Rust 1.97+ (see rust-version in Cargo.toml).
+  cargo_version=$(cargo --version 2>/dev/null | awk '{print $2}' | cut -d. -f1,2)
+  if [ "$(printf '%s\n' "1.97" "$cargo_version" | sort -V | head -n1)" != "1.97" ]; then
+    err "Rust 1.97+ is required, but $(cargo --version 2>/dev/null || echo 'unknown') was found."
+    info "Update Rust with:  rustup update"
+    info "or install it from: https://rustup.rs"
+    exit 1
+  fi
   if ! command -v git >/dev/null 2>&1; then
     err "git is required to build from source."
     exit 1

@@ -79,6 +79,14 @@ function Build-FromSource {
         Write-Host "    Install it from https://rustup.rs and re-run this installer."
         exit 1
     }
+    # The workspace requires Rust 1.97+ (see rust-version in Cargo.toml).
+    $cargoVersion = ((cargo --version).Split()[1] -split '\.')[0,1] -join '.'
+    if ([version]$cargoVersion -lt [version]'1.97') {
+        Write-Host "Error: Rust 1.97+ is required, but $(cargo --version) was found." -ForegroundColor Red
+        Write-Host "    Update Rust with: rustup update"
+        Write-Host "    Or install it from https://rustup.rs"
+        exit 1
+    }
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Host "Error: git is required to build from source." -ForegroundColor Red
         exit 1
